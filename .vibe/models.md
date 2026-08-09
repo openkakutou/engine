@@ -27,3 +27,25 @@ Defined in: `match/state.go`
 | Y | `float64` | |
 Both are plain value types with a valid, usable zero value (`{0, 0}`).
 Defined in: `match/state.go`
+
+## Context
+| Field | Type | Notes |
+|---|---|---|
+| FighterState (embedded) | `match.FighterState` | Gives access to `StateNo` and the other item-001 fields |
+| Time | `int` | Ticks elapsed since entering the current `StateNo`; populated by future state-machine execution (item 003) |
+| Ctrl | `bool` | Whether the fighter currently has control |
+| Anim | `int` | Current animation number |
+| AnimTime | `int` | Ticks elapsed since `Anim` started playing |
+| Vars | `[60]int` | MUGEN general-purpose variable slots, indexed by `var(n)`; unset index reads as 0 |
+| SysVars | `[5]int` | MUGEN system variable slots, indexed by `sysvar(n)`; unset index reads as 0 |
+| ActiveCommands | `map[string]bool` | Command names currently recognized as held/triggered, checked by the `Command` trigger; a nil map reads every command as inactive |
+Zero value is valid and usable (reads as a fighter that just entered state 0 with no input). See `.vibe/decisions/002` for why this is a separate type from `match.FighterState`.
+Defined in: `evaluator/context.go`
+
+## Value / Kind
+| Field | Type | Notes |
+|---|---|---|
+| Kind | `Kind` (int enum: `KindBool`, `KindInt`, `KindFloat`) | What produced the value — a comparison/logical op, an int literal/arithmetic, or a float literal/arithmetic |
+| Number | `float64` | The value itself; a bool is stored as 1 or 0 |
+`Bool()`, `Float()`, `Int()` expose `Number` as the type a caller needs, matching MUGEN's loose typing (`true` = `1`, `3` = `3.0`).
+Defined in: `evaluator/eval.go`

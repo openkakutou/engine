@@ -1,0 +1,43 @@
+; Trigger strings representative of real MUGEN/Ikemen GO character .cns
+; files: these forms (Command redirects, Ctrl, Time/AnimTime idioms,
+; var()/sysvar(), IfElse(), and StateType) appear near-verbatim across
+; virtually every character built on MUGEN/Ikemen GO's standard state
+; library, including the community's long-standing public sample
+; character, Kung Fu Man. Used here purely as fixture input strings for
+; the trigger evaluator (engine/evaluator), not as a full character
+; definition.
+
+[State 0, ChangeState]
+type = ChangeState
+trigger1 = Command = "holdback"
+trigger1 = Ctrl
+value = 10
+
+[State 0, StandToCrouch]
+type = ChangeState
+trigger1 = Command = "holddown"
+trigger2 = !Time
+value = 11
+
+[State 200, AttackRecovery]
+type = ChangeState
+trigger1 = AnimTime = 0
+trigger1 = StateNo = 200
+value = 0
+
+[State 0, VarCheck]
+type = Null
+trigger1 = var(0) = 0
+trigger2 = sysvar(0) != 1
+
+[State 0, IfElseCheck]
+type = Null
+trigger1 = IfElse(Ctrl, 1, 0) = 1
+
+[State 0, UnsupportedRealTrigger]
+; StateType (checking S/C/A/L) is genuine, ubiquitous MUGEN trigger
+; syntax that this item deliberately does not implement yet (not in its
+; "at minimum" built-in list) -- used below to prove unknown-but-real
+; triggers fail descriptively instead of silently evaluating.
+type = Null
+trigger1 = StateType != A

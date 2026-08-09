@@ -6,10 +6,10 @@ A Go library implementing the combat simulation for OpenKakutou fighting games �
 This project is early-stage. Available now:
 
 - Match/combat state model — each fighter's position, facing, movement, and current state, plus the round number and round timer, as the live state a match is played out on
+- Trigger/expression evaluator for MUGEN CNS syntax — comparisons, boolean/arithmetic operators, and built-in triggers (`Time`, `Ctrl`, `Anim`, `Command`, `var()`, `sysvar()`, `IfElse`, and more to come) evaluated against a fighter's live state, with a clear error instead of a wrong or default result for malformed or unsupported expressions
 
 Planned:
 
-- Trigger/expression evaluator for MUGEN CNS syntax — comparisons, arithmetic, built-in functions (`IfElse`, `var()`, etc.) evaluated against live match state
 - State machine execution — StateDef/Controller interpretation driving state transitions, built on the evaluator
 - `.zss` script execution — Ikemen GO's Lua-like state scripts
 - Physics and movement — velocity, gravity, ground/air state, stage-boundary clamping
@@ -70,5 +70,31 @@ func main() {
 }
 ```
 
-Usage examples will grow here as the trigger evaluator, state machine execution, and the rest of the backlog are implemented.
+Parse and evaluate a MUGEN CNS trigger expression from the `evaluator` package:
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/openkakutou/engine/evaluator"
+)
+
+func main() {
+	ctx := evaluator.Context{
+		Ctrl:           true,
+		ActiveCommands: map[string]bool{"holdback": true},
+	}
+
+	result, err := evaluator.Evaluate(`Command = "holdback" && Ctrl`, ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(result.Bool()) // true
+}
+```
+
+Usage examples will grow here as state machine execution and the rest of the backlog are implemented.
 <!-- vibe:end:usage -->

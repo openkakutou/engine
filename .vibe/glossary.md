@@ -17,3 +17,13 @@ _Sources: `match/state.go`_
 ## Facing
 The horizontal direction a fighter currently faces — `FacingRight` or `FacingLeft`.
 _Sources: `match/state.go`_
+
+## Trigger
+A MUGEN CNS expression — comparisons, boolean/arithmetic operators, and built-in names such as `Time`, `Ctrl`, or `Command` — checked against a fighter's live state to decide whether a state controller should act. `character/cns` stores triggers as unevaluated strings (`Controller.Triggers`); `engine/evaluator` is where a trigger string is parsed and evaluated to its actual bool/int/float result.
+**Do not confuse with:** Command (one specific trigger, checking recognized input rather than fighter state).
+_Sources: `evaluator/parser.go`, `evaluator/eval.go`_
+
+## Command (input)
+A named input pattern (e.g. `"holdback"`) that a fighter's currently recognized/held inputs are checked against by the `Command` trigger (`Command = "holdback"`). Real input-buffer matching against `.cmd` command definitions is future work (item 008); until then, the set of currently-recognized command names is supplied directly as `Context.ActiveCommands`.
+**Do not confuse with:** Trigger (the general expression category `Command` is one specific instance of).
+_Sources: `evaluator/eval.go`, `evaluator/context.go`_

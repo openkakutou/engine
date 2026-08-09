@@ -2,17 +2,20 @@
 
 # Architecture
 
-`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Only two exist so far:
+`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Three exist so far:
 
 ```mermaid
 graph LR
     root["engine (root)<br/>module skeleton — Version const"]
     match["engine/match<br/>MatchState / FighterState<br/>pure-data model"]
+    evaluator["engine/evaluator<br/>MUGEN CNS trigger parser + evaluator"]
+
+    evaluator -->|embeds| match
 ```
 
 ## `engine` (root)
 
-The module's entry point. Currently a skeleton exposing only `Version` (a `const string`). As later backlog items land (trigger evaluator, state machine, `.zss` execution, physics, hit detection, damage/combo, input, round/match flow), the root package is expected to stay a thin assembly point over the sub-packages, not accumulate logic itself.
+The module's entry point. Currently a skeleton exposing only `Version` (a `const string`). As later backlog items land (state machine, `.zss` execution, physics, hit detection, damage/combo, input, round/match flow), the root package is expected to stay a thin assembly point over the sub-packages, not accumulate logic itself.
 
 ## `engine/match`
 
@@ -26,6 +29,15 @@ Defines the pure-data model for the live state of a match while two characters f
 
 This package carries no evaluation, execution, or simulation logic — every other `engine` package (trigger evaluator, state machine, physics, hit detection, damage/combo, round flow) is expected to read from and write to `match.MatchState`/`match.FighterState` as its shared data source, per the dependency order in the backlog.
 
+## `engine/evaluator`
+
+Parses and evaluates MUGEN CNS trigger/expression strings — the raw `Controller.Triggers`/`Controller.Parameters` strings that `character/cns` deliberately leaves unevaluated (see that package's decision 011).
+
+- **Lexer** (`lex`) — tokenizes an expression string: numbers, double-quoted strings, identifiers (trigger/function names, allowing dotted names like `Vel.X` for forward compatibility), parentheses, commas, and operators (multi-character operators such as `!=`, `<=`, `>=`, `&&`, `||` are matched before their single-character prefixes).
+- **Parser** (`Parse`) — a recursive-descent parser building an AST (`node` and its variants in `ast.go`), honoring MUGEN's operator precedence from lowest to highest: `||`, `&&`, comparisons (`=`, `!=`, `<`, `>`, `<=`, `>=`), additive (`+`, `-`), multiplicative (`*`, `/`, `%`), then unary (`!`, `-`). Returns a descriptive error — never a panic — for empty, unbalanced, or otherwise malformed input.
+- **Context** — the per-fighter, per-tick data an expression is evaluated against. It embeds `match.FighterState` (for `StateNo` and friends) and adds runtime fields that item 001 doesn't model yet: `Time`, `Ctrl`, `Anim`, `AnimTime`, `Vars`/`SysVars` (MUGEN's general-purpose/system variable slots), and `ActiveCommands` (the input-command redirect used by the `Command` trigger). See `.vibe/decisions/002` for why this is a separate type rather than an extension of `FighterState`.
+- **Eval** (`Expression.Eval`, and the `Evaluate` convenience that parses and evaluates in one call) — walks the AST against a `Context`, returning a `Value` (`Kind`: `KindBool`/`KindInt`/`KindFloat`, plus a `Number` float64) that follows MUGEN's loose typing (e.g. `true` and `1` compare equal, `3` and `3.0` compare equal). Built-in triggers currently supported: `Time`, `StateNo`, `Anim`, `AnimTime`, `Ctrl`, `Command` (only in the `Command = "name"` / `Command != "name"` form), `var(n)`, `sysvar(n)`, and `IfElse(cond, a, b)`. An unknown trigger/function name, a wrong argument count, an out-of-range `var`/`sysvar` index, or a bare string literal used outside a `Command` comparison all return a descriptive error rather than a panic or a silently wrong value. The built-in set is meant to grow incrementally as later items (state machine execution, hit detection, ...) need more of MUGEN's trigger vocabulary — it does not aim to be exhaustive yet.
+
 ## Data flow (expected, as later packages land)
 
 ```mermaid
@@ -33,15 +45,17 @@ flowchart LR
     character["character package<br/>(StateDef, Controller — read-only)"]
     stage["stage package<br/>(boundaries — read-only)"]
     matchpkg["engine/match<br/>MatchState / FighterState"]
-    evaluator["evaluator (planned)"]
+    evaluatorpkg["engine/evaluator<br/>trigger parser + evaluator"]
     statemachine["state machine (planned)"]
     physics["physics (planned)"]
 
+    character -->|Controller.Triggers strings| evaluatorpkg
     character -->|StateDef data| statemachine
     stage -->|boundary data| physics
-    matchpkg <-->|reads / writes| evaluator
+    matchpkg -->|embedded in Context| evaluatorpkg
+    evaluatorpkg -->|evaluated trigger results| statemachine
     matchpkg <-->|reads / writes| statemachine
     matchpkg <-->|reads / writes| physics
 ```
 
-`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick.
+`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/evaluator` does not yet depend on `character` as a Go module — it is exercised in its own tests against realistic MUGEN/Ikemen GO trigger-string fixtures; state-machine execution (item 003) is expected to be the first consumer that actually feeds it `Controller.Triggers` values from a parsed `.cns` file.
