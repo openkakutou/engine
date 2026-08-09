@@ -42,7 +42,7 @@ go get -u github.com/openkakutou/engine
 <!-- vibe:end:install -->
 
 <!-- vibe:begin:docs-index -->
-- [docs/architecture.md](docs/architecture.md) — how the root package, `engine/match`, and `engine/evaluator` fit together, and the data flow expected as later packages land
+- [docs/architecture.md](docs/architecture.md) — how the root package, `engine/match`, `engine/evaluator`, and `engine/statemachine` fit together, and the data flow expected as later packages land
 <!-- vibe:end:docs-index -->
 
 <!-- vibe:begin:usage -->

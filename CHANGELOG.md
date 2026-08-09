@@ -6,9 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-09
+
 ### Added
 
 - The engine can now drive a fighter through its character's state definitions — checking each state's conditions in order, applying variable updates and state changes for whichever conditions are met, and reporting a clear error if a state change targets a state that doesn't exist.
+
+### Fixed
+
+- Removed a leftover local dependency override that would have prevented anyone outside this workspace from building against this module; it now resolves the `character` dependency the standard way, from its published releases.
 
 ## [0.2.0] - 2026-08-09
 
@@ -22,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/openkakutou/engine/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/openkakutou/engine/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/openkakutou/engine/releases/tag/v0.1.0
