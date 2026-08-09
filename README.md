@@ -7,10 +7,10 @@ This project is early-stage. Available now:
 
 - Match/combat state model — each fighter's position, facing, movement, and current state, plus the round number and round timer, as the live state a match is played out on
 - Trigger/expression evaluator for MUGEN CNS syntax — comparisons, boolean/arithmetic operators, and built-in triggers (`Time`, `Ctrl`, `Anim`, `Command`, `var()`, `sysvar()`, `IfElse`, and more to come) evaluated against a fighter's live state, with a clear error instead of a wrong or default result for malformed or unsupported expressions
+- State machine execution — drives a fighter through its character's defined states each simulation tick: checks every condition attached to the current state in order, applies the state changes and variable updates for whichever ones are met, and reports a clear error if a state change targets a state that doesn't exist
 
 Planned:
 
-- State machine execution — StateDef/Controller interpretation driving state transitions, built on the evaluator
 - `.zss` script execution — Ikemen GO's Lua-like state scripts
 - Physics and movement — velocity, gravity, ground/air state, stage-boundary clamping
 - Hit detection — Clsn (collision box) hit/hurt box resolution
@@ -96,5 +96,48 @@ func main() {
 }
 ```
 
-Usage examples will grow here as state machine execution and the rest of the backlog are implemented.
+Drive a fighter's current state forward one simulation tick with the `statemachine` package:
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/openkakutou/character/cns"
+	"github.com/openkakutou/engine/evaluator"
+	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/statemachine"
+)
+
+func main() {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				{
+					Type:       "ChangeState",
+					Triggers:   []string{`Command = "holdfwd"`},
+					Parameters: map[string]string{"value": "20"},
+				},
+			},
+		},
+		20: {Number: 20},
+	}
+
+	ctx := evaluator.Context{
+		FighterState:   match.FighterState{StateNo: 0},
+		ActiveCommands: map[string]bool{"holdfwd": true},
+	}
+
+	result, err := statemachine.Step(ctx, states)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(result.Context.StateNo) // 20
+}
+```
+
+Usage examples will grow here as `.zss` script execution and the rest of the backlog are implemented.
 <!-- vibe:end:usage -->

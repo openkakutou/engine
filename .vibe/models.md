@@ -49,3 +49,11 @@ Defined in: `evaluator/context.go`
 | Number | `float64` | The value itself; a bool is stored as 1 or 0 |
 `Bool()`, `Float()`, `Int()` expose `Number` as the type a caller needs, matching MUGEN's loose typing (`true` = `1`, `3` = `3.0`).
 Defined in: `evaluator/eval.go`
+
+## Result
+| Field | Type | Notes |
+|---|---|---|
+| Context | `evaluator.Context` | The fighter's context after applying every controller that triggered true during one `Step` call |
+| Applied | `[]int` | Declared-order indices, into the current state's `Controllers` slice, of every controller whose trigger conditions evaluated true this call — present even if the controller's type has no implemented effect |
+Returned by: `Step(ctx evaluator.Context, states map[int]cns.StateDef) (Result, error)`
+Defined in: `statemachine/statemachine.go`

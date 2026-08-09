@@ -23,6 +23,11 @@ A MUGEN CNS expression — comparisons, boolean/arithmetic operators, and built-
 **Do not confuse with:** Command (one specific trigger, checking recognized input rather than fighter state).
 _Sources: `evaluator/parser.go`, `evaluator/eval.go`_
 
+## State controller
+A single conditional action defined within one of a character's states (a `cns.Controller`, e.g. a state change or a variable assignment): while its state is active, its trigger is checked every simulation tick, and its effect is applied only when that trigger holds. `engine/statemachine` evaluates a state's controllers in the order the character file declares them, applying each one that triggers true and updating the fighter's live context as it goes, so a later controller in the same tick can observe an earlier one's effect. Once a controller changes the fighter's current state, no further controller in that state runs for the rest of that tick.
+**Do not confuse with:** Trigger (the condition a state controller is gated on, not the action itself).
+_Sources: `statemachine/statemachine.go`_
+
 ## Command (input)
 A named input pattern (e.g. `"holdback"`) that a fighter's currently recognized/held inputs are checked against by the `Command` trigger (`Command = "holdback"`). Real input-buffer matching against `.cmd` command definitions is future work (item 008); until then, the set of currently-recognized command names is supplied directly as `Context.ActiveCommands`.
 **Do not confuse with:** Trigger (the general expression category `Command` is one specific instance of).

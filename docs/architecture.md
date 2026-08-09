@@ -2,15 +2,19 @@
 
 # Architecture
 
-`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Three exist so far:
+`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Four exist so far:
 
 ```mermaid
 graph LR
     root["engine (root)<br/>module skeleton — Version const"]
     match["engine/match<br/>MatchState / FighterState<br/>pure-data model"]
     evaluator["engine/evaluator<br/>MUGEN CNS trigger parser + evaluator"]
+    statemachine["engine/statemachine<br/>StateDef/Controller execution loop"]
+    cns["character/cns<br/>StateDef / Controller<br/>(read-only, external module)"]
 
     evaluator -->|embeds| match
+    statemachine -->|evaluates triggers via| evaluator
+    statemachine -->|reads| cns
 ```
 
 ## `engine` (root)
@@ -38,6 +42,14 @@ Parses and evaluates MUGEN CNS trigger/expression strings — the raw `Controlle
 - **Context** — the per-fighter, per-tick data an expression is evaluated against. It embeds `match.FighterState` (for `StateNo` and friends) and adds runtime fields that item 001 doesn't model yet: `Time`, `Ctrl`, `Anim`, `AnimTime`, `Vars`/`SysVars` (MUGEN's general-purpose/system variable slots), and `ActiveCommands` (the input-command redirect used by the `Command` trigger). See `.vibe/decisions/002` for why this is a separate type rather than an extension of `FighterState`.
 - **Eval** (`Expression.Eval`, and the `Evaluate` convenience that parses and evaluates in one call) — walks the AST against a `Context`, returning a `Value` (`Kind`: `KindBool`/`KindInt`/`KindFloat`, plus a `Number` float64) that follows MUGEN's loose typing (e.g. `true` and `1` compare equal, `3` and `3.0` compare equal). Built-in triggers currently supported: `Time`, `StateNo`, `Anim`, `AnimTime`, `Ctrl`, `Command` (only in the `Command = "name"` / `Command != "name"` form), `var(n)`, `sysvar(n)`, and `IfElse(cond, a, b)`. An unknown trigger/function name, a wrong argument count, an out-of-range `var`/`sysvar` index, or a bare string literal used outside a `Command` comparison all return a descriptive error rather than a panic or a silently wrong value. The built-in set is meant to grow incrementally as later items (state machine execution, hit detection, ...) need more of MUGEN's trigger vocabulary — it does not aim to be exhaustive yet.
 
+## `engine/statemachine`
+
+Drives a fighter's state transitions by interpreting `character/cns`'s `StateDef`/`Controller` data (read-only; `engine` depends on the `character` module, currently via a local `replace` directive to the sibling checkout since it is not yet resolvable through the Go module proxy in this environment) with `engine/evaluator`.
+
+- **`Step(ctx evaluator.Context, states map[int]cns.StateDef) (Result, error)`** — the whole package's entry point. Looks up `ctx.StateNo` in `states`, then evaluates that `StateDef`'s controllers in declared order: a controller's trigger strings are combined with logical AND (see `.vibe/decisions/003` — `character/cns`'s `Controller.Triggers` does not retain which `triggerN` group each string came from, so MUGEN's full group-based OR/AND semantics cannot be reconstructed), and every controller whose combined trigger evaluates true is applied, mutating a working `Context` so a later controller in the same call can observe an earlier one's effect.
+- **Implemented controller types** — `ChangeState` (updates `StateNo` to the `value` parameter's evaluated target, validated against `states`, and resets `Time` to 0 — see `.vibe/decisions/004` for why `Step` does not also auto-increment `Time` on every call) and `VarSet` (evaluates the `v` and `value` parameters and assigns `Context.Vars[v] = value`). Matching real MUGEN/Ikemen behavior, `Step` stops evaluating further controllers as soon as a `ChangeState` applies. A controller of any other type is recorded in `Result.Applied` when its trigger evaluates true, but has no effect — full MUGEN controller-type coverage is expected to grow via later items, not this one.
+- **`Result`** — the updated `Context` plus `Applied`, the declared-order indices of every controller whose trigger evaluated true this call, regardless of whether its type is implemented.
+
 ## Data flow (expected, as later packages land)
 
 ```mermaid
@@ -46,16 +58,16 @@ flowchart LR
     stage["stage package<br/>(boundaries — read-only)"]
     matchpkg["engine/match<br/>MatchState / FighterState"]
     evaluatorpkg["engine/evaluator<br/>trigger parser + evaluator"]
-    statemachine["state machine (planned)"]
+    statemachinepkg["engine/statemachine<br/>StateDef/Controller execution loop"]
     physics["physics (planned)"]
 
     character -->|Controller.Triggers strings| evaluatorpkg
-    character -->|StateDef data| statemachine
+    character -->|StateDef data| statemachinepkg
     stage -->|boundary data| physics
     matchpkg -->|embedded in Context| evaluatorpkg
-    evaluatorpkg -->|evaluated trigger results| statemachine
-    matchpkg <-->|reads / writes| statemachine
+    evaluatorpkg -->|evaluated trigger results| statemachinepkg
+    matchpkg <-->|reads / writes| statemachinepkg
     matchpkg <-->|reads / writes| physics
 ```
 
-`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/evaluator` does not yet depend on `character` as a Go module — it is exercised in its own tests against realistic MUGEN/Ikemen GO trigger-string fixtures; state-machine execution (item 003) is expected to be the first consumer that actually feeds it `Controller.Triggers` values from a parsed `.cns` file.
+`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/statemachine` is the first `engine` package to actually depend on `character` as a Go module, feeding it real `Controller.Triggers`/`Controller.Parameters` values from a parsed `.cns` file.

@@ -6,13 +6,15 @@
 - [`modules/root.md`](modules/root.md) — entry point; module skeleton only, no combat simulation functionality yet
 - [`modules/match.md`](modules/match.md) — pure-data match/combat state model: `MatchState`, `FighterState`, `Side`, `Facing`, `Position`, `Velocity`, and the validating `NewMatchState` constructor
 - [`modules/evaluator.md`](modules/evaluator.md) — MUGEN CNS trigger/expression parser and evaluator: `Parse`/`Eval`/`Evaluate`, `Context` (wraps `match.FighterState`), `Value`/`Kind`
+- [`modules/statemachine.md`](modules/statemachine.md) — StateDef/Controller execution loop: `Step` interprets a fighter's current state's controllers against `evaluator.Context`, applying `ChangeState`/`VarSet` effects in declared order
 
 ## Observed patterns
-- Root package (`engine`) is meant to stay a thin assembly point as format-specific-equivalent sub-packages (state model, evaluator, state machine, `.zss` execution, physics, hit detection, damage/combo, input, round/match flow) are added incrementally, per the backlog's dependency order; `match/` and `evaluator/` are the first two to land.
-- Tests are co-located with source as `*_test.go`, one behavior per test function, named `Test<Type>_<Condition>_<Expectation>` (mirrors `character`'s convention); tests use the internal `package evaluator`/`package match` form (not `_test` suffix) since they exercise unexported helpers (lexer, parser internals) alongside the public API.
+- Root package (`engine`) is meant to stay a thin assembly point as format-specific-equivalent sub-packages (state model, evaluator, state machine, `.zss` execution, physics, hit detection, damage/combo, input, round/match flow) are added incrementally, per the backlog's dependency order; `match/`, `evaluator/`, and `statemachine/` are the first three to land.
+- Tests are co-located with source as `*_test.go`, one behavior per test function, named `Test<Type>_<Condition>_<Expectation>` (mirrors `character`'s convention); tests use the internal `package evaluator`/`package match`/`package statemachine` form (not `_test` suffix) since they exercise unexported helpers alongside the public API.
 - A package exposing a fixed-cardinality collection (here, `MatchState`'s two fighters) pairs a plain, panic-free zero value with a separate validating constructor (`NewMatchState`) rather than only exposing the raw field — centralizing the "exactly N, one per key" invariant in one place instead of pushing it onto every consumer. See `.vibe/decisions/001`.
 - When a package needs runtime data that an earlier, already-closed item's data model doesn't carry yet, it introduces its own wrapper type (e.g. `evaluator.Context` embedding `match.FighterState`) rather than reopening that item's model — keeps closed items' APIs and existing struct-equality comparisons stable. See `.vibe/decisions/002`.
-- Fixture-driven tests read realistic MUGEN/Ikemen GO `.cns`-style trigger strings from a `testdata/` file rather than hand-writing expressions inline, mirroring `character/cns`'s own testdata convention, even before `engine` takes on a real cross-module dependency on `character`.
+- Fixture-driven tests read realistic MUGEN/Ikemen GO `.cns`-style trigger strings/blocks from a `testdata/` file rather than hand-writing them inline, mirroring `character/cns`'s own testdata convention (`evaluator/testdata/kfm_triggers.cns`, `statemachine/testdata/kfm_idle.cns`).
+- `engine` depends on `character` as a real Go module (first taken on by `statemachine/`) via a local `replace` directive to the sibling checkout in `go.mod`, since the module is not yet resolvable through the Go module proxy in this environment.
 
 ## Other context files
 - [`models.md`](models.md) — data models

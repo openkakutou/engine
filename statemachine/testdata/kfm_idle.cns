@@ -1,0 +1,37 @@
+; Idle (Standing) state fixture, styled after MUGEN's classic Kung Fu Man
+; sample character's Statedef 0 -- used by statemachine tests exercising a
+; real character's idle state and its real state-transition targets,
+; rather than synthetic data invented for this test suite alone.
+
+[Statedef 0, Standing]
+type            = S
+movetype        = I
+physics         = S
+anim            = 0
+ctrl            = 1
+
+[State 0, ChangeState to Crouch]
+type = ChangeState
+trigger1 = Command = "holddown"
+value = 11
+
+[State 0, ChangeState to Walk]
+type = ChangeState
+trigger1 = Command = "holdfwd"
+value = 20
+
+[State 0, MarkEnteredIdle]
+type = VarSet
+trigger1 = Time = 0
+v = 0
+value = 1
+
+[Statedef 11, Crouch]
+type = C
+movetype = I
+physics = C
+
+[Statedef 20, Walk]
+type = S
+movetype = I
+physics = S
