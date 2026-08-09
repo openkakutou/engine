@@ -16,3 +16,5 @@ Implement per-tick physics for a fighter: velocity integration, gravity while ai
 
 ## Notes
 Cross-repo: needs `stage`'s boundary/camera data (read-only). Confirm `stage`'s current API surface for exposing this before implementation.
+
+Per the roadmap's `.vibe/decisions/014`, `stage` may by then also expose a Z-axis extension of `StageBoundaries` (Ikemen GO 3D model-based stages). If so, confirm whether/how it applies here against `stage`'s API surface at implementation time — this item doesn't commit to Z-axis clamping today, just flags it so the information isn't lost.
