@@ -3,11 +3,12 @@
 A Go library implementing the combat simulation for OpenKakutou fighting games — state execution, physics, hit detection, damage, and round flow — built as part of the [OpenKakutou](https://github.com/openkakutou) project — an open-source alternative to Fighter Factory Studio / Ikemen GO.
 
 <!-- vibe:begin:features -->
-This project is early-stage. No functionality yet.
+This project is early-stage. Available now:
+
+- Match/combat state model — each fighter's position, facing, movement, and current state, plus the round number and round timer, as the live state a match is played out on
 
 Planned:
 
-- Match/combat state model — fighters, round/timer, position, facing
 - Trigger/expression evaluator for MUGEN CNS syntax — comparisons, arithmetic, built-in functions (`IfElse`, `var()`, etc.) evaluated against live match state
 - State machine execution — StateDef/Controller interpretation driving state transitions, built on the evaluator
 - `.zss` script execution — Ikemen GO's Lua-like state scripts
@@ -40,8 +41,12 @@ go get -u github.com/openkakutou/engine
 ```
 <!-- vibe:end:install -->
 
+<!-- vibe:begin:docs-index -->
+- [docs/architecture.md](docs/architecture.md) — how the root package and `engine/match` fit together, and the data flow expected as later packages land
+<!-- vibe:end:docs-index -->
+
 <!-- vibe:begin:usage -->
-This library is early-stage and does not yet expose any functionality beyond its version:
+Build a match's live state from the `match` package:
 
 ```go
 package main
@@ -49,13 +54,21 @@ package main
 import (
 	"fmt"
 
-	"github.com/openkakutou/engine"
+	"github.com/openkakutou/engine/match"
 )
 
 func main() {
-	fmt.Println(engine.Version)
+	p1 := match.FighterState{Side: match.SideP1, Position: match.Position{X: -50}, Facing: match.FacingRight, Health: 1000}
+	p2 := match.FighterState{Side: match.SideP2, Position: match.Position{X: 50}, Facing: match.FacingLeft, Health: 1000}
+
+	ms, err := match.NewMatchState(1, 5940, p1, p2)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(ms.Fighter(match.SideP1).Health) // 1000
 }
 ```
 
-Usage examples will grow here as the match/combat state model, trigger evaluator, and the rest of the backlog are implemented.
+Usage examples will grow here as the trigger evaluator, state machine execution, and the rest of the backlog are implemented.
 <!-- vibe:end:usage -->
