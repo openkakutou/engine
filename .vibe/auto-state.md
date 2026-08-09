@@ -1,9 +1,7 @@
 ---
-status: running
+status: idle
 started: 2026-08-09T15:00
 limit: 1
-current: 003
-attempt: 1
 ---
 # Auto run journal
 
@@ -15,3 +13,4 @@ attempt: 1
 - 002 — feature — done (93dad67)
 
 ## 2026-08-09T15:00 — run started (limit: 1)
+- 003 — feature — done (5ba8d28; fixed up in 34e0568: dropped an unneeded local `replace` directive for `character` the implementing agent had left in `go.mod`)
