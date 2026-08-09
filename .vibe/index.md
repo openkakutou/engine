@@ -14,7 +14,7 @@
 - A package exposing a fixed-cardinality collection (here, `MatchState`'s two fighters) pairs a plain, panic-free zero value with a separate validating constructor (`NewMatchState`) rather than only exposing the raw field — centralizing the "exactly N, one per key" invariant in one place instead of pushing it onto every consumer. See `.vibe/decisions/001`.
 - When a package needs runtime data that an earlier, already-closed item's data model doesn't carry yet, it introduces its own wrapper type (e.g. `evaluator.Context` embedding `match.FighterState`) rather than reopening that item's model — keeps closed items' APIs and existing struct-equality comparisons stable. See `.vibe/decisions/002`.
 - Fixture-driven tests read realistic MUGEN/Ikemen GO `.cns`-style trigger strings/blocks from a `testdata/` file rather than hand-writing them inline, mirroring `character/cns`'s own testdata convention (`evaluator/testdata/kfm_triggers.cns`, `statemachine/testdata/kfm_idle.cns`).
-- `engine` depends on `character` as a real Go module (first taken on by `statemachine/`) via a local `replace` directive to the sibling checkout in `go.mod`, since the module is not yet resolvable through the Go module proxy in this environment.
+- `engine` depends on `character` as a real Go module (first taken on by `statemachine/`), resolved through the standard Go module proxy against `character`'s tagged releases — no local `replace` directive needed.
 
 ## Other context files
 - [`models.md`](models.md) — data models
