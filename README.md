@@ -8,6 +8,7 @@ This project is early-stage. Available now:
 - Match/combat state model — each fighter's position, facing, movement, and current state, plus the round number and round timer, as the live state a match is played out on
 - Trigger/expression evaluator for MUGEN CNS syntax — comparisons, boolean/arithmetic operators, and built-in triggers (`Time`, `Ctrl`, `Anim`, `Command`, `var()`, `sysvar()`, `IfElse`, and more to come) evaluated against a fighter's live state, with a clear error instead of a wrong or default result for malformed or unsupported expressions
 - State machine execution — drives a fighter through its character's defined states each simulation tick: checks every condition attached to the current state in order, applies the state changes and variable updates for whichever ones are met, and reports a clear error if a state change targets a state that doesn't exist
+- Input reading and command matching — recognizes a character's special-move motions (e.g. quarter-circle-forward + punch) from raw per-tick input, within the timing window the character's own command file declares, correctly rejecting a close-but-incomplete motion and forgetting one started too long ago; a recognized motion becomes available to the combat-logic conditions that check for it
 
 Planned:
 
@@ -15,7 +16,6 @@ Planned:
 - Physics and movement — velocity, gravity, ground/air state, stage-boundary clamping
 - Hit detection — Clsn (collision box) hit/hurt box resolution
 - Damage/health and combo system — hit results applied as damage, health, and combo-count state
-- Input reading and command matching — raw input matched against `.cmd` command definitions
 - Round/match flow, WASM entrypoint, integration tests — win conditions (KO, timeout), round reset, match-level flow, WASM build, fixture-driven integration tests
 
 **Scope boundary:** `engine` is combat simulation only — the simulation that runs while two characters fight. It does not cover menus, character selection, or overall game flow; those are the responsibility of `mode-*` game apps (starting with `mode-quick-versus`), which consume `engine` rather than the other way around. See `github.com/openkakutou/roadmap`'s `.vibe/decisions/004` and `.vibe/decisions/008`.
@@ -42,7 +42,7 @@ go get -u github.com/openkakutou/engine
 <!-- vibe:end:install -->
 
 <!-- vibe:begin:docs-index -->
-- [docs/architecture.md](docs/architecture.md) — how the root package, `engine/match`, `engine/evaluator`, and `engine/statemachine` fit together, and the data flow expected as later packages land
+- [docs/architecture.md](docs/architecture.md) — how the root package, `engine/match`, `engine/evaluator`, `engine/statemachine`, and `engine/input` fit together, and the data flow expected as later packages land
 <!-- vibe:end:docs-index -->
 
 <!-- vibe:begin:usage -->
@@ -138,6 +138,43 @@ func main() {
 	fmt.Println(result.Context.StateNo) // 20
 }
 ```
+
+Recognize a character's command-file motions from raw per-tick input with the `input` package:
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/openkakutou/character/cmd"
+	"github.com/openkakutou/engine/input"
+	"github.com/openkakutou/engine/match"
+)
+
+func main() {
+	commands := cmd.CommandFile{
+		Defaults: cmd.CommandDefaults{Time: 15, BufferTime: 1},
+		Commands: []cmd.Command{{Name: "QCF_a", Input: "~D, DF, F, a"}},
+	}
+
+	var state input.State
+	var active map[string]bool
+	ticks := []input.TickInput{
+		{Down: true},
+		{Down: true, Right: true},
+		{Right: true},
+		{Buttons: map[string]bool{"a": true}},
+	}
+	for i, tick := range ticks {
+		state, active = input.Step(state, i, match.FacingRight, tick, commands)
+	}
+
+	fmt.Println(active["QCF_a"]) // true
+}
+```
+
+`active` is directly assignable to `evaluator.Context.ActiveCommands`, so a state's `Command = "QCF_a"` trigger resolves correctly on the same tick.
 
 Usage examples will grow here as `.zss` script execution and the rest of the backlog are implemented.
 <!-- vibe:end:usage -->

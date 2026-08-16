@@ -38,7 +38,7 @@ Defined in: `match/state.go`
 | AnimTime | `int` | Ticks elapsed since `Anim` started playing |
 | Vars | `[60]int` | MUGEN general-purpose variable slots, indexed by `var(n)`; unset index reads as 0 |
 | SysVars | `[5]int` | MUGEN system variable slots, indexed by `sysvar(n)`; unset index reads as 0 |
-| ActiveCommands | `map[string]bool` | Command names currently recognized as held/triggered, checked by the `Command` trigger; a nil map reads every command as inactive |
+| ActiveCommands | `map[string]bool` | Command names currently recognized, checked by the `Command` trigger; populated from `input.Step`'s return value; a nil map reads every command as inactive |
 Zero value is valid and usable (reads as a fighter that just entered state 0 with no input). See `.vibe/decisions/002` for why this is a separate type from `match.FighterState`.
 Defined in: `evaluator/context.go`
 
@@ -57,3 +57,11 @@ Defined in: `evaluator/eval.go`
 | Applied | `[]int` | Declared-order indices, into the current state's `Controllers` slice, of every controller whose trigger conditions evaluated true this call — present even if the controller's type has no implemented effect |
 Returned by: `Step(ctx evaluator.Context, states map[int]cns.StateDef) (Result, error)`
 Defined in: `statemachine/statemachine.go`
+
+## TickInput
+| Field | Type | Notes |
+|---|---|---|
+| Up, Down, Left, Right | `bool` | Raw held directions for this tick — not facing-relative; `input.Step` resolves them against `match.Facing` internally |
+| Buttons | `map[string]bool` | Currently-held button names (e.g. `"a"`); a nil map reads every button as not held |
+Zero value (nothing held) is valid and usable.
+Defined in: `input/matcher.go`

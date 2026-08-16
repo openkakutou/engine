@@ -29,6 +29,6 @@ A single conditional action defined within one of a character's states (a `cns.C
 _Sources: `statemachine/statemachine.go`_
 
 ## Command (input)
-A named input pattern (e.g. `"holdback"`) that a fighter's currently recognized/held inputs are checked against by the `Command` trigger (`Command = "holdback"`). Real input-buffer matching against `.cmd` command definitions is future work (item 008); until then, the set of currently-recognized command names is supplied directly as `Context.ActiveCommands`.
+A named input pattern (e.g. `"QCF_a"`) recognized when a fighter's raw per-tick input matches its `.cmd`-declared step sequence within a buffered time window; the `Command` trigger (`Command = "QCF_a"`) checks whether it is currently recognized via `Context.ActiveCommands`, which `input.Step` populates.
 **Do not confuse with:** Trigger (the general expression category `Command` is one specific instance of).
-_Sources: `evaluator/eval.go`, `evaluator/context.go`_
+_Sources: `evaluator/eval.go`, `evaluator/context.go`, `input/matcher.go`_

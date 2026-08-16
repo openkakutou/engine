@@ -1,5 +1,5 @@
 ---
-status: todo
+status: in_progress
 depends_on: [003]
 ---
 # Input Reading And Command Matching

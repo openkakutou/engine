@@ -2,7 +2,7 @@
 
 # Architecture
 
-`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Four exist so far:
+`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Five exist so far:
 
 ```mermaid
 graph LR
@@ -10,11 +10,16 @@ graph LR
     match["engine/match<br/>MatchState / FighterState<br/>pure-data model"]
     evaluator["engine/evaluator<br/>MUGEN CNS trigger parser + evaluator"]
     statemachine["engine/statemachine<br/>StateDef/Controller execution loop"]
+    inputpkg["engine/input<br/>per-tick command matching"]
     cns["character/cns<br/>StateDef / Controller<br/>(read-only, external module)"]
+    cmd["character/cmd<br/>CommandFile / Command<br/>(read-only, external module)"]
 
     evaluator -->|embeds| match
     statemachine -->|evaluates triggers via| evaluator
     statemachine -->|reads| cns
+    inputpkg -->|reads| cmd
+    inputpkg -->|resolves facing via| match
+    evaluator -->|ActiveCommands fed by| inputpkg
 ```
 
 ## `engine` (root)
@@ -50,24 +55,38 @@ Drives a fighter's state transitions by interpreting `character/cns`'s `StateDef
 - **Implemented controller types** — `ChangeState` (updates `StateNo` to the `value` parameter's evaluated target, validated against `states`, and resets `Time` to 0 — see `.vibe/decisions/004` for why `Step` does not also auto-increment `Time` on every call) and `VarSet` (evaluates the `v` and `value` parameters and assigns `Context.Vars[v] = value`). Matching real MUGEN/Ikemen behavior, `Step` stops evaluating further controllers as soon as a `ChangeState` applies. A controller of any other type is recorded in `Result.Applied` when its trigger evaluates true, but has no effect — full MUGEN controller-type coverage is expected to grow via later items, not this one.
 - **`Result`** — the updated `Context` plus `Applied`, the declared-order indices of every controller whose trigger evaluated true this call, regardless of whether its type is implemented.
 
+## `engine/input`
+
+Reads a fighter's raw per-tick input and matches it, within a buffered time window, against `character/cmd`'s `.cmd` command definitions — so a `Command = "name"` trigger (already implemented by `engine/evaluator`, reading `Context.ActiveCommands`) resolves correctly.
+
+- **`TickInput`** — one tick's raw device input: `Up`/`Down`/`Left`/`Right` plus a `Buttons` set. Deliberately raw, not facing-relative — `.cmd` command strings are authored relative to facing (`F`/`B`), so `Step` resolves Left/Right against the fighter's current `match.Facing` internally rather than pushing that translation onto every input source. See `.vibe/decisions/005`.
+- **`State`** — a command matcher's per-command progress, threaded across ticks by the caller exactly the way `evaluator.Context` is threaded through `statemachine.Step` calls; this package holds no hidden state of its own. Its zero value starts every command unmatched.
+- **`Step(state State, tick int, facing match.Facing, in TickInput, cmds cmd.CommandFile) (State, map[string]bool)`** — advances every command in `cmds` by one simulation tick. A command is recognized once its full step sequence (parsed from `Command.Input`, e.g. `"~D, DF, F, a"`) matches in order within its recognition window (`Command.Time`, falling back to `CommandFile.Defaults.Time`), then stays reported active for its buffer window (`Command.BufferTime`/`Defaults.BufferTime`) afterward. A tick that breaks an in-progress sequence is retried against the command's first step on the same tick, so one wrong input doesn't force a full replay. The returned `map[string]bool` is directly assignable to `evaluator.Context.ActiveCommands`.
+- **Command-string parsing** (internal: `step`, `directionSet`, `parseSteps`) — splits a command string on `,` into ordered steps, and each step on `+` into simultaneously-required directions/buttons. Direction tokens (`U`/`D`/`B`/`F`/`UB`/`UF`/`DB`/`DF`) are matched case-sensitively against the exact uppercase MUGEN convention, since a lowercase letter is a button name instead (e.g. `B` is "back", `b` is the kick button) — see the package's own case-sensitivity handling. Leading modifier characters (`~`, `$`, `/`, `>`) are recognized and stripped rather than semantically implemented; see `.vibe/decisions/006`.
+
 ## Data flow (expected, as later packages land)
 
 ```mermaid
 flowchart LR
     character["character package<br/>(StateDef, Controller — read-only)"]
+    charactercmd["character/cmd<br/>(CommandFile, Command — read-only)"]
     stage["stage package<br/>(boundaries — read-only)"]
     matchpkg["engine/match<br/>MatchState / FighterState"]
     evaluatorpkg["engine/evaluator<br/>trigger parser + evaluator"]
     statemachinepkg["engine/statemachine<br/>StateDef/Controller execution loop"]
+    inputpkg["engine/input<br/>per-tick command matching"]
     physics["physics (planned)"]
 
     character -->|Controller.Triggers strings| evaluatorpkg
     character -->|StateDef data| statemachinepkg
+    charactercmd -->|CommandFile data| inputpkg
     stage -->|boundary data| physics
     matchpkg -->|embedded in Context| evaluatorpkg
+    matchpkg -->|Facing| inputpkg
+    inputpkg -->|ActiveCommands| evaluatorpkg
     evaluatorpkg -->|evaluated trigger results| statemachinepkg
     matchpkg <-->|reads / writes| statemachinepkg
     matchpkg <-->|reads / writes| physics
 ```
 
-`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/statemachine` is the first `engine` package to actually depend on `character` as a Go module, feeding it real `Controller.Triggers`/`Controller.Parameters` values from a parsed `.cns` file.
+`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/statemachine` is the first `engine` package to actually depend on `character` as a Go module, feeding it real `Controller.Triggers`/`Controller.Parameters` values from a parsed `.cns` file. `engine/input` is the second: it reads `character/cmd`'s `CommandFile` and feeds its recognized commands into `evaluator.Context.ActiveCommands`, the same map the `Command` trigger reads.
