@@ -17,6 +17,6 @@ Implement per-tick physics for a fighter: velocity integration, gravity while ai
 ## Notes
 Cross-repo: needs `stage`'s boundary/camera data (read-only). Confirm `stage`'s current API surface for exposing this before implementation.
 
-**Gate before starting:** `roadmap`'s `.vibe/backlog/008` calls for a small Go/WASM vs. Rust/WASM benchmark spike (frame-time/GC-pause/binary-size, run in an actual Tauri webview) before this item begins — this is the first genuinely hot-loop item (`001`-`003`/`008` were state/evaluation, not per-tick physics), so it's the right point to settle whether `engine` stays Go or moves to Rust before writing it twice. Check that item's status before implementing this one.
+**Gate lifted (2026-08-16):** `roadmap`'s `.vibe/backlog/008` ran its Go-vs-Rust spike (see `engine/benchmarks/wasm-lang-spike/`) before this item started, as intended — Product Owner decided to stay on Go. This item proceeds in Go, no rewrite pending. (That decision also dropped Tauri in favor of Wails for native packaging — roadmap `.vibe/decisions/021` — irrelevant to this item's own implementation, noted only so the earlier "Tauri webview" phrasing here isn't read as still current.)
 
 Per the roadmap's `.vibe/decisions/014`, `stage` may by then also expose a Z-axis extension of `StageBoundaries` (Ikemen GO 3D model-based stages). If so, confirm whether/how it applies here against `stage`'s API surface at implementation time — this item doesn't commit to Z-axis clamping today, just flags it so the information isn't lost.
