@@ -12,4 +12,4 @@ package engine
 //
 // It exists as a minimal, buildable skeleton for the repo's bootstrap —
 // real functionality is added incrementally per the backlog.
-const Version = "0.3.0"
+const Version = "0.4.0"
