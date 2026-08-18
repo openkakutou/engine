@@ -2,7 +2,7 @@
 
 # Architecture
 
-`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Five exist so far:
+`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Six exist so far:
 
 ```mermaid
 graph LR
@@ -11,8 +11,10 @@ graph LR
     evaluator["engine/evaluator<br/>MUGEN CNS trigger parser + evaluator"]
     statemachine["engine/statemachine<br/>StateDef/Controller execution loop"]
     inputpkg["engine/input<br/>per-tick command matching"]
+    physicspkg["engine/physics<br/>per-tick gravity, ground/air,<br/>boundary clamping"]
     cns["character/cns<br/>StateDef / Controller<br/>(read-only, external module)"]
     cmd["character/cmd<br/>CommandFile / Command<br/>(read-only, external module)"]
+    stagepkg["stage package<br/>StageBoundaries<br/>(read-only, external module)"]
 
     evaluator -->|embeds| match
     statemachine -->|evaluates triggers via| evaluator
@@ -20,6 +22,8 @@ graph LR
     inputpkg -->|reads| cmd
     inputpkg -->|resolves facing via| match
     evaluator -->|ActiveCommands fed by| inputpkg
+    physicspkg -->|reads / writes| match
+    physicspkg -->|reads| stagepkg
 ```
 
 ## `engine` (root)
@@ -64,6 +68,15 @@ Reads a fighter's raw per-tick input and matches it, within a buffered time wind
 - **`Step(state State, tick int, facing match.Facing, in TickInput, cmds cmd.CommandFile) (State, map[string]bool)`** — advances every command in `cmds` by one simulation tick. A command is recognized once its full step sequence (parsed from `Command.Input`, e.g. `"~D, DF, F, a"`) matches in order within its recognition window (`Command.Time`, falling back to `CommandFile.Defaults.Time`), then stays reported active for its buffer window (`Command.BufferTime`/`Defaults.BufferTime`) afterward. A tick that breaks an in-progress sequence is retried against the command's first step on the same tick, so one wrong input doesn't force a full replay. The returned `map[string]bool` is directly assignable to `evaluator.Context.ActiveCommands`.
 - **Command-string parsing** (internal: `step`, `directionSet`, `parseSteps`) — splits a command string on `,` into ordered steps, and each step on `+` into simultaneously-required directions/buttons. Direction tokens (`U`/`D`/`B`/`F`/`UB`/`UF`/`DB`/`DF`) are matched case-sensitively against the exact uppercase MUGEN convention, since a lowercase letter is a button name instead (e.g. `B` is "back", `b` is the kick button) — see the package's own case-sensitivity handling. Leading modifier characters (`~`, `$`, `/`, `>`) are recognized and stripped rather than semantically implemented; see `.vibe/decisions/006`.
 
+## `engine/physics`
+
+Advances a fighter's position and vertical velocity by one simulation tick, reading `stage.StageBoundaries` (read-only; `engine` depends on the tagged `github.com/openkakutou/stage` module the same way it depends on `character`) — the first `engine` package to actually consume `stage`'s output.
+
+- **`Step(f match.FighterState, bounds *stage.StageBoundaries, gravity float64) (match.FighterState, error)`** — the package's entry point. Gravity decrements `Velocity.Y` only while the fighter is airborne, then `Velocity` integrates into `Position` for the tick; a fighter that ends the tick at or below the ground plane (`Position.Y <= 0`) is clamped to it with `Velocity.Y` zeroed (landing), and `Position.X` is clamped to `bounds` regardless of how far a single tick's velocity would otherwise have carried it past the edge.
+- **Ground/air state is derived, not stored** — `Position.Y <= 0 && Velocity.Y <= 0` means grounded; there is no `Grounded` field on `match.FighterState`. A fighter given upward velocity while still at `Y == 0` (a jump's takeoff tick) is treated as airborne immediately, so gravity applies starting that same tick. See `.vibe/decisions/007`.
+- **`bounds` is a pointer, not a value** — `nil` means "no stage boundary data supplied" and returns a descriptive error, distinguishing that case from a legitimately zero-width (but supplied) boundary; a boundary where `Left >= Right` is also rejected as unusable.
+- **Gravity is a caller-supplied rate, not a package constant** — no single gravity value is canonical across MUGEN/Ikemen GO content, so `Step` takes it as an explicit parameter rather than baking in a game-balance number.
+
 ## Data flow (expected, as later packages land)
 
 ```mermaid
@@ -75,7 +88,7 @@ flowchart LR
     evaluatorpkg["engine/evaluator<br/>trigger parser + evaluator"]
     statemachinepkg["engine/statemachine<br/>StateDef/Controller execution loop"]
     inputpkg["engine/input<br/>per-tick command matching"]
-    physics["physics (planned)"]
+    physics["engine/physics"]
 
     character -->|Controller.Triggers strings| evaluatorpkg
     character -->|StateDef data| statemachinepkg
@@ -89,4 +102,4 @@ flowchart LR
     matchpkg <-->|reads / writes| physics
 ```
 
-`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/statemachine` is the first `engine` package to actually depend on `character` as a Go module, feeding it real `Controller.Triggers`/`Controller.Parameters` values from a parsed `.cns` file. `engine/input` is the second: it reads `character/cmd`'s `CommandFile` and feeds its recognized commands into `evaluator.Context.ActiveCommands`, the same map the `Command` trigger reads.
+`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/statemachine` is the first `engine` package to actually depend on `character` as a Go module, feeding it real `Controller.Triggers`/`Controller.Parameters` values from a parsed `.cns` file. `engine/input` is the second: it reads `character/cmd`'s `CommandFile` and feeds its recognized commands into `evaluator.Context.ActiveCommands`, the same map the `Command` trigger reads. `engine/physics` is the first `engine` package to depend on `stage` as a Go module, reading its `StageBoundaries` to clamp fighter movement.

@@ -4,3 +4,5 @@ github.com/openkakutou/character v0.7.0 h1:ryMAk71dHyTqmOn3JRmf8rAPZV+lCBZY1v/cn
 github.com/openkakutou/character v0.7.0/go.mod h1:K27mTtCDhoYiQJcgz7nSTAZylJS9vtAibY+ufSqVXyc=
 github.com/openkakutou/sff v0.2.0 h1:8Er+oHg9BjTxpFWLsE+gll3f49ZVGmmFlQtSI1pLGbU=
 github.com/openkakutou/sff v0.2.0/go.mod h1:82EBFkUd/eXXNgfvrHvk2ITwul+X3IEao9jwYGQL44U=
+github.com/openkakutou/stage v0.2.0 h1:0Me1TP0VIhOAOfGF5geSx7Vd+atiNR9rqOCuv1/9ImI=
+github.com/openkakutou/stage v0.2.0/go.mod h1:9v17PUmtBe+cc7InjehNfmZnZncsBrK7ZcZrBHk8gu0=

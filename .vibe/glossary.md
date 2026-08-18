@@ -32,3 +32,8 @@ _Sources: `statemachine/statemachine.go`_
 A named input pattern (e.g. `"QCF_a"`) recognized when a fighter's raw per-tick input matches its `.cmd`-declared step sequence within a buffered time window; the `Command` trigger (`Command = "QCF_a"`) checks whether it is currently recognized via `Context.ActiveCommands`, which `input.Step` populates.
 **Do not confuse with:** Trigger (the general expression category `Command` is one specific instance of).
 _Sources: `evaluator/eval.go`, `evaluator/context.go`, `input/matcher.go`_
+
+## Grounded
+A fighter's state of resting on, or still falling toward, the stage's ground plane rather than being airborne: at or below ground level (`Position.Y <= 0`) and not moving upward (`Velocity.Y <= 0`). Gravity applies to a fighter only while it is not grounded, and landing — crossing back to the ground plane — zeroes its vertical velocity. A fighter given upward velocity while still at ground level is treated as airborne starting that same tick, not grounded.
+**Do not confuse with:** Stage boundary (the horizontal range a fighter is clamped to, a separate constraint from the vertical ground plane).
+_Sources: `physics/physics.go`_

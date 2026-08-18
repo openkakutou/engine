@@ -9,11 +9,11 @@ This project is early-stage. Available now:
 - Trigger/expression evaluator for MUGEN CNS syntax — comparisons, boolean/arithmetic operators, and built-in triggers (`Time`, `Ctrl`, `Anim`, `Command`, `var()`, `sysvar()`, `IfElse`, and more to come) evaluated against a fighter's live state, with a clear error instead of a wrong or default result for malformed or unsupported expressions
 - State machine execution — drives a fighter through its character's defined states each simulation tick: checks every condition attached to the current state in order, applies the state changes and variable updates for whichever ones are met, and reports a clear error if a state change targets a state that doesn't exist
 - Input reading and command matching — recognizes a character's special-move motions (e.g. quarter-circle-forward + punch) from raw per-tick input, within the timing window the character's own command file declares, correctly rejecting a close-but-incomplete motion and forgetting one started too long ago; a recognized motion becomes available to the combat-logic conditions that check for it
+- Physics and movement — advances a fighter one simulation tick at a time: gravity pulls it down while airborne, it lands cleanly back on the ground with its fall stopped, and it can never be pushed outside the current stage's boundaries even by a single fast-moving tick
 
 Planned:
 
 - `.zss` script execution — Ikemen GO's Lua-like state scripts
-- Physics and movement — velocity, gravity, ground/air state, stage-boundary clamping
 - Hit detection — Clsn (collision box) hit/hurt box resolution
 - Damage/health and combo system — hit results applied as damage, health, and combo-count state
 - Round/match flow, WASM entrypoint, integration tests — win conditions (KO, timeout), round reset, match-level flow, WASM build, fixture-driven integration tests
@@ -42,7 +42,7 @@ go get -u github.com/openkakutou/engine
 <!-- vibe:end:install -->
 
 <!-- vibe:begin:docs-index -->
-- [docs/architecture.md](docs/architecture.md) — how the root package, `engine/match`, `engine/evaluator`, `engine/statemachine`, and `engine/input` fit together, and the data flow expected as later packages land
+- [docs/architecture.md](docs/architecture.md) — how the root package, `engine/match`, `engine/evaluator`, `engine/statemachine`, `engine/input`, and `engine/physics` fit together, and the data flow expected as later packages land
 <!-- vibe:end:docs-index -->
 
 <!-- vibe:begin:usage -->
@@ -175,6 +175,35 @@ func main() {
 ```
 
 `active` is directly assignable to `evaluator.Context.ActiveCommands`, so a state's `Command = "QCF_a"` trigger resolves correctly on the same tick.
+
+Advance a fighter one simulation tick of physics with the `physics` package:
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/physics"
+	"github.com/openkakutou/stage"
+)
+
+func main() {
+	fighter := match.FighterState{
+		Position: match.Position{X: 0, Y: 0},
+		Velocity: match.Velocity{X: 0, Y: 2},
+	}
+	bounds := &stage.StageBoundaries{Left: -100, Right: 100}
+
+	next, err := physics.Step(fighter, bounds, 0.5)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(next.Position.Y) // 1.5 — one tick into the jump
+}
+```
 
 Usage examples will grow here as `.zss` script execution and the rest of the backlog are implemented.
 <!-- vibe:end:usage -->

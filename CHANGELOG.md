@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+- The engine can now simulate a fighter's physics tick by tick: gravity pulls it down while airborne, it lands cleanly back on the ground, and it can never be pushed outside the current stage's boundaries no matter how fast it was moving.
 - The engine can now read a player's raw per-tick input (directions and button presses) and recognize a character's special-move motions (e.g. quarter-circle-forward + punch) as they're entered, within the same timing window the original command file declares — including correctly rejecting a close-but-incomplete motion, and correctly forgetting a motion started too long ago to still count. A recognized motion becomes available to the same combat-logic conditions that already check for it.
 
 ## [0.3.0] - 2026-08-09
