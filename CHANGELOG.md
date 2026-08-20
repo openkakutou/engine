@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- The engine can now run a character's Ikemen GO `.zss` state scripts (the alternative to classic combat-logic files), not just classic ones: conditions are checked, variables can be updated, the fighter's state can change, and a helper script can be called from another one — producing the same real transition/variable results a classic combat-logic file would for the same behavior. A script using something not supported yet reports a clear error instead of silently doing nothing or crashing.
+
 ## [0.4.0] - 2026-08-18
 
 ### Added

@@ -2,7 +2,7 @@
 
 # Architecture
 
-`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Six exist so far:
+`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Seven exist so far:
 
 ```mermaid
 graph LR
@@ -10,15 +10,20 @@ graph LR
     match["engine/match<br/>MatchState / FighterState<br/>pure-data model"]
     evaluator["engine/evaluator<br/>MUGEN CNS trigger parser + evaluator"]
     statemachine["engine/statemachine<br/>StateDef/Controller execution loop"]
+    zssexec["engine/zssexec<br/>.zss Statedef/Function script execution"]
     inputpkg["engine/input<br/>per-tick command matching"]
     physicspkg["engine/physics<br/>per-tick gravity, ground/air,<br/>boundary clamping"]
     cns["character/cns<br/>StateDef / Controller<br/>(read-only, external module)"]
     cmd["character/cmd<br/>CommandFile / Command<br/>(read-only, external module)"]
+    zss["character/zss<br/>Script / Block<br/>(read-only, external module)"]
     stagepkg["stage package<br/>StageBoundaries<br/>(read-only, external module)"]
 
     evaluator -->|embeds| match
     statemachine -->|evaluates triggers via| evaluator
     statemachine -->|reads| cns
+    zssexec -->|evaluates conditions via| evaluator
+    zssexec -->|applies controller-shaped statements via| statemachine
+    zssexec -->|reads| zss
     inputpkg -->|reads| cmd
     inputpkg -->|resolves facing via| match
     evaluator -->|ActiveCommands fed by| inputpkg
@@ -56,8 +61,19 @@ Parses and evaluates MUGEN CNS trigger/expression strings — the raw `Controlle
 Drives a fighter's state transitions by interpreting `character/cns`'s `StateDef`/`Controller` data (read-only; `engine` depends on the tagged `github.com/openkakutou/character` module, resolved through the standard Go module proxy) with `engine/evaluator`.
 
 - **`Step(ctx evaluator.Context, states map[int]cns.StateDef) (Result, error)`** — the whole package's entry point. Looks up `ctx.StateNo` in `states`, then evaluates that `StateDef`'s controllers in declared order: a controller's trigger strings are combined with logical AND (see `.vibe/decisions/003` — `character/cns`'s `Controller.Triggers` does not retain which `triggerN` group each string came from, so MUGEN's full group-based OR/AND semantics cannot be reconstructed), and every controller whose combined trigger evaluates true is applied, mutating a working `Context` so a later controller in the same call can observe an earlier one's effect.
-- **Implemented controller types** — `ChangeState` (updates `StateNo` to the `value` parameter's evaluated target, validated against `states`, and resets `Time` to 0 — see `.vibe/decisions/004` for why `Step` does not also auto-increment `Time` on every call) and `VarSet` (evaluates the `v` and `value` parameters and assigns `Context.Vars[v] = value`). Matching real MUGEN/Ikemen behavior, `Step` stops evaluating further controllers as soon as a `ChangeState` applies. A controller of any other type is recorded in `Result.Applied` when its trigger evaluates true, but has no effect — full MUGEN controller-type coverage is expected to grow via later items, not this one.
+- **Implemented controller types** — `ChangeState` (updates `StateNo` to the `value` parameter's evaluated target, validated against a state-existence check, and resets `Time` to 0 — see `.vibe/decisions/004` for why `Step` does not also auto-increment `Time` on every call) and `VarSet` (evaluates the `v` and `value` parameters and assigns `Context.Vars[v] = value`). Matching real MUGEN/Ikemen behavior, `Step` stops evaluating further controllers as soon as a `ChangeState` applies. A controller of any other type is recorded in `Result.Applied` when its trigger evaluates true, but has no effect — full MUGEN controller-type coverage is expected to grow via later items, not this one.
 - **`Result`** — the updated `Context` plus `Applied`, the declared-order indices of every controller whose trigger evaluated true this call, regardless of whether its type is implemented.
+- **`ApplyController(ctrl cns.Controller, ctx *evaluator.Context, exists func(int) bool) (bool, error)`** — the single-controller effect logic `Step` itself uses, exported so `engine/zssexec` can apply the exact same `ChangeState`/`VarSet` behavior to a `.zss` controller-shaped statement instead of re-implementing it. `exists` replaces `Step`'s own `states map[int]cns.StateDef` lookup with a plain predicate, since `zssexec` has no `cns.StateDef` map to check a `.zss` script's own state numbers against. See `.vibe/decisions/008`.
+
+## `engine/zssexec`
+
+Executes `character/zss`'s parsed Statedef/Function script bodies — the `.zss` counterpart to `engine/statemachine` for Ikemen GO's alternative to classic `.cns` combat logic. `character/zss` only parses block headers; a block's script body is kept as raw, unevaluated text (that package's own decision 027) — running it is this package's job.
+
+- **Why a hand-written interpreter, not an embedded Lua VM** — `.zss` is commonly described as "Lua-like", but its actual body grammar (`if COND { ... }` with C-style braces, a single `=` for comparison, controller-call statements shaped like `changeState{value: 5001;}`) is not valid standard Lua syntax; a real Lua VM would reject it as-is. See `.vibe/decisions/008` for the full reasoning.
+- **`Step(ctx evaluator.Context, script zss.Script) (Result, error)`** — the package's entry point, mirroring `statemachine.Step`'s shape. Finds `script`'s `Statedef` block for `ctx.StateNo`, parses its body into statements, and runs them from the top against a working copy of `ctx`.
+- **Supported statement forms** — `if COND { ... }` with an optional `else { ... }` (`COND` evaluated by `engine/evaluator.Evaluate` unchanged, since `.zss` conditions already use the same trigger-expression operators `.cns` triggers do); a single-line controller-call statement (`Name{key: value; ...}`, applied via `statemachine.ApplyController`); and `call FunctionName();`, which looks up a same-script `Function` block by name and runs its body the same way (only zero-parameter, no-return-value functions are supported so far).
+- **Stop-on-state-change** — the same rule `statemachine.Step` follows: once a `ChangeState`-shaped statement applies, no further statement runs for that call, at any nesting level (inside an `if`, inside a called function, or after either returns to its caller).
+- **Error handling** — a descriptive error, never a panic, for: `ctx.StateNo` missing from `script`; a `let` assignment or any other construct this package doesn't parse; a `call` to an undefined function, or one declaring parameters/a return value; and the same condition-evaluation/`ChangeState`-target errors `statemachine.ApplyController` already reports.
 
 ## `engine/input`
 
@@ -82,24 +98,30 @@ Advances a fighter's position and vertical velocity by one simulation tick, read
 ```mermaid
 flowchart LR
     character["character package<br/>(StateDef, Controller — read-only)"]
+    characterzss["character/zss<br/>(Script, Block — read-only)"]
     charactercmd["character/cmd<br/>(CommandFile, Command — read-only)"]
     stage["stage package<br/>(boundaries — read-only)"]
     matchpkg["engine/match<br/>MatchState / FighterState"]
     evaluatorpkg["engine/evaluator<br/>trigger parser + evaluator"]
     statemachinepkg["engine/statemachine<br/>StateDef/Controller execution loop"]
+    zssexecpkg["engine/zssexec<br/>.zss script execution"]
     inputpkg["engine/input<br/>per-tick command matching"]
     physics["engine/physics"]
 
     character -->|Controller.Triggers strings| evaluatorpkg
     character -->|StateDef data| statemachinepkg
+    characterzss -->|Script/Block data| zssexecpkg
     charactercmd -->|CommandFile data| inputpkg
     stage -->|boundary data| physics
     matchpkg -->|embedded in Context| evaluatorpkg
     matchpkg -->|Facing| inputpkg
     inputpkg -->|ActiveCommands| evaluatorpkg
     evaluatorpkg -->|evaluated trigger results| statemachinepkg
+    evaluatorpkg -->|evaluated condition results| zssexecpkg
+    statemachinepkg -->|ApplyController| zssexecpkg
     matchpkg <-->|reads / writes| statemachinepkg
+    matchpkg <-->|reads / writes| zssexecpkg
     matchpkg <-->|reads / writes| physics
 ```
 
-`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/statemachine` is the first `engine` package to actually depend on `character` as a Go module, feeding it real `Controller.Triggers`/`Controller.Parameters` values from a parsed `.cns` file. `engine/input` is the second: it reads `character/cmd`'s `CommandFile` and feeds its recognized commands into `evaluator.Context.ActiveCommands`, the same map the `Command` trigger reads. `engine/physics` is the first `engine` package to depend on `stage` as a Go module, reading its `StageBoundaries` to clamp fighter movement.
+`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/statemachine` is the first `engine` package to actually depend on `character` as a Go module, feeding it real `Controller.Triggers`/`Controller.Parameters` values from a parsed `.cns` file. `engine/zssexec` reads `character/zss`'s parsed `.zss` scripts the same way, but reuses `engine/statemachine`'s own `ApplyController` for the controller-call statements inside a script body rather than duplicating that logic. `engine/input` is the second `engine` package to depend on `character` as a Go module: it reads `character/cmd`'s `CommandFile` and feeds its recognized commands into `evaluator.Context.ActiveCommands`, the same map the `Command` trigger reads. `engine/physics` is the first `engine` package to depend on `stage` as a Go module, reading its `StageBoundaries` to clamp fighter movement.

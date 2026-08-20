@@ -83,7 +83,7 @@ func Step(ctx evaluator.Context, states map[int]cns.StateDef) (Result, error) {
 		}
 		applied = append(applied, i)
 
-		changedState, err := applyController(ctrl, &working, states)
+		changedState, err := ApplyController(ctrl, &working, func(n int) bool { _, ok := states[n]; return ok })
 		if err != nil {
 			return Result{}, fmt.Errorf("statemachine: state %d controller %d (%s): %w", ctx.StateNo, i, ctrl.Type, err)
 		}
@@ -112,17 +112,24 @@ func triggersPass(triggers []string, ctx evaluator.Context) (bool, error) {
 	return true, nil
 }
 
-// applyController applies ctrl's effect to ctx, mutating it in place. It
+// ApplyController applies ctrl's effect to ctx, mutating it in place. It
 // reports whether the effect was a state change (ChangeState), so the
-// caller can stop processing further controllers for this call.
+// caller can stop processing further controllers for this call. exists
+// reports whether a given state number is defined in whatever the caller is
+// currently executing -- used only to validate a ChangeState target.
+//
+// Exported (rather than kept as Step's own private helper) so `.zss`
+// execution (engine/zssexec) can apply this same small set of controller
+// types to a controller-shaped statement without duplicating this logic --
+// see that package's own doc comment and .vibe/decisions/008 in this repo.
 //
 // A controller type this item does not implement is a no-op: its trigger
 // having evaluated true is still visible to the caller via Result.Applied,
 // but it has no effect on ctx.
-func applyController(ctrl cns.Controller, ctx *evaluator.Context, states map[int]cns.StateDef) (bool, error) {
+func ApplyController(ctrl cns.Controller, ctx *evaluator.Context, exists func(int) bool) (bool, error) {
 	switch strings.ToLower(ctrl.Type) {
 	case "changestate":
-		return true, applyChangeState(ctrl, ctx, states)
+		return true, applyChangeState(ctrl, ctx, exists)
 	case "varset":
 		return false, applyVarSet(ctrl, ctx)
 	default:
@@ -130,7 +137,7 @@ func applyController(ctrl cns.Controller, ctx *evaluator.Context, states map[int
 	}
 }
 
-func applyChangeState(ctrl cns.Controller, ctx *evaluator.Context, states map[int]cns.StateDef) error {
+func applyChangeState(ctrl cns.Controller, ctx *evaluator.Context, exists func(int) bool) error {
 	raw, ok := ctrl.Parameters["value"]
 	if !ok {
 		return fmt.Errorf(`ChangeState is missing its required "value" parameter`)
@@ -140,7 +147,7 @@ func applyChangeState(ctrl cns.Controller, ctx *evaluator.Context, states map[in
 		return fmt.Errorf("ChangeState value %q: %w", raw, err)
 	}
 	target := v.Int()
-	if _, ok := states[target]; !ok {
+	if !exists(target) {
 		return fmt.Errorf("ChangeState targets state %d, which does not exist in the loaded character", target)
 	}
 

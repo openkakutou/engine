@@ -10,10 +10,10 @@ This project is early-stage. Available now:
 - State machine execution — drives a fighter through its character's defined states each simulation tick: checks every condition attached to the current state in order, applies the state changes and variable updates for whichever ones are met, and reports a clear error if a state change targets a state that doesn't exist
 - Input reading and command matching — recognizes a character's special-move motions (e.g. quarter-circle-forward + punch) from raw per-tick input, within the timing window the character's own command file declares, correctly rejecting a close-but-incomplete motion and forgetting one started too long ago; a recognized motion becomes available to the combat-logic conditions that check for it
 - Physics and movement — advances a fighter one simulation tick at a time: gravity pulls it down while airborne, it lands cleanly back on the ground with its fall stopped, and it can never be pushed outside the current stage's boundaries even by a single fast-moving tick
+- `.zss` script execution — runs Ikemen GO's Lua-like state scripts the same way classic state definitions are driven: conditions are checked, variables and state changes are applied, and a script can call another one as a helper, all producing the same real results a classic combat-logic file would for the same behavior; an unsupported script construct reports a clear error instead of silently doing nothing
 
 Planned:
 
-- `.zss` script execution — Ikemen GO's Lua-like state scripts
 - Hit detection — Clsn (collision box) hit/hurt box resolution
 - Damage/health and combo system — hit results applied as damage, health, and combo-count state
 - Round/match flow, WASM entrypoint, integration tests — win conditions (KO, timeout), round reset, match-level flow, WASM build, fixture-driven integration tests
@@ -42,7 +42,7 @@ go get -u github.com/openkakutou/engine
 <!-- vibe:end:install -->
 
 <!-- vibe:begin:docs-index -->
-- [docs/architecture.md](docs/architecture.md) — how the root package, `engine/match`, `engine/evaluator`, `engine/statemachine`, `engine/input`, and `engine/physics` fit together, and the data flow expected as later packages land
+- [docs/architecture.md](docs/architecture.md) — how the root package, `engine/match`, `engine/evaluator`, `engine/statemachine`, `engine/zssexec`, `engine/input`, and `engine/physics` fit together, and the data flow expected as later packages land
 <!-- vibe:end:docs-index -->
 
 <!-- vibe:begin:usage -->
@@ -205,5 +205,45 @@ func main() {
 }
 ```
 
-Usage examples will grow here as `.zss` script execution and the rest of the backlog are implemented.
+Run a character's Ikemen GO `.zss` state script with the `zssexec` package:
+
+```go
+package main
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/openkakutou/character/zss"
+	"github.com/openkakutou/engine/evaluator"
+	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/zssexec"
+)
+
+func main() {
+	script, err := zss.Parse(strings.NewReader(`[Statedef 0]
+if Command = "holdfwd" {
+	changeState{value: 20;}
+}
+
+[Statedef 20]`))
+	if err != nil {
+		panic(err)
+	}
+
+	ctx := evaluator.Context{
+		FighterState:   match.FighterState{StateNo: 0},
+		ActiveCommands: map[string]bool{"holdfwd": true},
+	}
+
+	result, err := zssexec.Step(ctx, script)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(result.Context.StateNo) // 20
+}
+```
+
+Usage examples will grow here as the rest of the backlog is implemented.
 <!-- vibe:end:usage -->

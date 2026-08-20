@@ -1,0 +1,22 @@
+# Idle (Standing) state fixture, styled after MUGEN's classic Kung Fu Man
+# sample character's Statedef 0 -- the .zss counterpart to
+# statemachine's own testdata/kfm_idle.cns fixture, used to confirm
+# .zss-driven execution produces the same real state-transition targets
+# as the equivalent .cns-driven state.
+[Statedef 0; type: S; movetype: I; physics: S; anim: 0; ctrl: 1;]
+if Command = "holddown" {
+	changeState{value: 11;}
+}
+if Command = "holdfwd" {
+	changeState{value: 20;}
+}
+if Time = 0 {
+	call MarkEnteredIdle();
+}
+
+[Function MarkEnteredIdle()]
+varSet{v: 0; value: 1;}
+
+[Statedef 11; type: C; movetype: I; physics: C;]
+
+[Statedef 20; type: S; movetype: I; physics: S;]

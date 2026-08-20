@@ -58,6 +58,14 @@ Defined in: `evaluator/eval.go`
 Returned by: `Step(ctx evaluator.Context, states map[int]cns.StateDef) (Result, error)`
 Defined in: `statemachine/statemachine.go`
 
+## zssexec.Result
+| Field | Type | Notes |
+|---|---|---|
+| Context | `evaluator.Context` | The fighter's context after running the current Statedef's `.zss` script body for one `Step` call |
+Unlike `statemachine.Result`, there is no `Applied` field: a `.zss` body is imperative control flow (`if`/`call`/controller statements), not a flat, independently-triggered controller list, so there is no equivalent per-controller "did its trigger hold" list to report.
+Returned by: `Step(ctx evaluator.Context, script zss.Script) (Result, error)`
+Defined in: `zssexec/zssexec.go`
+
 ## TickInput
 | Field | Type | Notes |
 |---|---|---|
