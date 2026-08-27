@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-28
+
 ### Added
 
 - The engine can now detect when two fighters' collision boxes actually overlap: an attacker's hit boxes against a defender's vulnerable boxes, using each fighter's real current animation frame, correctly positioned and mirrored for the fighter's facing direction. A frame with no collision boxes at all (like most idle frames) simply produces no hits, without any special handling needed.
@@ -45,7 +47,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/openkakutou/engine/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/openkakutou/engine/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/openkakutou/engine/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/openkakutou/engine/compare/v0.2.0...v0.3.0
