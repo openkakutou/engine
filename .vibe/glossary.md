@@ -37,3 +37,13 @@ _Sources: `evaluator/eval.go`, `evaluator/context.go`, `input/matcher.go`_
 A fighter's state of resting on, or still falling toward, the stage's ground plane rather than being airborne: at or below ground level (`Position.Y <= 0`) and not moving upward (`Velocity.Y <= 0`). Gravity applies to a fighter only while it is not grounded, and landing — crossing back to the ground plane — zeroes its vertical velocity. A fighter given upward velocity while still at ground level is treated as airborne starting that same tick, not grounded.
 **Do not confuse with:** Stage boundary (the horizontal range a fighter is clamped to, a separate constraint from the vertical ground plane).
 _Sources: `physics/physics.go`_
+
+## Hit box / hurt box
+The two kinds of Clsn (collision) box a fighter's currently active animation frame can carry: a hit box (Clsn1) is a region that can land an attack on an opponent; a hurt box (Clsn2) is a region vulnerable to being hit. `engine/hitdetect` resolves a fighter's hit boxes against the other's hurt boxes each simulation tick to find overlaps.
+**Do not confuse with:** Hit event (the *result* of a hit box overlapping a hurt box, not the boxes themselves).
+_Sources: `hitdetect/hitdetect.go`_
+
+## Hit event
+One detected overlap between an attacker's hit box and a defender's hurt box for the current simulation tick: which fighter attacked, which fighter was hit, and which specific boxes overlapped. Reported by `engine/hitdetect`, consumed by a later damage/combo package — detecting a hit and applying its effect (health loss, combo count) are deliberately separate concerns.
+**Do not confuse with:** Hit box / hurt box (the geometry a hit event is computed from, not the event itself).
+_Sources: `hitdetect/hitdetect.go`_

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- The engine can now detect when two fighters' collision boxes actually overlap: an attacker's hit boxes against a defender's vulnerable boxes, using each fighter's real current animation frame, correctly positioned and mirrored for the fighter's facing direction. A frame with no collision boxes at all (like most idle frames) simply produces no hits, without any special handling needed.
+
 ## [0.5.0] - 2026-08-20
 
 ### Added

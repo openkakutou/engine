@@ -2,7 +2,7 @@
 
 # Architecture
 
-`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Seven exist so far:
+`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Eight exist so far:
 
 ```mermaid
 graph LR
@@ -13,9 +13,11 @@ graph LR
     zssexec["engine/zssexec<br/>.zss Statedef/Function script execution"]
     inputpkg["engine/input<br/>per-tick command matching"]
     physicspkg["engine/physics<br/>per-tick gravity, ground/air,<br/>boundary clamping"]
+    hitdetectpkg["engine/hitdetect<br/>per-tick Clsn overlap detection"]
     cns["character/cns<br/>StateDef / Controller<br/>(read-only, external module)"]
     cmd["character/cmd<br/>CommandFile / Command<br/>(read-only, external module)"]
     zss["character/zss<br/>Script / Block<br/>(read-only, external module)"]
+    air["character/air<br/>Frame / ClsnBox<br/>(read-only, external module)"]
     stagepkg["stage package<br/>StageBoundaries<br/>(read-only, external module)"]
 
     evaluator -->|embeds| match
@@ -29,6 +31,8 @@ graph LR
     evaluator -->|ActiveCommands fed by| inputpkg
     physicspkg -->|reads / writes| match
     physicspkg -->|reads| stagepkg
+    hitdetectpkg -->|reads| match
+    hitdetectpkg -->|reads| air
 ```
 
 ## `engine` (root)
@@ -93,6 +97,15 @@ Advances a fighter's position and vertical velocity by one simulation tick, read
 - **`bounds` is a pointer, not a value** — `nil` means "no stage boundary data supplied" and returns a descriptive error, distinguishing that case from a legitimately zero-width (but supplied) boundary; a boundary where `Left >= Right` is also rejected as unusable.
 - **Gravity is a caller-supplied rate, not a package constant** — no single gravity value is canonical across MUGEN/Ikemen GO content, so `Step` takes it as an explicit parameter rather than baking in a game-balance number.
 
+## `engine/hitdetect`
+
+Resolves Clsn (collision box) overlap between two fighters each simulation tick, reading `character/air`'s already-resolved `Frame.Clsn1`/`Frame.Clsn2` boxes (read-only; `engine` already depends on `character` for `engine/statemachine`) together with `match.MatchState` — the first `engine` package to depend on `character/air` specifically. It works the same regardless of whether a fighter's current frame is being driven by `engine/statemachine` or `engine/zssexec`, since both ultimately produce the same animation/frame progression; this package takes each fighter's current `air.Frame` as a plain input rather than resolving it itself.
+
+- **`Detect(state *match.MatchState, frames [2]air.Frame) []HitEvent`** — the package's entry point. Checks both attack directions (`SideP1`'s Clsn1 against `SideP2`'s Clsn2, and vice versa) and returns one `HitEvent` per overlapping box pair found. `frames` is indexed by `Side` the same way `state.Fighters` is. Does not apply damage itself — only detects and reports collisions, for a later item (damage/combo) to consume.
+- **`HitEvent`** — `Attacker`/`Defender` (`match.Side`) plus `AttackerBox`/`DefenderBox`, the original local `air.ClsnBox` values as found on each fighter's current frame (not the world-space boxes actually compared), so a consumer can trace an event back to the source `.air` data.
+- **Local-to-world coordinate transform** — a Clsn box's local coordinates increase *downward* (confirmed against a real `.air` fixture) while `match.Position.Y` increases *upward*; `Detect` flips the Y axis and mirrors the X axis for `FacingLeft` before comparing two fighters' boxes as plain axis-aligned bounding boxes. See `.vibe/decisions/009` for the full reasoning, including why a frame with no Clsn boxes at all needs no special-casing (the geometry loop simply has nothing to iterate).
+- **Zero-allocation on a zero-hit tick** — this runs unconditionally every simulation tick for the whole match; the result slice starts `nil` and only grows via `append` on an actual overlap, never pre-sized, so the overwhelmingly common zero-hit tick allocates nothing (verified by an `AllocsPerRun` test and confirmed via `go build -gcflags="-m"` that the per-pair coordinate transform itself is inlined and never escapes to the heap). See `.vibe/decisions/009`.
+
 ## Data flow (expected, as later packages land)
 
 ```mermaid
@@ -107,6 +120,8 @@ flowchart LR
     zssexecpkg["engine/zssexec<br/>.zss script execution"]
     inputpkg["engine/input<br/>per-tick command matching"]
     physics["engine/physics"]
+    characterair["character/air<br/>(Frame/ClsnBox — read-only)"]
+    hitdetect["engine/hitdetect"]
 
     character -->|Controller.Triggers strings| evaluatorpkg
     character -->|StateDef data| statemachinepkg
@@ -122,6 +137,8 @@ flowchart LR
     matchpkg <-->|reads / writes| statemachinepkg
     matchpkg <-->|reads / writes| zssexecpkg
     matchpkg <-->|reads / writes| physics
+    characterair -->|Clsn1/Clsn2 boxes| hitdetect
+    matchpkg -->|Position/Facing| hitdetect
 ```
 
-`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/statemachine` is the first `engine` package to actually depend on `character` as a Go module, feeding it real `Controller.Triggers`/`Controller.Parameters` values from a parsed `.cns` file. `engine/zssexec` reads `character/zss`'s parsed `.zss` scripts the same way, but reuses `engine/statemachine`'s own `ApplyController` for the controller-call statements inside a script body rather than duplicating that logic. `engine/input` is the second `engine` package to depend on `character` as a Go module: it reads `character/cmd`'s `CommandFile` and feeds its recognized commands into `evaluator.Context.ActiveCommands`, the same map the `Command` trigger reads. `engine/physics` is the first `engine` package to depend on `stage` as a Go module, reading its `StageBoundaries` to clamp fighter movement.
+`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/statemachine` is the first `engine` package to actually depend on `character` as a Go module, feeding it real `Controller.Triggers`/`Controller.Parameters` values from a parsed `.cns` file. `engine/zssexec` reads `character/zss`'s parsed `.zss` scripts the same way, but reuses `engine/statemachine`'s own `ApplyController` for the controller-call statements inside a script body rather than duplicating that logic. `engine/input` is the second `engine` package to depend on `character` as a Go module: it reads `character/cmd`'s `CommandFile` and feeds its recognized commands into `evaluator.Context.ActiveCommands`, the same map the `Command` trigger reads. `engine/physics` is the first `engine` package to depend on `stage` as a Go module, reading its `StageBoundaries` to clamp fighter movement. `engine/hitdetect` is the first `engine` package to depend on `character/air`, reading each fighter's already-resolved `Frame.Clsn1`/`Clsn2` boxes alongside `engine/match`'s `Position`/`Facing` to detect overlap — it does not itself resolve which frame is "current" from `Anim`/`AnimTime`, that remains the caller's responsibility.

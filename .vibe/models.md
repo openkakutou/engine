@@ -73,3 +73,13 @@ Defined in: `zssexec/zssexec.go`
 | Buttons | `map[string]bool` | Currently-held button names (e.g. `"a"`); a nil map reads every button as not held |
 Zero value (nothing held) is valid and usable.
 Defined in: `input/matcher.go`
+
+## HitEvent
+| Field | Type | Notes |
+|---|---|---|
+| Attacker | `match.Side` | Which fighter's Clsn1 (hit) box overlapped |
+| Defender | `match.Side` | Which fighter's Clsn2 (hurt) box overlapped |
+| AttackerBox | `air.ClsnBox` | The original local box, not the transformed world-space one compared |
+| DefenderBox | `air.ClsnBox` | Same as above, for the defender's box |
+Returned by: `hitdetect.Detect(state *match.MatchState, frames [2]air.Frame) []HitEvent` — one per overlapping box pair found, across both attack directions.
+Defined in: `hitdetect/hitdetect.go`

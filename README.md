@@ -11,10 +11,10 @@ This project is early-stage. Available now:
 - Input reading and command matching — recognizes a character's special-move motions (e.g. quarter-circle-forward + punch) from raw per-tick input, within the timing window the character's own command file declares, correctly rejecting a close-but-incomplete motion and forgetting one started too long ago; a recognized motion becomes available to the combat-logic conditions that check for it
 - Physics and movement — advances a fighter one simulation tick at a time: gravity pulls it down while airborne, it lands cleanly back on the ground with its fall stopped, and it can never be pushed outside the current stage's boundaries even by a single fast-moving tick
 - `.zss` script execution — runs Ikemen GO's Lua-like state scripts the same way classic state definitions are driven: conditions are checked, variables and state changes are applied, and a script can call another one as a helper, all producing the same real results a classic combat-logic file would for the same behavior; an unsupported script construct reports a clear error instead of silently doing nothing
+- Hit detection — resolves each fighter's currently active hit boxes against the other's vulnerable boxes every simulation tick, correctly positioned and mirrored for whichever way each fighter is facing; a frame with no collision boxes at all (like most idle frames) simply produces no hits
 
 Planned:
 
-- Hit detection — Clsn (collision box) hit/hurt box resolution
 - Damage/health and combo system — hit results applied as damage, health, and combo-count state
 - Round/match flow, WASM entrypoint, integration tests — win conditions (KO, timeout), round reset, match-level flow, WASM build, fixture-driven integration tests
 
@@ -42,7 +42,7 @@ go get -u github.com/openkakutou/engine
 <!-- vibe:end:install -->
 
 <!-- vibe:begin:docs-index -->
-- [docs/architecture.md](docs/architecture.md) — how the root package, `engine/match`, `engine/evaluator`, `engine/statemachine`, `engine/zssexec`, `engine/input`, and `engine/physics` fit together, and the data flow expected as later packages land
+- [docs/architecture.md](docs/architecture.md) — how the root package, `engine/match`, `engine/evaluator`, `engine/statemachine`, `engine/zssexec`, `engine/input`, `engine/physics`, and `engine/hitdetect` fit together, and the data flow expected as later packages land
 <!-- vibe:end:docs-index -->
 
 <!-- vibe:begin:usage -->
