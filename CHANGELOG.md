@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-28
+
 ### Added
 
 - The engine can now turn a detected hit into an actual match effect: damage is subtracted from the defender's health (never below zero, even on an overkill hit), and a combo counter tracks consecutive hits, resetting once too much time passes between them. A hit whose declared damage amount is missing or unreadable still lands using a safe default instead of crashing the match.
@@ -51,7 +53,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/openkakutou/engine/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/openkakutou/engine/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/openkakutou/engine/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/openkakutou/engine/compare/v0.3.0...v0.4.0
