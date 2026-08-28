@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- The engine can now turn a detected hit into an actual match effect: damage is subtracted from the defender's health (never below zero, even on an overkill hit), and a combo counter tracks consecutive hits, resetting once too much time passes between them. A hit whose declared damage amount is missing or unreadable still lands using a safe default instead of crashing the match.
+
 ## [0.6.0] - 2026-08-28
 
 ### Added

@@ -2,7 +2,7 @@
 
 # Architecture
 
-`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Eight exist so far:
+`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Nine exist so far:
 
 ```mermaid
 graph LR
@@ -14,6 +14,7 @@ graph LR
     inputpkg["engine/input<br/>per-tick command matching"]
     physicspkg["engine/physics<br/>per-tick gravity, ground/air,<br/>boundary clamping"]
     hitdetectpkg["engine/hitdetect<br/>per-tick Clsn overlap detection"]
+    combatpkg["engine/combat<br/>damage, health floor,<br/>combo counter"]
     cns["character/cns<br/>StateDef / Controller<br/>(read-only, external module)"]
     cmd["character/cmd<br/>CommandFile / Command<br/>(read-only, external module)"]
     zss["character/zss<br/>Script / Block<br/>(read-only, external module)"]
@@ -33,6 +34,9 @@ graph LR
     physicspkg -->|reads| stagepkg
     hitdetectpkg -->|reads| match
     hitdetectpkg -->|reads| air
+    combatpkg -->|reads / writes| match
+    combatpkg -->|reads| cns
+    combatpkg -->|consumes HitEvents from| hitdetectpkg
 ```
 
 ## `engine` (root)
@@ -106,6 +110,15 @@ Resolves Clsn (collision box) overlap between two fighters each simulation tick,
 - **Local-to-world coordinate transform** — a Clsn box's local coordinates increase *downward* (confirmed against a real `.air` fixture) while `match.Position.Y` increases *upward*; `Detect` flips the Y axis and mirrors the X axis for `FacingLeft` before comparing two fighters' boxes as plain axis-aligned bounding boxes. See `.vibe/decisions/009` for the full reasoning, including why a frame with no Clsn boxes at all needs no special-casing (the geometry loop simply has nothing to iterate).
 - **Zero-allocation on a zero-hit tick** — this runs unconditionally every simulation tick for the whole match; the result slice starts `nil` and only grows via `append` on an actual overlap, never pre-sized, so the overwhelmingly common zero-hit tick allocates nothing (verified by an `AllocsPerRun` test and confirmed via `go build -gcflags="-m"` that the per-pair coordinate transform itself is inlined and never escapes to the heap). See `.vibe/decisions/009`.
 
+## `engine/combat`
+
+Applies `hitdetect`'s `HitEvent`s to actual match state: damage subtracted from the defender's health, and a per-defender combo counter tracked across ticks. Reads `character/cns`'s `Controller` (read-only) for a MUGEN `HitDef`'s raw `"damage"` parameter — the first place in the backlog that string gets interpreted numerically. Does not drive any state-machine transition (e.g. a hit-reaction state); that's out of scope until a later item actually asks for it. See `.vibe/decisions/010`.
+
+- **`ApplyHits(state match.MatchState, events []hitdetect.HitEvent, attacker match.Side, hitDef cns.Controller, combo ComboState, tick, comboWindow int) (match.MatchState, ComboState, HitResult)`** — the package's entry point, called once per attacking side (the same "one direction per call" shape `hitdetect.Detect` checks internally for both directions at once). Dedupes multiple `events` against the same defender into a single landed hit — MUGEN registers one hit per attack regardless of how many Clsn boxes overlapped it — parses `hitDef.Parameters["damage"]` exactly once for that hit, floors the defender's resulting health at zero, and advances `combo`. Returns `state`/`combo` unchanged and a zero `HitResult` when no event in `events` matches `attacker`.
+- **`ComboState`** — `Count`/`LastHitTick`/`Active`, threaded by the caller across ticks the same way `input.State` is threaded through `input.Step`. A hit within `comboWindow` ticks of the previous one increments `Count`; a hit after the window lapsed starts a fresh `Count` of 1 instead. `ResetCombo()` returns a fresh, inactive state for a caller that determined (by its own means, e.g. a state-machine transition) that an in-progress combo has ended independent of the time window.
+- **`DefaultDamage` (`0`)** — applied when `hitDef.Parameters["damage"]` is missing or not a valid integer, so a malformed `HitDef` still lands a (harmless) hit instead of crashing the simulation.
+- **By-value `MatchState`, zero allocation** — `ApplyHits` takes and returns `match.MatchState` by value (mirroring `physics.Step`'s own shape) rather than a pointer, and the dedup scan is a plain early-return loop with no set/map — both verified allocation-free (`AllocsPerRun` tests for both the "no hit" and "hit lands" cases, `go build -gcflags="-m"` showing no escape) for the same single-threaded-WASM-GC reasons `hitdetect`'s own decision record already established. See `.vibe/decisions/010`.
+
 ## Data flow (expected, as later packages land)
 
 ```mermaid
@@ -122,6 +135,7 @@ flowchart LR
     physics["engine/physics"]
     characterair["character/air<br/>(Frame/ClsnBox — read-only)"]
     hitdetect["engine/hitdetect"]
+    combat["engine/combat"]
 
     character -->|Controller.Triggers strings| evaluatorpkg
     character -->|StateDef data| statemachinepkg
@@ -139,6 +153,9 @@ flowchart LR
     matchpkg <-->|reads / writes| physics
     characterair -->|Clsn1/Clsn2 boxes| hitdetect
     matchpkg -->|Position/Facing| hitdetect
+    hitdetect -->|HitEvents| combat
+    character -->|HitDef Controller.Parameters| combat
+    matchpkg <-->|reads / writes Health| combat
 ```
 
-`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/statemachine` is the first `engine` package to actually depend on `character` as a Go module, feeding it real `Controller.Triggers`/`Controller.Parameters` values from a parsed `.cns` file. `engine/zssexec` reads `character/zss`'s parsed `.zss` scripts the same way, but reuses `engine/statemachine`'s own `ApplyController` for the controller-call statements inside a script body rather than duplicating that logic. `engine/input` is the second `engine` package to depend on `character` as a Go module: it reads `character/cmd`'s `CommandFile` and feeds its recognized commands into `evaluator.Context.ActiveCommands`, the same map the `Command` trigger reads. `engine/physics` is the first `engine` package to depend on `stage` as a Go module, reading its `StageBoundaries` to clamp fighter movement. `engine/hitdetect` is the first `engine` package to depend on `character/air`, reading each fighter's already-resolved `Frame.Clsn1`/`Clsn2` boxes alongside `engine/match`'s `Position`/`Facing` to detect overlap — it does not itself resolve which frame is "current" from `Anim`/`AnimTime`, that remains the caller's responsibility.
+`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/statemachine` is the first `engine` package to actually depend on `character` as a Go module, feeding it real `Controller.Triggers`/`Controller.Parameters` values from a parsed `.cns` file. `engine/zssexec` reads `character/zss`'s parsed `.zss` scripts the same way, but reuses `engine/statemachine`'s own `ApplyController` for the controller-call statements inside a script body rather than duplicating that logic. `engine/input` is the second `engine` package to depend on `character` as a Go module: it reads `character/cmd`'s `CommandFile` and feeds its recognized commands into `evaluator.Context.ActiveCommands`, the same map the `Command` trigger reads. `engine/physics` is the first `engine` package to depend on `stage` as a Go module, reading its `StageBoundaries` to clamp fighter movement. `engine/hitdetect` is the first `engine` package to depend on `character/air`, reading each fighter's already-resolved `Frame.Clsn1`/`Clsn2` boxes alongside `engine/match`'s `Position`/`Facing` to detect overlap — it does not itself resolve which frame is "current" from `Anim`/`AnimTime`, that remains the caller's responsibility. `engine/combat` closes the loop `hitdetect` opened: it reads `hitdetect`'s own `HitEvent`s plus `character/cns`'s `Controller` (for a `HitDef`'s raw `"damage"` parameter) and writes the result back into `engine/match`'s `FighterState.Health` — the first `engine` package to actually mutate `match` state as a result of combat, rather than only reading it.

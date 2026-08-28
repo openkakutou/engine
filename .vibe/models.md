@@ -74,6 +74,26 @@ Defined in: `zssexec/zssexec.go`
 Zero value (nothing held) is valid and usable.
 Defined in: `input/matcher.go`
 
+## ComboState
+| Field | Type | Notes |
+|---|---|---|
+| Count | `int` | Consecutive hits landed within `comboWindow` of each other so far |
+| LastHitTick | `int` | The simulation tick the most recent hit landed on |
+| Active | `bool` | Whether Count/LastHitTick are meaningful yet; false on the zero value and after `ResetCombo()` |
+Threaded by the caller across ticks, one instance per defender, the same way `input.State` is threaded through `input.Step`.
+Defined in: `combat/combat.go`
+
+## HitResult
+| Field | Type | Notes |
+|---|---|---|
+| Hit | `bool` | Whether any event matched the attacking side this call |
+| Defender | `match.Side` | Only meaningful when Hit is true |
+| Damage | `int` | The amount actually subtracted (post-`DefaultDamage`-fallback) |
+| HealthBefore / HealthAfter | `int` | Defender's health before/after this hit; HealthAfter is floored at 0 |
+| ComboCount | `int` | The defender's combo count after this hit |
+Returned by: `combat.ApplyHits(...)` — a zero `HitResult` when no event matched the attacking side.
+Defined in: `combat/combat.go`
+
 ## HitEvent
 | Field | Type | Notes |
 |---|---|---|

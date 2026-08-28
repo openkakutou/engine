@@ -44,6 +44,11 @@ The two kinds of Clsn (collision) box a fighter's currently active animation fra
 _Sources: `hitdetect/hitdetect.go`_
 
 ## Hit event
-One detected overlap between an attacker's hit box and a defender's hurt box for the current simulation tick: which fighter attacked, which fighter was hit, and which specific boxes overlapped. Reported by `engine/hitdetect`, consumed by a later damage/combo package — detecting a hit and applying its effect (health loss, combo count) are deliberately separate concerns.
+One detected overlap between an attacker's hit box and a defender's hurt box for the current simulation tick: which fighter attacked, which fighter was hit, and which specific boxes overlapped. Reported by `engine/hitdetect`, consumed by `engine/combat` — detecting a hit and applying its effect (health loss, combo count) are deliberately separate concerns.
 **Do not confuse with:** Hit box / hurt box (the geometry a hit event is computed from, not the event itself).
 _Sources: `hitdetect/hitdetect.go`_
+
+## Combo
+A run of consecutive hits landed on the same defender close enough together in time (within the combo window) to count as one continuous sequence. Tracked as a running count that climbs while hits keep landing within the window and starts fresh at 1 the moment a hit lands after the window has lapsed.
+**Do not confuse with:** Hit event (one landed hit; a combo is the running count of them).
+_Sources: `combat/combat.go`_

@@ -12,10 +12,10 @@ This project is early-stage. Available now:
 - Physics and movement — advances a fighter one simulation tick at a time: gravity pulls it down while airborne, it lands cleanly back on the ground with its fall stopped, and it can never be pushed outside the current stage's boundaries even by a single fast-moving tick
 - `.zss` script execution — runs Ikemen GO's Lua-like state scripts the same way classic state definitions are driven: conditions are checked, variables and state changes are applied, and a script can call another one as a helper, all producing the same real results a classic combat-logic file would for the same behavior; an unsupported script construct reports a clear error instead of silently doing nothing
 - Hit detection — resolves each fighter's currently active hit boxes against the other's vulnerable boxes every simulation tick, correctly positioned and mirrored for whichever way each fighter is facing; a frame with no collision boxes at all (like most idle frames) simply produces no hits
+- Damage, health, and combos — a landed hit subtracts its declared damage from the defender's health, never below zero even on an overkill hit, and builds a combo counter that keeps climbing while hits keep landing close together, resetting once too much time passes between them; a hit with a missing or unreadable damage amount still lands safely instead of crashing the match
 
 Planned:
 
-- Damage/health and combo system — hit results applied as damage, health, and combo-count state
 - Round/match flow, WASM entrypoint, integration tests — win conditions (KO, timeout), round reset, match-level flow, WASM build, fixture-driven integration tests
 
 **Scope boundary:** `engine` is combat simulation only — the simulation that runs while two characters fight. It does not cover menus, character selection, or overall game flow; those are the responsibility of `mode-*` game apps (starting with `mode-quick-versus`), which consume `engine` rather than the other way around. See `github.com/openkakutou/roadmap`'s `.vibe/decisions/004` and `.vibe/decisions/008`.
@@ -42,7 +42,7 @@ go get -u github.com/openkakutou/engine
 <!-- vibe:end:install -->
 
 <!-- vibe:begin:docs-index -->
-- [docs/architecture.md](docs/architecture.md) — how the root package, `engine/match`, `engine/evaluator`, `engine/statemachine`, `engine/zssexec`, `engine/input`, `engine/physics`, and `engine/hitdetect` fit together, and the data flow expected as later packages land
+- [docs/architecture.md](docs/architecture.md) — how the root package, `engine/match`, `engine/evaluator`, `engine/statemachine`, `engine/zssexec`, `engine/input`, `engine/physics`, `engine/hitdetect`, and `engine/combat` fit together, and the data flow expected as later packages land
 <!-- vibe:end:docs-index -->
 
 <!-- vibe:begin:usage -->
