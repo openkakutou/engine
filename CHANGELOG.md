@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-30
+
 ### Added
 
 - The engine can now run a full match, tick by tick, tying every piece together: input, combat-logic execution, physics, and hit/damage resolution for both fighters, followed by deciding whether the round just ended (a knockout, a double knockout, or the round timer running out with the healthier fighter winning) and tracking who has won how many rounds across a best-of-N match. A finished round can be reset into a fresh one with both fighters restored to their starting position and health. This is also the engine's first WebAssembly release: a downloadable module a game can load in the browser to start a match, advance it one tick at a time, and reset between rounds, without needing a Go toolchain of its own.
@@ -63,7 +65,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/openkakutou/engine/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/openkakutou/engine/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/openkakutou/engine/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/openkakutou/engine/compare/v0.5.0...v0.6.0
