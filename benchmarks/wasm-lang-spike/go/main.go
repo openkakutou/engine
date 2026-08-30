@@ -16,12 +16,12 @@ import (
 )
 
 const (
-	numFighters      = 2
-	numPrograms      = 20
-	numTransitions   = 5
-	numHitboxes      = 3
-	numHurtboxes     = 3
-	numVars          = 8
+	numFighters    = 2
+	numPrograms    = 20
+	numTransitions = 5
+	numHitboxes    = 3
+	numHurtboxes   = 3
+	numVars        = 8
 )
 
 type vec2 struct{ x, y float64 }
@@ -140,7 +140,7 @@ type transitionRecord struct {
 
 type hitRecord struct {
 	attacker, defender int
-	hbIdx, hurtIdx      int
+	hbIdx, hurtIdx     int
 }
 
 func boxesOverlap(a, b box) bool {

@@ -1,5 +1,5 @@
 ---
-status: todo
+status: in_progress
 ---
 # Fix gofmt Drift In `wasm-lang-spike` Benchmark
 

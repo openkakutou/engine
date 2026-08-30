@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed inconsistent code formatting in the `wasm-lang-spike` benchmark spike; no behavior change.
+
 ## [0.7.0] - 2026-08-28
 
 ### Added
