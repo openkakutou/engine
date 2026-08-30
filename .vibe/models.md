@@ -103,3 +103,46 @@ Defined in: `combat/combat.go`
 | DefenderBox | `air.ClsnBox` | Same as above, for the defender's box |
 Returned by: `hitdetect.Detect(state *match.MatchState, frames [2]air.Frame) []HitEvent` — one per overlapping box pair found, across both attack directions.
 Defined in: `hitdetect/hitdetect.go`
+
+## FighterProgram
+| Field | Type | Notes |
+|---|---|---|
+| States | `map[int]cns.StateDef` | Keyed by state number; read-only, loaded once per fighter |
+| Animations | `[]air.Animation` | |
+| Commands | `cmd.CommandFile` | |
+Defined in: `tick.go` (root package)
+
+## FighterRuntime
+| Field | Type | Notes |
+|---|---|---|
+| Context | `evaluator.Context` | |
+| Input | `input.State` | |
+| Combo | `combat.ComboState` | |
+Built via: `NewFighterRuntime(fs match.FighterState, states map[int]cns.StateDef) (FighterRuntime, error)` — Time/AnimTime start at 0, Anim/Ctrl take the entered state's own declared values.
+Defined in: `tick.go` (root package)
+
+## TickResult
+| Field | Type | Notes |
+|---|---|---|
+| State | `match.MatchState` | |
+| Fighters | `[2]FighterRuntime` | Indexed by `match.Side` |
+| Round | `round.RoundResult` | `Outcome: OutcomeNone` when the round is still in progress |
+Returned by: `Tick(state match.MatchState, programs [2]FighterProgram, runtimes [2]FighterRuntime, inputs [2]input.TickInput, bounds *stage.StageBoundaries, gravity float64, tick, comboWindow int) (TickResult, error)`
+Defined in: `tick.go` (root package)
+
+## round.RoundResult
+| Field | Type | Notes |
+|---|---|---|
+| Outcome | `round.Outcome` (int enum: `OutcomeNone`, `OutcomeKO`, `OutcomeDoubleKO`, `OutcomeTimeout`, `OutcomeTimeoutDraw`) | |
+| Winner | `match.Side` | Only meaningful for `OutcomeKO`/`OutcomeTimeout` |
+Returned by: `round.CheckOutcome(state *match.MatchState) RoundResult`
+Defined in: `round/round.go`
+
+## round.Progress
+| Field | Type | Notes |
+|---|---|---|
+| BestOf | `int` | Always a positive odd number |
+| Wins | `[2]int` | Indexed by `match.Side` |
+| RoundsPlayed | `int` | Includes drawn rounds |
+Built via: `round.NewProgress(bestOf int) (Progress, error)`. `RoundsToWin()` is `BestOf/2 + 1`; `RecordRoundResult(result RoundResult) Progress` advances it; `MatchOutcome() (decided bool, winner match.Side)` reports whether either side has won outright.
+Defined in: `round/round.go`

@@ -52,3 +52,13 @@ _Sources: `hitdetect/hitdetect.go`_
 A run of consecutive hits landed on the same defender close enough together in time (within the combo window) to count as one continuous sequence. Tracked as a running count that climbs while hits keep landing within the window and starts fresh at 1 the moment a hit lands after the window has lapsed.
 **Do not confuse with:** Hit event (one landed hit; a combo is the running count of them).
 _Sources: `combat/combat.go`_
+
+## Round outcome
+How a round ends: a knockout (one fighter's health reaches zero), a double knockout (both fighters reach zero health the same tick, awarding neither side a win), a timeout (the round timer expires, decided by whichever fighter has more health remaining), or a timeout draw (the round timer expires with both fighters at exactly equal health). A knockout is always decided before a timeout, so a fighter that runs out of health and out of time on the same tick is still reported as a knockout.
+**Do not confuse with:** Match outcome (whether the whole best-of-N match, not just one round, has been won).
+_Sources: `round/round.go`_
+
+## Best-of-N match
+A match played to a fixed, always-odd number of rounds, decided outright once either side has won more than half of them — so a match can never end in a tie at the round level. Each round's own outcome is recorded into a running count of rounds won per side; a drawn round (a double knockout or a timeout draw) advances the round count without awarding either side a win toward that total.
+**Do not confuse with:** Round outcome (how one single round ends, the input a best-of-N match's own running tally is built from).
+_Sources: `round/round.go`_

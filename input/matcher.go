@@ -16,11 +16,14 @@ import (
 //
 // Its zero value (nothing held) is valid and usable.
 type TickInput struct {
-	Up, Down, Left, Right bool
+	Up    bool `json:"up"`
+	Down  bool `json:"down"`
+	Left  bool `json:"left"`
+	Right bool `json:"right"`
 	// Buttons is the set of currently-held button names (e.g. "a", "b"),
 	// matching character/cmd.Command.Input's own lowercase button tokens.
 	// A nil map reads every button as not held.
-	Buttons map[string]bool
+	Buttons map[string]bool `json:"buttons"`
 }
 
 // resolve converts a raw TickInput into the facing-relative directionSet a

@@ -1,6 +1,6 @@
 # Module: root
 
-**Role:** Entry point of the library. Currently a module skeleton only — no combat simulation functionality yet. Will hold the match/combat state model, MUGEN CNS trigger/expression evaluator, state-machine execution, `.zss` script execution, physics, hit detection, damage/combo resolution, and round/match flow as backlog items land, per CLAUDE.md's scope.
-**Files:** `version.go`
-**Exports:** `Version` (const string)
-**Depends on:** none yet
+**Role:** Entry point of the library. `Version` plus `Tick`, the orchestration function tying every sub-package into one usable per-tick match loop: per fighter, input recognition then CNS state-machine execution then current-frame resolution; then, once for the pair, hit detection; then, per fighter with an active HitDef, damage/combo; then, per fighter, physics; then a round-outcome check. `.zss` execution is deliberately not wired into `Tick` (see `.vibe/decisions/011`). `NewFighterRuntime` builds a fresh per-fighter runtime for match start or a round reset.
+**Files:** `version.go`, `tick.go`
+**Exports:** `Version` (const string); `Tick(state match.MatchState, programs [2]FighterProgram, runtimes [2]FighterRuntime, inputs [2]input.TickInput, bounds *stage.StageBoundaries, gravity float64, tick, comboWindow int) (TickResult, error)`; `FighterProgram`, `FighterRuntime`, `TickResult`; `NewFighterRuntime(fs match.FighterState, states map[int]cns.StateDef) (FighterRuntime, error)`
+**Depends on:** `modules/match.md`, `modules/evaluator.md`, `modules/statemachine.md`, `modules/input.md`, `modules/physics.md`, `modules/hitdetect.md`, `modules/combat.md`, `modules/round.md`

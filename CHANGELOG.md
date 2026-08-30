@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- The engine can now run a full match, tick by tick, tying every piece together: input, combat-logic execution, physics, and hit/damage resolution for both fighters, followed by deciding whether the round just ended (a knockout, a double knockout, or the round timer running out with the healthier fighter winning) and tracking who has won how many rounds across a best-of-N match. A finished round can be reset into a fresh one with both fighters restored to their starting position and health. This is also the engine's first WebAssembly release: a downloadable module a game can load in the browser to start a match, advance it one tick at a time, and reset between rounds, without needing a Go toolchain of its own.
+
 ## [0.7.1] - 2026-08-30
 
 ### Fixed

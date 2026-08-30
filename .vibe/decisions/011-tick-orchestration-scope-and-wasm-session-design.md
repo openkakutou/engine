@@ -1,0 +1,21 @@
+---
+date: 2026-08-30
+status: accepted
+---
+# Round/match flow ties into a CNS-only Tick; the WASM entrypoint keeps per-tick runtime state Go-side via a session handle
+
+**Context:** Item 009 asks for round/match flow (win conditions, round reset, best-of-N progression), a WASM entrypoint exposing "enough of the simulation loop for a mode-* game app to drive a match," and a fixture-driven integration test — the item that ties every prior engine package (match, evaluator, statemachine, zssexec, physics, hitdetect, combat, input) into a usable loop for the first time.
+
+**Decision:**
+1. **CNS-only orchestration.** The new `Tick` function (root `engine` package) drives each fighter through `input.Step` → `statemachine.Step` (CNS) → animation-frame resolution → (shared) `hitdetect.Detect` → `combat.ApplyHits` → `physics.Step`, then `round.CheckOutcome`. `zssexec` (`.zss` execution) is not wired into `Tick` — a character uses one interpreter or the other in real MUGEN/Ikemen, and `statemachine`+`evaluator`+`input` were already the cohesive, closed block; adding a second parallel path here would double this function's surface for no acceptance-criteria requirement asking for both simultaneously.
+2. **Frame timing lags a same-tick transition by one tick.** `Tick` resolves each fighter's currently-displayed animation frame *before* applying this tick's own state-machine transition (if any) — the new state's animation takes effect starting next tick, once `AnimTime` has actually been reset to 0. Simpler and internally consistent; does not affect the integration test's match-outcome assertion.
+3. **Animation-frame resolution is new, minimal code**, not delegated to `character/air` (which exposes no such helper): walks `Animation.Frames` summing `Time`, honoring `LoopStart`, treating a non-positive `Time` as "hold indefinitely" (generalizing MUGEN's own `-1 = infinite` convention to also cover a malformed `0`, so the walk can never loop forever).
+4. **Allocation discipline**: `Tick` explicitly unrolls its two-fighter fan-out as two named calls (no `[]match.Side` loop, no closures, no per-fighter `defer`), and threads a fixed `[2]T` result shape throughout — consistent with `hitdetect`/`combat`'s own existing zero-allocation-on-the-hot-path precedent (`.vibe/decisions/009`, `.vibe/decisions/010`). Measured via `testing.AllocsPerRun` at 4 allocs/tick on the no-hit/no-transition path, entirely attributable to `input.Step`'s own pre-existing two `make(map...)` calls per side (an already-closed item's design, out of this item's scope to change) — `Tick` itself adds zero.
+5. **The WASM entrypoint keeps per-match runtime state Go-side, in a session registry keyed by an opaque match ID**, rather than round-tripping `FighterRuntime`/`input.State`/`combat.ComboState` through JSON on every call. `input.State`'s own progress-tracking fields are unexported by design (a closed item); JSON-marshaling it from JS would silently lose all in-flight command-recognition progress every call. `OpenKakutouEngine.newMatch` returns a session ID; `.tick`/`.resetRound` take that ID and operate on the session's own Go-resident state, returning only already-JSON-tagged data (`match.MatchState`, `round.RoundResult`, `round.Progress`) to JS.
+
+**Reason:** Each of these is the narrowest cut that satisfies the item's checked acceptance criteria without reopening or duplicating an already-closed package's own design (the same "checked acceptance criteria are the actual scope contract" precedent `combat`'s own decision record set).
+
+**Rejected alternatives:**
+- **Wire `.zss` into `Tick` too** (a per-fighter "which interpreter" flag): rejected — no acceptance criterion asks for it, and it would double the orchestration surface this item already stretches thin.
+- **Reset the transitioning fighter's frame to the new state's first frame on the same tick it changes**: rejected — needlessly more code for no behavior the integration test (or any acceptance criterion) actually checks.
+- **Round-trip `FighterRuntime` as JSON on every WASM `tick` call** (stateless-from-JS-perspective API): rejected — `input.State`'s unexported fields make this silently lossy; a session handle is the standard, correct shape for a stateful WASM module and keeps every already-closed package's own API untouched.

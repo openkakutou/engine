@@ -2,11 +2,11 @@
 
 # Architecture
 
-`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. Nine exist so far:
+`engine` is organized as a thin root package assembling format-specific-equivalent sub-packages, added one per backlog item in dependency order. The backlog's own sequencing is now complete: ten sub-packages exist, and the root package itself has grown from a bare skeleton into the orchestration point (`Tick`) that ties every one of them into a usable match loop, exposed to a JS host via a WASM entrypoint (`cmd/wasm`).
 
 ```mermaid
 graph LR
-    root["engine (root)<br/>module skeleton — Version const"]
+    root["engine (root)<br/>Tick — full-match orchestration"]
     match["engine/match<br/>MatchState / FighterState<br/>pure-data model"]
     evaluator["engine/evaluator<br/>MUGEN CNS trigger parser + evaluator"]
     statemachine["engine/statemachine<br/>StateDef/Controller execution loop"]
@@ -15,6 +15,8 @@ graph LR
     physicspkg["engine/physics<br/>per-tick gravity, ground/air,<br/>boundary clamping"]
     hitdetectpkg["engine/hitdetect<br/>per-tick Clsn overlap detection"]
     combatpkg["engine/combat<br/>damage, health floor,<br/>combo counter"]
+    roundpkg["engine/round<br/>win conditions, round reset,<br/>best-of-N progress"]
+    wasm["cmd/wasm<br/>syscall/js entrypoint<br/>(build-tag-gated)"]
     cns["character/cns<br/>StateDef / Controller<br/>(read-only, external module)"]
     cmd["character/cmd<br/>CommandFile / Command<br/>(read-only, external module)"]
     zss["character/zss<br/>Script / Block<br/>(read-only, external module)"]
@@ -37,11 +39,26 @@ graph LR
     combatpkg -->|reads / writes| match
     combatpkg -->|reads| cns
     combatpkg -->|consumes HitEvents from| hitdetectpkg
+    roundpkg -->|reads / writes| match
+    root -->|drives, per fighter, per tick| inputpkg
+    root -->|drives, per fighter, per tick| statemachine
+    root -->|drives once per tick, both fighters| hitdetectpkg
+    root -->|drives, per fighter with an active HitDef| combatpkg
+    root -->|drives, per fighter, per tick| physicspkg
+    root -->|checks after every tick| roundpkg
+    wasm -->|session-scoped calls| root
+    wasm -->|round reset, progress| roundpkg
 ```
 
 ## `engine` (root)
 
-The module's entry point. Currently a skeleton exposing only `Version` (a `const string`). As later backlog items land (state machine, `.zss` execution, physics, hit detection, damage/combo, input, round/match flow), the root package is expected to stay a thin assembly point over the sub-packages, not accumulate logic itself.
+The module's entry point — still exposes `Version` (a `const string`), and now also the single function tying every sub-package into a usable match loop.
+
+- **`Tick(state match.MatchState, programs [2]FighterProgram, runtimes [2]FighterRuntime, inputs [2]input.TickInput, bounds *stage.StageBoundaries, gravity float64, tick, comboWindow int) (TickResult, error)`** — advances one full simulation tick for both fighters: per fighter, `input.Step` then `statemachine.Step` (CNS execution only — `.zss` is deliberately not wired in here, see `.vibe/decisions/011`) and current-animation-frame resolution; then, once for the pair, `hitdetect.Detect`; then, per fighter whose state's `HitDef` controller triggered this tick, `combat.ApplyHits`; then, per fighter, `physics.Step`; then `round.CheckOutcome`. The two-fighter fan-out is explicitly unrolled (two named calls, not a loop or a closure) to hold the same zero-allocation discipline `hitdetect`/`combat` already established — measured at 4 allocs/tick on the no-hit/no-transition path, all attributable to `input.Step`'s own pre-existing per-side map allocations, none added by `Tick` itself.
+- **`FighterProgram`** — one fighter's read-only, loaded-once character data for the whole match: `States map[int]cns.StateDef`, `Animations []air.Animation`, `Commands cmd.CommandFile`.
+- **`FighterRuntime`** — one fighter's evolving per-tick state, threaded by the caller the same way every sub-package's own carried state already is: `Context evaluator.Context`, `Input input.State`, `Combo combat.ComboState`.
+- **`NewFighterRuntime(fs match.FighterState, states map[int]cns.StateDef) (FighterRuntime, error)`** — builds a fresh `FighterRuntime` for a fighter entering `states[fs.StateNo]` for the first time (match start, or after `round.ResetRound`): `Time`/`AnimTime` start at 0, `Anim`/`Ctrl` take the entered state's own declared values.
+- **Frame timing lags a same-tick transition by one tick** — `Tick` resolves each fighter's currently-displayed frame *before* applying that tick's own state transition; the new state's animation (and any `HitDef` inside it) only becomes active starting the *next* tick, once `AnimTime`/`Time` have actually reset to 0. This is why a scripted attack takes two ticks to land: one tick to transition into the attack state, one more for that state's own `HitDef` to actually be evaluated. See `.vibe/decisions/011`.
 
 ## `engine/match`
 
@@ -119,7 +136,25 @@ Applies `hitdetect`'s `HitEvent`s to actual match state: damage subtracted from 
 - **`DefaultDamage` (`0`)** — applied when `hitDef.Parameters["damage"]` is missing or not a valid integer, so a malformed `HitDef` still lands a (harmless) hit instead of crashing the simulation.
 - **By-value `MatchState`, zero allocation** — `ApplyHits` takes and returns `match.MatchState` by value (mirroring `physics.Step`'s own shape) rather than a pointer, and the dedup scan is a plain early-return loop with no set/map — both verified allocation-free (`AllocsPerRun` tests for both the "no hit" and "hit lands" cases, `go build -gcflags="-m"` showing no escape) for the same single-threaded-WASM-GC reasons `hitdetect`'s own decision record already established. See `.vibe/decisions/010`.
 
-## Data flow (expected, as later packages land)
+## `engine/round`
+
+Decides how a round ends, resets fighters for the next one, and tracks best-of-N match progress — the last piece `Tick` needed. Match-level bookkeeping (rounds won per side) is not carried on `match.MatchState` itself, following the same wrap-rather-than-reopen precedent `evaluator.Context` and `physics`'s derived "grounded" state already set; `Progress` is its own type here instead. See `.vibe/decisions/011`.
+
+- **`CheckOutcome(state *match.MatchState) RoundResult`** — a KO when either or both fighters' health has reached zero (checked before a timeout, so a fighter that runs out of health and out of time on the same tick is still reported as a KO, matching real MUGEN/Ikemen precedence), or a timeout when `RoundTimer` has reached zero, broken by a health comparison (equal health is a draw). `RoundResult{Outcome: OutcomeNone}` (the zero value) means the round is still in progress.
+- **`ResetRound(nextRound, roundTimer int, p1Start, p2Start match.FighterState) (*match.MatchState, error)`** — a thin, documented wrapper over `match.NewMatchState` for the "next round" case, surfacing that constructor's own validation as an error rather than a panic.
+- **`Progress`** — `BestOf`, `Wins [2]int` (indexed by `match.Side`), `RoundsPlayed`. Built with `NewProgress(bestOf int) (Progress, error)`, which rejects a non-positive or even `bestOf` (a match can never end in a round-level tie). `RoundsToWin()` is `BestOf/2 + 1`. `RecordRoundResult(result RoundResult) Progress` advances `RoundsPlayed` and, for `OutcomeKO`/`OutcomeTimeout` only, the winning side's `Wins` — a drawn round (`OutcomeDoubleKO`/`OutcomeTimeoutDraw`) awards no round win to either side, matching real MUGEN/Ikemen behavior. `MatchOutcome() (decided bool, winner match.Side)` reports whether either side has reached `RoundsToWin`.
+
+## `cmd/wasm`
+
+The WASM entrypoint (`//go:build js && wasm`), following `character/cmd/wasm`'s own precedent: build-tag-gated, a single JS-callable global (`OpenKakutouEngine`), verified by a Node.js smoke harness (`smoke.mjs`) since `syscall/js` code cannot run under the plain Go toolchain.
+
+- **Every exposed function takes/returns one JSON string**, in a uniform `{data, error}` envelope — exactly one field non-null, never throws (a panic is `recover()`-ed at the boundary, mirroring `character/cmd/wasm`'s own `load`/`resolveSprites`).
+- **`newMatch(requestJSON)`** — builds round 1 of a match from both fighters' `FighterProgram` data and starting `match.FighterState`, plus stage bounds/gravity/comboWindow/bestOf; returns an opaque `matchId`.
+- **`tick(requestJSON)`** — advances `matchId`'s session by one tick (calling `engine.Tick`, then recording any round outcome into the session's `round.Progress`); returns the resulting `match.MatchState`, `round.RoundResult`, `round.Progress`, and whether/who has won the match outright.
+- **`resetRound(requestJSON)`** — restores `matchId`'s session to a fresh next round via `round.ResetRound` plus a fresh `FighterRuntime` per side (`engine.NewFighterRuntime`).
+- **Per-match runtime state stays Go-side**, in a session registry keyed by `matchId`, rather than round-tripping `FighterRuntime`/`input.State`/`combat.ComboState` through JSON on every call — `input.State`'s own progress-tracking fields are unexported by design, so marshaling it from JS would silently lose in-flight command-recognition progress every call. Only already-JSON-tagged summary data (`match.MatchState`, `round.RoundResult`, `round.Progress`) ever crosses the JS boundary. See `.vibe/decisions/011`.
+
+## Data flow
 
 ```mermaid
 flowchart LR
@@ -136,6 +171,8 @@ flowchart LR
     characterair["character/air<br/>(Frame/ClsnBox — read-only)"]
     hitdetect["engine/hitdetect"]
     combat["engine/combat"]
+    roundpkg["engine/round"]
+    tick["engine.Tick<br/>(root package)"]
 
     character -->|Controller.Triggers strings| evaluatorpkg
     character -->|StateDef data| statemachinepkg
@@ -156,6 +193,13 @@ flowchart LR
     hitdetect -->|HitEvents| combat
     character -->|HitDef Controller.Parameters| combat
     matchpkg <-->|reads / writes Health| combat
+    tick -->|per fighter, per tick| inputpkg
+    tick -->|per fighter, per tick, CNS only| statemachinepkg
+    tick -->|once per tick, both fighters| hitdetect
+    tick -->|per fighter with an active HitDef| combat
+    tick -->|per fighter, per tick| physics
+    tick -->|resulting MatchState| roundpkg
+    roundpkg -->|RoundResult| tick
 ```
 
-`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/statemachine` is the first `engine` package to actually depend on `character` as a Go module, feeding it real `Controller.Triggers`/`Controller.Parameters` values from a parsed `.cns` file. `engine/zssexec` reads `character/zss`'s parsed `.zss` scripts the same way, but reuses `engine/statemachine`'s own `ApplyController` for the controller-call statements inside a script body rather than duplicating that logic. `engine/input` is the second `engine` package to depend on `character` as a Go module: it reads `character/cmd`'s `CommandFile` and feeds its recognized commands into `evaluator.Context.ActiveCommands`, the same map the `Command` trigger reads. `engine/physics` is the first `engine` package to depend on `stage` as a Go module, reading its `StageBoundaries` to clamp fighter movement. `engine/hitdetect` is the first `engine` package to depend on `character/air`, reading each fighter's already-resolved `Frame.Clsn1`/`Clsn2` boxes alongside `engine/match`'s `Position`/`Facing` to detect overlap — it does not itself resolve which frame is "current" from `Anim`/`AnimTime`, that remains the caller's responsibility. `engine/combat` closes the loop `hitdetect` opened: it reads `hitdetect`'s own `HitEvent`s plus `character/cns`'s `Controller` (for a `HitDef`'s raw `"damage"` parameter) and writes the result back into `engine/match`'s `FighterState.Health` — the first `engine` package to actually mutate `match` state as a result of combat, rather than only reading it.
+`character` and `stage` are read-only inputs `engine` never writes back to; `engine/match` is the mutable state every simulation-side package operates on, each tick. `engine/statemachine` is the first `engine` package to actually depend on `character` as a Go module, feeding it real `Controller.Triggers`/`Controller.Parameters` values from a parsed `.cns` file. `engine/zssexec` reads `character/zss`'s parsed `.zss` scripts the same way, but reuses `engine/statemachine`'s own `ApplyController` for the controller-call statements inside a script body rather than duplicating that logic. `engine/input` is the second `engine` package to depend on `character` as a Go module: it reads `character/cmd`'s `CommandFile` and feeds its recognized commands into `evaluator.Context.ActiveCommands`, the same map the `Command` trigger reads. `engine/physics` is the first `engine` package to depend on `stage` as a Go module, reading its `StageBoundaries` to clamp fighter movement. `engine/hitdetect` is the first `engine` package to depend on `character/air`, reading each fighter's already-resolved `Frame.Clsn1`/`Clsn2` boxes alongside `engine/match`'s `Position`/`Facing` to detect overlap — it does not itself resolve which frame is "current" from `Anim`/`AnimTime`, that remains the caller's responsibility. `engine/combat` closes the loop `hitdetect` opened: it reads `hitdetect`'s own `HitEvent`s plus `character/cns`'s `Controller` (for a `HitDef`'s raw `"damage"` parameter) and writes the result back into `engine/match`'s `FighterState.Health` — the first `engine` package to actually mutate `match` state as a result of combat, rather than only reading it. `engine.Tick` (root package) is what actually drives all of the above, once per simulation tick, for both fighters (see `.vibe/decisions/011` for why `.zss`/`engine/zssexec` isn't wired into this loop); `engine/round` closes the final loop, deciding from `Tick`'s resulting `MatchState` whether the round just ended and, across calls, whether the whole match has been won.

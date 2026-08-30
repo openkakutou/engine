@@ -13,10 +13,8 @@ This project is early-stage. Available now:
 - `.zss` script execution — runs Ikemen GO's Lua-like state scripts the same way classic state definitions are driven: conditions are checked, variables and state changes are applied, and a script can call another one as a helper, all producing the same real results a classic combat-logic file would for the same behavior; an unsupported script construct reports a clear error instead of silently doing nothing
 - Hit detection — resolves each fighter's currently active hit boxes against the other's vulnerable boxes every simulation tick, correctly positioned and mirrored for whichever way each fighter is facing; a frame with no collision boxes at all (like most idle frames) simply produces no hits
 - Damage, health, and combos — a landed hit subtracts its declared damage from the defender's health, never below zero even on an overkill hit, and builds a combo counter that keeps climbing while hits keep landing close together, resetting once too much time passes between them; a hit with a missing or unreadable damage amount still lands safely instead of crashing the match
-
-Planned:
-
-- Round/match flow, WASM entrypoint, integration tests — win conditions (KO, timeout), round reset, match-level flow, WASM build, fixture-driven integration tests
+- Round/match flow — decides how a round ends (a knockout, both fighters knocked out at once, or the round timer running out with the healthier fighter winning), resets both fighters to a fresh start for the next round, and tracks who has won how many rounds across a full best-of-N match
+- WebAssembly build — a game running in a browser can load the engine as a compiled module, start a match from two loaded characters, advance it tick by tick, and reset between rounds, all without needing a Go toolchain of its own
 
 **Scope boundary:** `engine` is combat simulation only — the simulation that runs while two characters fight. It does not cover menus, character selection, or overall game flow; those are the responsibility of `mode-*` game apps (starting with `mode-quick-versus`), which consume `engine` rather than the other way around. See `github.com/openkakutou/roadmap`'s `.vibe/decisions/004` and `.vibe/decisions/008`.
 <!-- vibe:end:features -->
@@ -42,7 +40,7 @@ go get -u github.com/openkakutou/engine
 <!-- vibe:end:install -->
 
 <!-- vibe:begin:docs-index -->
-- [docs/architecture.md](docs/architecture.md) — how the root package, `engine/match`, `engine/evaluator`, `engine/statemachine`, `engine/zssexec`, `engine/input`, `engine/physics`, `engine/hitdetect`, and `engine/combat` fit together, and the data flow expected as later packages land
+- [docs/architecture.md](docs/architecture.md) — how the root package's `Tick`, `engine/match`, `engine/evaluator`, `engine/statemachine`, `engine/zssexec`, `engine/input`, `engine/physics`, `engine/hitdetect`, `engine/combat`, `engine/round`, and the `cmd/wasm` entrypoint fit together, and the resulting data flow
 <!-- vibe:end:docs-index -->
 
 <!-- vibe:begin:usage -->
@@ -245,5 +243,82 @@ if Command = "holdfwd" {
 }
 ```
 
-Usage examples will grow here as the rest of the backlog is implemented.
+Advance a full simulation tick for both fighters and check the round outcome with the root package and the `round` package:
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/openkakutou/character/cns"
+	"github.com/openkakutou/engine"
+	"github.com/openkakutou/engine/input"
+	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/round"
+	"github.com/openkakutou/stage"
+)
+
+func main() {
+	states := map[int]cns.StateDef{0: {Number: 0}}
+	prog := engine.FighterProgram{States: states}
+
+	p1 := match.FighterState{Side: match.SideP1, Health: 1}
+	p2 := match.FighterState{Side: match.SideP2, Health: 1000}
+	p1Runtime, _ := engine.NewFighterRuntime(p1, states)
+	p2Runtime, _ := engine.NewFighterRuntime(p2, states)
+
+	state, _ := match.NewMatchState(1, 5940, p1, p2)
+	bounds := &stage.StageBoundaries{Left: -100, Right: 100}
+
+	result, err := engine.Tick(
+		*state,
+		[2]engine.FighterProgram{prog, prog},
+		[2]engine.FighterRuntime{p1Runtime, p2Runtime},
+		[2]input.TickInput{},
+		bounds, 1.0, 1, 60,
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(result.Round.Outcome == round.OutcomeNone) // true — 1 health, but nothing hit it yet
+}
+```
+
+Track match-level progress across a best-of-N with the `round` package:
+
+```go
+package main
+
+import (
+	"fmt"
+
+	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/round"
+)
+
+func main() {
+	progress, err := round.NewProgress(3)
+	if err != nil {
+		panic(err)
+	}
+
+	progress = progress.RecordRoundResult(round.RoundResult{Outcome: round.OutcomeKO, Winner: match.SideP1})
+	progress = progress.RecordRoundResult(round.RoundResult{Outcome: round.OutcomeKO, Winner: match.SideP1})
+
+	decided, winner := progress.MatchOutcome()
+	fmt.Println(decided, winner == match.SideP1) // true true — 2 round wins decide a best-of-3
+}
+```
+
+A game running in a browser drives a match through the WASM build instead — see `cmd/wasm/main.go` for the full contract; the shape is:
+
+```js
+const created = OpenKakutouEngine.newMatch(JSON.stringify({ programs, starting, roundTimer, bestOf, bounds, gravity, comboWindow }));
+const { matchId } = JSON.parse(created.data);
+
+const advanced = OpenKakutouEngine.tick(JSON.stringify({ matchId, inputs: [p1Input, p2Input] }));
+const { state, round, matchOver, matchWinner } = JSON.parse(advanced.data);
+```
 <!-- vibe:end:usage -->
