@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/openkakutou/character/air"
@@ -201,6 +202,45 @@ func TestTick_AppliesActiveHitDef_ReducesDefenderHealthAndReportsKO(t *testing.T
 	}
 	if result.Round.Winner != match.SideP1 {
 		t.Errorf("Round.Winner = %v, want SideP1", result.Round.Winner)
+	}
+}
+
+func TestCurrentFrame_AdvancesThroughFramesAndLoopsAtLoopStart(t *testing.T) {
+	anim := air.Animation{
+		Number: 0,
+		Frames: []air.Frame{
+			{Time: 2, Image: 0}, // ticks 0-1
+			{Time: 3, Image: 1}, // ticks 2-4
+			{Time: 1, Image: 2}, // tick 5
+		},
+		LoopStart: 1, // loop back to frame index 1 (Image 1), not 0
+	}
+
+	cases := []struct {
+		animTime  int
+		wantImage int
+	}{
+		{0, 0},  // first frame
+		{1, 0},  // still first frame
+		{2, 1},  // second frame begins
+		{4, 1},  // still second frame
+		{5, 2},  // third frame
+		{6, 1},  // wrapped to LoopStart (index 1), not index 0
+		{9, 2},  // one loop pass (Time 3+1=4) after the wrap, into the third frame again
+		{10, 1}, // a full loop pass (4 ticks) after the wrap, back at LoopStart's own frame
+	}
+	for _, c := range cases {
+		got := currentFrame(anim, c.animTime)
+		if got.Image != c.wantImage {
+			t.Errorf("currentFrame(animTime=%d).Image = %d, want %d", c.animTime, got.Image, c.wantImage)
+		}
+	}
+}
+
+func TestCurrentFrame_ReturnsZeroFrame_WhenAnimationHasNoFrames(t *testing.T) {
+	got := currentFrame(air.Animation{}, 5)
+	if !reflect.DeepEqual(got, air.Frame{}) {
+		t.Errorf("currentFrame on an empty animation = %+v, want zero Frame", got)
 	}
 }
 

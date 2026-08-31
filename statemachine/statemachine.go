@@ -35,6 +35,18 @@ import (
 	"github.com/openkakutou/engine/evaluator"
 )
 
+// Controller type names this package recognizes, declared once here rather
+// than as separate string literals in every file that needs to classify a
+// cns.Controller (ApplyController's own switch below, and the root engine
+// package's tick.go, which needs to recognize a HitDef controller to drive
+// combat) -- a typo in one of two independently hardcoded literals would
+// otherwise fail silently at runtime instead of at compile time.
+const (
+	ControllerTypeChangeState = "ChangeState"
+	ControllerTypeVarSet      = "VarSet"
+	ControllerTypeHitDef      = "HitDef"
+)
+
 // Result is the outcome of one Step call.
 type Result struct {
 	// Context is the fighter's Context after applying every controller
@@ -128,9 +140,9 @@ func triggersPass(triggers []string, ctx evaluator.Context) (bool, error) {
 // but it has no effect on ctx.
 func ApplyController(ctrl cns.Controller, ctx *evaluator.Context, exists func(int) bool) (bool, error) {
 	switch strings.ToLower(ctrl.Type) {
-	case "changestate":
+	case strings.ToLower(ControllerTypeChangeState):
 		return true, applyChangeState(ctrl, ctx, exists)
-	case "varset":
+	case strings.ToLower(ControllerTypeVarSet):
 		return false, applyVarSet(ctrl, ctx)
 	default:
 		return false, nil

@@ -229,6 +229,91 @@ func TestStep_VarSetController_AssignsVariable(t *testing.T) {
 	}
 }
 
+func TestStep_VarSetMissingVParameter_ReturnsDescriptiveError(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				{Type: "VarSet", Parameters: map[string]string{"value": "7"}},
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	_, err := Step(ctx, states)
+	if err == nil {
+		t.Fatal("expected a descriptive error for a VarSet controller missing its \"v\" parameter, got nil")
+	}
+}
+
+func TestStep_VarSetMissingValueParameter_ReturnsDescriptiveError(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				{Type: "VarSet", Parameters: map[string]string{"v": "3"}},
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	_, err := Step(ctx, states)
+	if err == nil {
+		t.Fatal("expected a descriptive error for a VarSet controller missing its \"value\" parameter, got nil")
+	}
+}
+
+func TestStep_VarSetUnevaluableVExpression_ReturnsDescriptiveError(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				{Type: "VarSet", Parameters: map[string]string{"v": "SomeUnknownTrigger", "value": "7"}},
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	_, err := Step(ctx, states)
+	if err == nil {
+		t.Fatal("expected a descriptive error for a VarSet \"v\" expression that fails to evaluate, got nil")
+	}
+}
+
+func TestStep_VarSetUnevaluableValueExpression_ReturnsDescriptiveError(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				{Type: "VarSet", Parameters: map[string]string{"v": "3", "value": "SomeUnknownTrigger"}},
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	_, err := Step(ctx, states)
+	if err == nil {
+		t.Fatal("expected a descriptive error for a VarSet \"value\" expression that fails to evaluate, got nil")
+	}
+}
+
+func TestStep_VarSetIndexOutOfRange_ReturnsDescriptiveError(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				varSetController("", 999, 7),
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	_, err := Step(ctx, states)
+	if err == nil {
+		t.Fatal("expected a descriptive error for a VarSet index out of range, got nil")
+	}
+}
+
 func TestStep_UnimplementedControllerType_TriggersTrueButHasNoEffect(t *testing.T) {
 	states := map[int]cns.StateDef{
 		0: {

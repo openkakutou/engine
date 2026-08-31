@@ -63,7 +63,7 @@ func Step(ctx evaluator.Context, script zss.Script) (Result, error) {
 		return Result{}, fmt.Errorf("zssexec: current state %d not found in loaded .zss script", ctx.StateNo)
 	}
 
-	stmts, err := parseBody(block.Body)
+	stmts, err := parseBodyCached(block.Body)
 	if err != nil {
 		return Result{}, fmt.Errorf("zssexec: state %d: %w", ctx.StateNo, err)
 	}
@@ -73,20 +73,57 @@ func Step(ctx evaluator.Context, script zss.Script) (Result, error) {
 		_, ok := findStatedef(script, n)
 		return ok
 	}
-	if _, err := execStmts(stmts, &working, script, exists); err != nil {
+	if _, err := execStmts(stmts, &working, script, exists, 0); err != nil {
 		return Result{}, fmt.Errorf("zssexec: state %d: %w", ctx.StateNo, err)
 	}
 
 	return Result{Context: working}, nil
 }
 
+// bodyCache memoizes parseBody by a block's raw Body text, so a Statedef/
+// Function body parsed once (character/zss.Block.Body is loaded once per
+// character and never changes for the life of a match) is not
+// re-lexed/re-parsed on every simulation tick that revisits it -- the same
+// per-tick reparse cost evaluator.Evaluate's own parseCache avoids for
+// trigger/parameter expressions. Keying on the body text itself (rather
+// than, say, a script+state-number pair) is safe and correct: parseBody's
+// result depends only on its input string, so two blocks that happen to
+// share identical body text share the same cache entry. Safe as a plain,
+// unsynchronized map for the same single-threaded, no-goroutines reason
+// parseCache is.
+var bodyCache = make(map[string][]stmt)
+
+func parseBodyCached(body string) ([]stmt, error) {
+	if s, ok := bodyCache[body]; ok {
+		return s, nil
+	}
+	s, err := parseBody(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyCache[body] = s
+	return s, nil
+}
+
+// maxCallDepth bounds how many nested "call FunctionName();" statements
+// execStmt will follow before giving up with a descriptive error. `.zss`
+// script bodies are untrusted, mod-authored character content -- direct or
+// mutual recursion (a function that calls itself, or two functions that
+// call each other) would otherwise recurse the Go call stack without
+// bound, crashing the process with an unrecoverable "fatal error: stack
+// overflow" that no panic recovery (including cmd/wasm's own guarded) can
+// intercept.
+const maxCallDepth = 64
+
 // execStmts runs stmts in order against ctx, mutating it in place, and
 // reports whether a state change happened -- the caller must stop running
 // any further statements at its own level (and every enclosing level) as
-// soon as this is true.
-func execStmts(stmts []stmt, ctx *evaluator.Context, script zss.Script, exists func(int) bool) (bool, error) {
+// soon as this is true. depth is the current "call FunctionName();" nesting
+// level (see maxCallDepth); it does not change for if/else branches, which
+// are not themselves function calls.
+func execStmts(stmts []stmt, ctx *evaluator.Context, script zss.Script, exists func(int) bool, depth int) (bool, error) {
 	for _, s := range stmts {
-		stopped, err := execStmt(s, ctx, script, exists)
+		stopped, err := execStmt(s, ctx, script, exists, depth)
 		if err != nil {
 			return false, err
 		}
@@ -97,7 +134,7 @@ func execStmts(stmts []stmt, ctx *evaluator.Context, script zss.Script, exists f
 	return false, nil
 }
 
-func execStmt(s stmt, ctx *evaluator.Context, script zss.Script, exists func(int) bool) (bool, error) {
+func execStmt(s stmt, ctx *evaluator.Context, script zss.Script, exists func(int) bool, depth int) (bool, error) {
 	switch st := s.(type) {
 	case ifStmt:
 		v, err := evaluator.Evaluate(st.cond, *ctx)
@@ -108,9 +145,12 @@ func execStmt(s stmt, ctx *evaluator.Context, script zss.Script, exists func(int
 		if !v.Bool() {
 			branch = st.els
 		}
-		return execStmts(branch, ctx, script, exists)
+		return execStmts(branch, ctx, script, exists, depth)
 
 	case callStmt:
+		if depth >= maxCallDepth {
+			return false, fmt.Errorf("call to %q exceeds maximum call depth %d (likely infinite recursion)", st.name, maxCallDepth)
+		}
 		fn, ok := findFunction(script, st.name)
 		if !ok {
 			return false, fmt.Errorf("call to undefined function %q", st.name)
@@ -118,11 +158,11 @@ func execStmt(s stmt, ctx *evaluator.Context, script zss.Script, exists func(int
 		if len(fn.Params) > 0 || len(fn.Ret) > 0 {
 			return false, fmt.Errorf("call to function %q: functions with parameters or a return value are not supported yet", st.name)
 		}
-		fnStmts, err := parseBody(fn.Body)
+		fnStmts, err := parseBodyCached(fn.Body)
 		if err != nil {
 			return false, fmt.Errorf("function %q: %w", st.name, err)
 		}
-		return execStmts(fnStmts, ctx, script, exists)
+		return execStmts(fnStmts, ctx, script, exists, depth+1)
 
 	case ctrlStmt:
 		changed, err := statemachine.ApplyController(st.ctrl, ctx, exists)

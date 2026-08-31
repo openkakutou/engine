@@ -57,6 +57,25 @@ var directionCodes = map[string]directionSet{
 // deferred; see .vibe/decisions/006-command-modifier-prefixes-recognized-not-implemented.md.
 const commandModifiers = "~$/>"
 
+// stepsCache memoizes parseSteps by its raw input string, so Step's
+// per-tick, per-fighter call (see matcher.go) does not re-split/re-parse
+// the same character-loaded, match-lifetime-static c.Input string on every
+// simulation tick. Safe as a plain, unsynchronized map for the same
+// single-threaded, no-goroutines reason engine/evaluator's own parseCache
+// is (see .vibe/decisions/009-011).
+var stepsCache = make(map[string][]step)
+
+// parseStepsCached returns parseSteps(input), reusing a cached result for
+// an input string already seen.
+func parseStepsCached(input string) []step {
+	if s, ok := stepsCache[input]; ok {
+		return s
+	}
+	s := parseSteps(input)
+	stepsCache[input] = s
+	return s
+}
+
 // parseSteps splits a .cmd Command.Input string (e.g. "~D, DF, F, a") into
 // its ordered sequence of required steps. Steps are comma-separated;
 // within a step, "+" joins inputs that must be held simultaneously (e.g.

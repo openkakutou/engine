@@ -15,7 +15,9 @@
 // data if round-tripped through JSON) stays Go-side in a session, keyed by
 // an opaque match ID newMatch returns; tick/resetRound take that ID back
 // and only ever hand JS already-JSON-tagged summary data (MatchState,
-// RoundResult, Progress). See ../../.vibe/decisions/011.
+// RoundResult, Progress). closeMatch releases a session's state once the
+// caller is done with it -- sessions are never pruned on their own. See
+// ../../.vibe/decisions/011.
 package main
 
 import (
@@ -35,6 +37,7 @@ func main() {
 		"newMatch":   js.FuncOf(guarded(newMatch)),
 		"tick":       js.FuncOf(guarded(tickJS)),
 		"resetRound": js.FuncOf(guarded(resetRoundJS)),
+		"closeMatch": js.FuncOf(guarded(closeMatchJS)),
 	}))
 
 	// Registering js.FuncOf callbacks does not keep the Go runtime alive on
@@ -248,6 +251,37 @@ type resetRoundRequest struct {
 // payload.
 type resetRoundResponse struct {
 	State match.MatchState `json:"state"`
+}
+
+// closeMatchRequest is OpenKakutouEngine.closeMatch's JSON request shape.
+type closeMatchRequest struct {
+	MatchID int `json:"matchId"`
+}
+
+// closeMatchJS is OpenKakutouEngine.closeMatch(requestJSON) as seen from
+// JS: releases matchId's Go-resident session state. sessions is never
+// pruned on its own -- a caller (a page driving many matches/rematches
+// over its lifetime, e.g. after a match ends or the player backs out to a
+// menu) is expected to call this once a given match ID is no longer
+// needed, or that session's two FighterProgram/FighterRuntime pairs stay
+// resident in memory for the life of the WASM instance.
+func closeMatchJS(args []js.Value) (any, error) {
+	raw, err := argString(args)
+	if err != nil {
+		return nil, err
+	}
+
+	var req closeMatchRequest
+	if err := json.Unmarshal([]byte(raw), &req); err != nil {
+		return nil, fmt.Errorf("decoding request: %w", err)
+	}
+
+	if _, ok := sessions[req.MatchID]; !ok {
+		return nil, fmt.Errorf("no match session with id %d", req.MatchID)
+	}
+	delete(sessions, req.MatchID)
+
+	return map[string]any{}, nil
 }
 
 // resetRoundJS is OpenKakutouEngine.resetRound(requestJSON) as seen from

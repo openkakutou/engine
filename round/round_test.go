@@ -68,6 +68,19 @@ func TestCheckOutcome_ReportsTimeout_WithHealthTiebreak(t *testing.T) {
 	}
 }
 
+func TestCheckOutcome_ReportsTimeout_P2WinsHealthTiebreak(t *testing.T) {
+	state := newState(t, 1, 0, 200, 300)
+
+	result := CheckOutcome(state)
+
+	if result.Outcome != OutcomeTimeout {
+		t.Fatalf("Outcome = %v, want OutcomeTimeout", result.Outcome)
+	}
+	if result.Winner != match.SideP2 {
+		t.Errorf("Winner = %v, want SideP2 (more health)", result.Winner)
+	}
+}
+
 func TestCheckOutcome_ReportsTimeoutDraw_WhenHealthIsEqual(t *testing.T) {
 	state := newState(t, 1, 0, 250, 250)
 

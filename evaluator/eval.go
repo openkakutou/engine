@@ -62,14 +62,32 @@ func boolValue(b bool) Value {
 func intValue(n float64) Value   { return Value{Kind: KindInt, Number: n} }
 func floatValue(n float64) Value { return Value{Kind: KindFloat, Number: n} }
 
-// Evaluate is a convenience that parses expr and evaluates it against ctx
-// in one call. Prefer Parse followed by repeated Expression.Eval calls
-// when the same expression will be evaluated more than once (e.g. a
-// controller's trigger checked every simulation tick).
+// parseCache memoizes Parse by source string, so Evaluate's repeated calls
+// with the same expr (e.g. a controller's trigger checked every simulation
+// tick, across statemachine.Step/zssexec.Step calls) reuse the already-
+// built Expression instead of re-lexing/re-parsing it from scratch each
+// time -- CNS/`.zss` trigger and parameter strings are loaded once per
+// character and never change for the life of a match, so the set of
+// distinct keys stays bounded by the loaded character data, not by tick
+// count. Safe as a plain, unsynchronized map: this engine targets a
+// single-threaded GOOS=js GOARCH=wasm build with no goroutines anywhere in
+// the simulation loop (see .vibe/decisions/009-011).
+var parseCache = make(map[string]*Expression)
+
+// Evaluate is a convenience that parses expr (reusing a cached parse if
+// expr has been seen before -- see parseCache) and evaluates it against
+// ctx in one call. Prefer Parse followed by repeated Expression.Eval calls
+// when the caller already holds on to the same *Expression across calls;
+// Evaluate itself now also avoids the repeated-parse cost via parseCache.
 func Evaluate(expr string, ctx Context) (Value, error) {
-	e, err := Parse(expr)
-	if err != nil {
-		return Value{}, err
+	e, ok := parseCache[expr]
+	if !ok {
+		var err error
+		e, err = Parse(expr)
+		if err != nil {
+			return Value{}, err
+		}
+		parseCache[expr] = e
 	}
 	return e.Eval(ctx)
 }
@@ -206,23 +224,43 @@ func evalBinary(n binaryNode, ctx Context) (Value, error) {
 		return Value{}, err
 	}
 
-	switch n.op {
+	if v, ok, err := evalComparisonOrLogical(n.op, left, right); ok || err != nil {
+		return v, err
+	}
+	return evalArithmetic(n.op, left, right)
+}
+
+// evalComparisonOrLogical handles op's comparison (=, !=, <, >, <=, >=) and
+// logical (&&, ||) forms. ok is false, with a zero Value and nil error,
+// when op is not one of those -- the caller falls through to
+// evalArithmetic instead.
+func evalComparisonOrLogical(op string, left, right Value) (v Value, ok bool, err error) {
+	switch op {
 	case "=":
-		return boolValue(left.Float() == right.Float()), nil
+		return boolValue(left.Float() == right.Float()), true, nil
 	case "!=":
-		return boolValue(left.Float() != right.Float()), nil
+		return boolValue(left.Float() != right.Float()), true, nil
 	case "<":
-		return boolValue(left.Float() < right.Float()), nil
+		return boolValue(left.Float() < right.Float()), true, nil
 	case ">":
-		return boolValue(left.Float() > right.Float()), nil
+		return boolValue(left.Float() > right.Float()), true, nil
 	case "<=":
-		return boolValue(left.Float() <= right.Float()), nil
+		return boolValue(left.Float() <= right.Float()), true, nil
 	case ">=":
-		return boolValue(left.Float() >= right.Float()), nil
+		return boolValue(left.Float() >= right.Float()), true, nil
 	case "&&":
-		return boolValue(left.Bool() && right.Bool()), nil
+		return boolValue(left.Bool() && right.Bool()), true, nil
 	case "||":
-		return boolValue(left.Bool() || right.Bool()), nil
+		return boolValue(left.Bool() || right.Bool()), true, nil
+	default:
+		return Value{}, false, nil
+	}
+}
+
+// evalArithmetic handles op's arithmetic form (+, -, *, /, %) -- every
+// binary operator evalComparisonOrLogical does not recognize.
+func evalArithmetic(op string, left, right Value) (Value, error) {
+	switch op {
 	case "+":
 		return arithResult(left, right, left.Float()+right.Float()), nil
 	case "-":
@@ -240,7 +278,7 @@ func evalBinary(n binaryNode, ctx Context) (Value, error) {
 		}
 		return arithResult(left, right, math.Mod(left.Float(), right.Float())), nil
 	default:
-		return Value{}, fmt.Errorf("evaluator: internal error: unhandled binary operator %q", n.op)
+		return Value{}, fmt.Errorf("evaluator: internal error: unhandled binary operator %q", op)
 	}
 }
 

@@ -145,6 +145,19 @@ const unknown = call(globalThis.OpenKakutouEngine.tick, { matchId: 999999, input
 assert(unknown.data === null, "tick on an unknown matchId: data is null");
 assert(typeof unknown.error === "string" && unknown.error.length > 0, `tick on an unknown matchId: error is a non-empty string (got: ${unknown.error})`);
 
+// --- closeMatch: releases the session; the same matchId is then unknown ---
+const closed = call(globalThis.OpenKakutouEngine.closeMatch, { matchId });
+assert(closed.error === null, `closeMatch reports no error (got: ${closed.error})`);
+
+const tickAfterClose = call(globalThis.OpenKakutouEngine.tick, { matchId, inputs: [{}, {}] });
+assert(tickAfterClose.data === null, "tick on a closed matchId: data is null");
+assert(typeof tickAfterClose.error === "string" && tickAfterClose.error.length > 0, `tick on a closed matchId: error is a non-empty string (got: ${tickAfterClose.error})`);
+
+// --- error path: closing an already-unknown match ID reports an error, not a crash ---
+const closeUnknown = call(globalThis.OpenKakutouEngine.closeMatch, { matchId: 999999 });
+assert(closeUnknown.data === null, "closeMatch on an unknown matchId: data is null");
+assert(typeof closeUnknown.error === "string" && closeUnknown.error.length > 0, `closeMatch on an unknown matchId: error is a non-empty string (got: ${closeUnknown.error})`);
+
 // --- error path: a malformed request (wrong argument count) must not crash the module ---
 let threw = false;
 try {

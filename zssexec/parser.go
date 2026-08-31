@@ -138,10 +138,10 @@ func parseIf(lines []string) (stmt, []string, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(rest) == 0 || rest[0] != "}" {
-		return nil, nil, fmt.Errorf("\"if %s {\" is missing its closing \"}\"", cond)
+	rest, err = expectClosingBrace(rest, fmt.Sprintf("\"if %s {\"", cond))
+	if err != nil {
+		return nil, nil, err
 	}
-	rest = rest[1:]
 
 	if len(rest) > 0 && strings.HasPrefix(rest[0], "else") {
 		if rest[0] != "else {" {
@@ -151,13 +151,25 @@ func parseIf(lines []string) (stmt, []string, error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		if len(rest2) == 0 || rest2[0] != "}" {
-			return nil, nil, fmt.Errorf("\"else {\" is missing its closing \"}\"")
+		rest2, err = expectClosingBrace(rest2, "\"else {\"")
+		if err != nil {
+			return nil, nil, err
 		}
-		return ifStmt{cond: cond, then: then, els: els}, rest2[1:], nil
+		return ifStmt{cond: cond, then: then, els: els}, rest2, nil
 	}
 
 	return ifStmt{cond: cond, then: then}, rest, nil
+}
+
+// expectClosingBrace requires lines to start with a lone "}" line -- the
+// closing brace parseIf expects after either its then or else block -- and
+// returns the remaining lines past it. context names the construct being
+// closed, for the error message when it's missing.
+func expectClosingBrace(lines []string, context string) ([]string, error) {
+	if len(lines) == 0 || lines[0] != "}" {
+		return nil, fmt.Errorf("%s is missing its closing \"}\"", context)
+	}
+	return lines[1:], nil
 }
 
 func parseCall(line string) (stmt, error) {

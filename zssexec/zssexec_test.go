@@ -140,6 +140,37 @@ func TestStep_CallFunctionWithParameters_ReturnsDescriptiveError(t *testing.T) {
 	}
 }
 
+func TestStep_CallFunctionWithArguments_ReturnsDescriptiveError(t *testing.T) {
+	script := mustParseScript(t,
+		"[Statedef 0]\ncall Helper(1, 2);",
+		"[Function Helper()]\nvarSet{v: 0; value: 1;}",
+	)
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	_, err := Step(ctx, script)
+	if err == nil {
+		t.Fatal("expected an error for a call site passing arguments (not supported yet), got nil")
+	}
+}
+
+func TestStep_MutuallyRecursiveFunctionCalls_ReturnsDescriptiveErrorInsteadOfCrashing(t *testing.T) {
+	// A .zss script is untrusted, mod-authored content: two functions that
+	// call each other (or a function that calls itself) must not be able
+	// to crash the process via unbounded Go-stack recursion -- Step must
+	// return a descriptive error once the call depth is exceeded instead.
+	script := mustParseScript(t,
+		"[Statedef 0]\ncall A();",
+		"[Function A()]\ncall B();",
+		"[Function B()]\ncall A();",
+	)
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	_, err := Step(ctx, script)
+	if err == nil {
+		t.Fatal("expected an error for mutually recursive function calls exceeding the max call depth, got nil")
+	}
+}
+
 func TestStep_UnsupportedConstruct_ReturnsDescriptiveError(t *testing.T) {
 	script := mustParseScript(t, "[Statedef 0]\nlet x = 1;")
 	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}

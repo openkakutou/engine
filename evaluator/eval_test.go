@@ -151,6 +151,96 @@ func TestEval_ArithmeticResultKind_IsFloatWhenEitherOperandIsFloat(t *testing.T)
 	}
 }
 
+func TestEval_Comparisons_EvaluateAgainstBothSidesOfTheBoundary(t *testing.T) {
+	cases := []struct {
+		expr string
+		want bool
+	}{
+		{"1 < 2", true}, {"2 < 1", false}, {"1 < 1", false},
+		{"2 > 1", true}, {"1 > 2", false}, {"1 > 1", false},
+		{"1 <= 1", true}, {"2 <= 1", false}, {"1 <= 2", true},
+		{"1 >= 1", true}, {"1 >= 2", false}, {"2 >= 1", true},
+	}
+	for _, c := range cases {
+		if got := mustEval(t, c.expr, Context{}); got.Bool() != c.want {
+			t.Errorf("%s evaluated to %v, want %v", c.expr, got.Bool(), c.want)
+		}
+	}
+}
+
+func TestEval_Arithmetic_Subtraction(t *testing.T) {
+	got := mustEval(t, "5 - 2 = 3", Context{})
+	if !got.Bool() {
+		t.Errorf("5 - 2 = 3 evaluated to %v, want true", got.Bool())
+	}
+}
+
+func TestEval_Arithmetic_Division(t *testing.T) {
+	got := mustEval(t, "6 / 2 = 3", Context{})
+	if !got.Bool() {
+		t.Errorf("6 / 2 = 3 evaluated to %v, want true", got.Bool())
+	}
+}
+
+func TestEval_Arithmetic_DivisionByZero_ReturnsError(t *testing.T) {
+	e, err := Parse("1 / 0")
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	if _, err := e.Eval(Context{}); err == nil {
+		t.Error("expected error for division by zero, got nil")
+	}
+}
+
+func TestEval_Arithmetic_Modulo(t *testing.T) {
+	got := mustEval(t, "7 % 3 = 1", Context{})
+	if !got.Bool() {
+		t.Errorf("7 %% 3 = 1 evaluated to %v, want true", got.Bool())
+	}
+}
+
+func TestEval_Arithmetic_ModuloByZero_ReturnsError(t *testing.T) {
+	e, err := Parse("1 % 0")
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	if _, err := e.Eval(Context{}); err == nil {
+		t.Error("expected error for modulo by zero, got nil")
+	}
+}
+
+func TestEval_UnaryMinus_NegatesTheOperandAndPreservesKind(t *testing.T) {
+	e, err := Parse("-5")
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	v, err := e.Eval(Context{})
+	if err != nil {
+		t.Fatalf("unexpected eval error: %v", err)
+	}
+	if v.Number != -5 {
+		t.Errorf("-5 = %v, want -5", v.Number)
+	}
+	if v.Kind != KindInt {
+		t.Errorf("-5 Kind = %v, want KindInt", v.Kind)
+	}
+
+	e, err = Parse("-1.5")
+	if err != nil {
+		t.Fatalf("unexpected parse error: %v", err)
+	}
+	v, err = e.Eval(Context{})
+	if err != nil {
+		t.Fatalf("unexpected eval error: %v", err)
+	}
+	if v.Number != -1.5 {
+		t.Errorf("-1.5 = %v, want -1.5", v.Number)
+	}
+	if v.Kind != KindFloat {
+		t.Errorf("-1.5 Kind = %v, want KindFloat", v.Kind)
+	}
+}
+
 func TestEval_LooseTyping_ComparesIntAndFloatByNumericValue(t *testing.T) {
 	got := mustEval(t, "1 = 1.0", Context{})
 	if !got.Bool() {
@@ -218,6 +308,31 @@ func TestEvaluate_ConvenienceFunction_ParsesAndEvaluatesInOneCall(t *testing.T) 
 	}
 	if !got.Bool() {
 		t.Errorf("Evaluate(1 + 1 = 2) = %v, want true", got.Bool())
+	}
+}
+
+func TestEvaluate_ConvenienceFunction_CachedParseStillEvaluatesEachCallAgainstItsOwnContext(t *testing.T) {
+	// Same expr string, evaluated repeatedly (as a cached-parse Expression
+	// would be reused across simulation ticks) against different Context
+	// values -- the cache must key on the parsed AST, not memoize a stale
+	// result, or every later fighter/tick sharing this expr string would
+	// silently see the first call's answer.
+	const expr = "Time = 5"
+
+	got, err := Evaluate(expr, Context{Time: 5})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !got.Bool() {
+		t.Errorf("Evaluate(%q, Time=5) = %v, want true", expr, got.Bool())
+	}
+
+	got, err = Evaluate(expr, Context{Time: 9})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Bool() {
+		t.Errorf("Evaluate(%q, Time=9) = %v, want false", expr, got.Bool())
 	}
 }
 

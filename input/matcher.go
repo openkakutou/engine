@@ -100,7 +100,7 @@ func Step(state State, tick int, facing match.Facing, in TickInput, cmds cmd.Com
 	active := make(map[string]bool, len(cmds.Commands))
 
 	for _, c := range cmds.Commands {
-		steps := parseSteps(c.Input)
+		steps := parseStepsCached(c.Input)
 		if len(steps) == 0 {
 			continue
 		}

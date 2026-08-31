@@ -228,7 +228,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fs match.FighterSt
 	var hasHitDef bool
 	var hitDef cns.Controller
 	for _, i := range result.Applied {
-		if strings.EqualFold(def.Controllers[i].Type, "HitDef") {
+		if strings.EqualFold(def.Controllers[i].Type, statemachine.ControllerTypeHitDef) {
 			hitDef = def.Controllers[i]
 			hasHitDef = true
 			break
