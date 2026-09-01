@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-09-01
+
 ### Fixed
 
 - **Breaking:** Reduced how much of a MUGEN hit definition's internal data the damage-resolution code depends on, so it only reads the declared damage amount instead of the whole hit definition. No change to the WebAssembly-facing API, but any code calling the Go `combat.ApplyHits` function directly needs to pass a `DamageParams` value instead of the full controller.
@@ -83,7 +85,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/openkakutou/engine/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/openkakutou/engine/compare/v0.8.0...v1.0.0
 [0.8.0]: https://github.com/openkakutou/engine/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/openkakutou/engine/compare/v0.7.0...v0.7.1
