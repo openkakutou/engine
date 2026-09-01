@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-09-02
+
 ### Added
 
 - The WebAssembly module now reports each fighter's current animation number and how long it's been playing on every match update (start, tick, and round reset), so a game consuming it can show the right sprite frame without recreating the fighting logic itself.
@@ -95,7 +97,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.0.1...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/openkakutou/engine/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/openkakutou/engine/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/openkakutou/engine/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/openkakutou/engine/compare/v0.8.0...v1.0.0
