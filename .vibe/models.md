@@ -125,7 +125,7 @@ Defined in: `tick.go` (root package)
 | Context | `evaluator.Context` | |
 | Input | `input.State` | |
 | Combo | `combat.ComboState` | |
-Built via: `NewFighterRuntime(fs match.FighterState, states map[int]cns.StateDef) (FighterRuntime, error)` — Time/AnimTime start at 0, Anim/Ctrl take the entered state's own declared values.
+Built via: `NewFighterRuntime(fighter match.FighterState, states map[int]cns.StateDef) (FighterRuntime, error)` — Time/AnimTime start at 0, Anim/Ctrl take the entered state's own declared values.
 Defined in: `tick.go` (root package)
 
 ## TickConfig

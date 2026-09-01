@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Cleaned up several internal variable and function names flagged as confusing by a code review pass; no behavior change.
+
 ## [2.0.0] - 2026-09-01
 
 ### Fixed

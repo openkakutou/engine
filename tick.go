@@ -44,7 +44,7 @@ type FighterRuntime struct {
 }
 
 // NewFighterRuntime builds a fresh FighterRuntime for a fighter entering
-// states[fs.StateNo] for the first time -- typically match start or a
+// states[fighter.StateNo] for the first time -- typically match start or a
 // round reset (see round.ResetRound). Time and AnimTime start at 0, and
 // Anim/Ctrl take the entered state's own declared values (Anim defaulting
 // to the state number itself, matching cns.StateDef.Anim's own "0 means
@@ -53,21 +53,21 @@ type FighterRuntime struct {
 // special case for any later trigger relying on Anim/Ctrl.
 //
 // Returns a descriptive error, rather than a runtime built against a
-// nonexistent state, if fs.StateNo is not present in states.
-func NewFighterRuntime(fs match.FighterState, states map[int]cns.StateDef) (FighterRuntime, error) {
-	def, ok := states[fs.StateNo]
+// nonexistent state, if fighter.StateNo is not present in states.
+func NewFighterRuntime(fighter match.FighterState, states map[int]cns.StateDef) (FighterRuntime, error) {
+	def, ok := states[fighter.StateNo]
 	if !ok {
-		return FighterRuntime{}, fmt.Errorf("engine: NewFighterRuntime: state %d not found in loaded character", fs.StateNo)
+		return FighterRuntime{}, fmt.Errorf("engine: NewFighterRuntime: state %d not found in loaded character", fighter.StateNo)
 	}
 
 	anim := def.Anim
 	if anim == 0 {
-		anim = fs.StateNo
+		anim = fighter.StateNo
 	}
 
 	return FighterRuntime{
 		Context: evaluator.Context{
-			FighterState: fs,
+			FighterState: fighter,
 			Anim:         anim,
 			Ctrl:         def.Ctrl,
 		},
@@ -162,17 +162,17 @@ func Tick(
 		runtimesOut[match.SideP2].Combo = newCombo
 	}
 
-	p1Fs := state.Fighter(match.SideP1)
-	p1Fs.StateNo = runtimesOut[match.SideP1].Context.StateNo
-	updatedP1, err := physics.Step(p1Fs, cfg.Bounds, cfg.Gravity)
+	p1Fighter := state.Fighter(match.SideP1)
+	p1Fighter.StateNo = runtimesOut[match.SideP1].Context.StateNo
+	updatedP1, err := physics.Step(p1Fighter, cfg.Bounds, cfg.Gravity)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: physics: %w", match.SideP1, err)
 	}
 	state.Fighters[match.SideP1] = updatedP1
 
-	p2Fs := state.Fighter(match.SideP2)
-	p2Fs.StateNo = runtimesOut[match.SideP2].Context.StateNo
-	updatedP2, err := physics.Step(p2Fs, cfg.Bounds, cfg.Gravity)
+	p2Fighter := state.Fighter(match.SideP2)
+	p2Fighter.StateNo = runtimesOut[match.SideP2].Context.StateNo
+	updatedP2, err := physics.Step(p2Fighter, cfg.Bounds, cfg.Gravity)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: physics: %w", match.SideP2, err)
 	}
@@ -198,15 +198,15 @@ type fighterTickOutput struct {
 
 // tickFighter advances one fighter's own per-tick simulation -- input
 // recognition, CNS state-machine execution, and current-frame resolution
-// -- given fs, that fighter's live match.FighterState as of the start of
-// this tick (position/facing/health, sourced from match.MatchState, the
+// -- given fighter, that fighter's live match.FighterState as of the start
+// of this tick (position/facing/health, sourced from match.MatchState, the
 // single source of truth Tick reconciles runtime.Context against every
 // call).
-func tickFighter(prog FighterProgram, runtime FighterRuntime, fs match.FighterState, in input.TickInput, tick int) (fighterTickOutput, error) {
+func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.FighterState, in input.TickInput, tick int) (fighterTickOutput, error) {
 	ctx := runtime.Context
-	ctx.FighterState = fs
+	ctx.FighterState = fighter
 
-	newInputState, active := input.Step(runtime.Input, tick, fs.Facing, in, prog.Commands)
+	newInputState, active := input.Step(runtime.Input, tick, fighter.Facing, in, prog.Commands)
 	ctx.ActiveCommands = active
 
 	// The frame resolved here is the one active as this tick begins --

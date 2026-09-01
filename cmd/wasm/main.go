@@ -75,34 +75,34 @@ func guarded(fn func(args []js.Value) (any, error)) func(js.Value, []js.Value) a
 	return func(this js.Value, args []js.Value) (out any) {
 		defer func() {
 			if r := recover(); r != nil {
-				out = envelope(nil, fmt.Errorf("recovered from panic: %v", r))
+				out = buildEnvelope(nil, fmt.Errorf("recovered from panic: %v", r))
 			}
 		}()
 
 		data, err := fn(args)
 		if err != nil {
-			return envelope(nil, err)
+			return buildEnvelope(nil, err)
 		}
 		encoded, err := json.Marshal(data)
 		if err != nil {
-			return envelope(nil, fmt.Errorf("encoding result as JSON: %w", err))
+			return buildEnvelope(nil, fmt.Errorf("encoding result as JSON: %w", err))
 		}
-		return envelope(encoded, nil)
+		return buildEnvelope(encoded, nil)
 	}
 }
 
-// envelope builds this module's uniform {data, error} JS return shape.
+// buildEnvelope builds this module's uniform {data, error} JS return shape.
 // Exactly one field is ever non-null.
-func envelope(data []byte, err error) map[string]any {
+func buildEnvelope(data []byte, err error) map[string]any {
 	if err != nil {
 		return map[string]any{"data": nil, "error": err.Error()}
 	}
 	return map[string]any{"data": string(data), "error": nil}
 }
 
-// argString extracts args[0] as a Go string, the JSON request payload
+// extractArgString extracts args[0] as a Go string, the JSON request payload
 // every exposed function takes exactly one of.
-func argString(args []js.Value) (string, error) {
+func extractArgString(args []js.Value) (string, error) {
 	if len(args) != 1 {
 		return "", fmt.Errorf("expected exactly 1 argument (a JSON string), got %d", len(args))
 	}
@@ -134,7 +134,7 @@ type newMatchResponse struct {
 // and starting position/state/health, and returns an opaque match ID for
 // tick/resetRound to operate on going forward.
 func newMatch(args []js.Value) (any, error) {
-	raw, err := argString(args)
+	raw, err := extractArgString(args)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +202,7 @@ type tickResponse struct {
 // is not reset for the next round on its own; the caller drives that via
 // resetRound once it has decided to.
 func tickJS(args []js.Value) (any, error) {
-	raw, err := argString(args)
+	raw, err := extractArgString(args)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +267,7 @@ type closeMatchRequest struct {
 // needed, or that session's two FighterProgram/FighterRuntime pairs stay
 // resident in memory for the life of the WASM instance.
 func closeMatchJS(args []js.Value) (any, error) {
-	raw, err := argString(args)
+	raw, err := extractArgString(args)
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +293,7 @@ func closeMatchJS(args []js.Value) (any, error) {
 // does. Progress (rounds won so far) is untouched -- only tick, via a
 // recorded round outcome, ever advances it.
 func resetRoundJS(args []js.Value) (any, error) {
-	raw, err := argString(args)
+	raw, err := extractArgString(args)
 	if err != nil {
 		return nil, err
 	}

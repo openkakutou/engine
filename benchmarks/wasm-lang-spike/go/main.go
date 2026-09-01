@@ -60,13 +60,13 @@ type instr struct {
 func buildPrograms() [numPrograms][]instr {
 	var progs [numPrograms][]instr
 	for p := 0; p < numPrograms; p++ {
-		v0 := float64(p % numVars)
-		v1 := float64((p + 3) % numVars)
+		firstVarIdx := float64(p % numVars)
+		secondVarIdx := float64((p + 3) % numVars)
 		progs[p] = []instr{
-			{opPushVar, v0},
+			{opPushVar, firstVarIdx},
 			{opPushConst, float64(p%5) * 0.5},
 			{opAdd, 0},
-			{opPushVar, v1},
+			{opPushVar, secondVarIdx},
 			{opGT, 0},
 		}
 	}
@@ -140,7 +140,7 @@ type transitionRecord struct {
 
 type hitRecord struct {
 	attacker, defender int
-	hbIdx, hurtIdx     int
+	hitboxIdx, hurtIdx int
 }
 
 func boxesOverlap(a, b box) bool {
