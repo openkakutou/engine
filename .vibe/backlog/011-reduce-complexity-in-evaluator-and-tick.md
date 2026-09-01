@@ -1,5 +1,5 @@
 ---
-status: todo
+status: in_progress
 ---
 # Reduce Complexity In Evaluator And Tick
 

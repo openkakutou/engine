@@ -181,31 +181,7 @@ func (p *parser) parsePrimary() (node, error) {
 
 	case tokIdent:
 		p.next()
-		name := t.text
-		if p.peek().kind == tokLParen {
-			p.next() // consume '('
-			var args []node
-			if p.peek().kind != tokRParen {
-				for {
-					arg, err := p.parseOr()
-					if err != nil {
-						return nil, err
-					}
-					args = append(args, arg)
-					if p.peek().kind == tokComma {
-						p.next()
-						continue
-					}
-					break
-				}
-			}
-			if p.peek().kind != tokRParen {
-				return nil, fmt.Errorf("evaluator: expected ')' to close call to %q", name)
-			}
-			p.next() // consume ')'
-			return callNode{name: name, args: args}, nil
-		}
-		return identifierNode{name: name}, nil
+		return p.parseIdentifierOrCall(t.text)
 
 	case tokLParen:
 		p.next()
@@ -225,4 +201,46 @@ func (p *parser) parsePrimary() (node, error) {
 	default:
 		return nil, fmt.Errorf("evaluator: unexpected token %q", t.text)
 	}
+}
+
+// parseIdentifierOrCall resolves an already-consumed identifier token
+// (name) into either a plain identifierNode, or -- if immediately followed
+// by '(' -- a callNode wrapping its parsed argument list.
+func (p *parser) parseIdentifierOrCall(name string) (node, error) {
+	if p.peek().kind != tokLParen {
+		return identifierNode{name: name}, nil
+	}
+
+	args, err := p.parseCallArgs(name)
+	if err != nil {
+		return nil, err
+	}
+	return callNode{name: name, args: args}, nil
+}
+
+// parseCallArgs parses a parenthesized, comma-separated argument list for a
+// call to name, starting at the '(' peek() must currently be positioned on
+// and consuming through the matching ')'.
+func (p *parser) parseCallArgs(name string) ([]node, error) {
+	p.next() // consume '('
+	var args []node
+	if p.peek().kind != tokRParen {
+		for {
+			arg, err := p.parseOr()
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, arg)
+			if p.peek().kind == tokComma {
+				p.next()
+				continue
+			}
+			break
+		}
+	}
+	if p.peek().kind != tokRParen {
+		return nil, fmt.Errorf("evaluator: expected ')' to close call to %q", name)
+	}
+	p.next() // consume ')'
+	return args, nil
 }

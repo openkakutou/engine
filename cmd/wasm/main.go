@@ -218,7 +218,8 @@ func tickJS(args []js.Value) (any, error) {
 	}
 
 	sess.tick++
-	result, err := engine.Tick(sess.state, sess.programs, sess.runtimes, req.Inputs, sess.bounds, sess.gravity, sess.tick, sess.comboWindow)
+	cfg := engine.TickConfig{Bounds: sess.bounds, Gravity: sess.gravity, Tick: sess.tick, ComboWindow: sess.comboWindow}
+	result, err := engine.Tick(sess.state, sess.programs, sess.runtimes, req.Inputs, cfg)
 	if err != nil {
 		return nil, err
 	}

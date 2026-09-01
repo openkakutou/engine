@@ -83,6 +83,28 @@ type TickResult struct {
 	Round    round.RoundResult
 }
 
+// TickConfig bundles Tick's simulation-constant parameters (bounds,
+// gravity, comboWindow) together with the current simulation tick number,
+// which the caller advances by exactly 1 between successive calls (see
+// input.Step). bounds is the current stage's horizontal boundaries;
+// gravity and comboWindow are simulation constants the caller supplies
+// (engine holds no default balance data of its own, matching physics.Step
+// and combat.ApplyHits's own existing contracts).
+//
+// Passed to Tick by value, not by pointer: at this size (a pointer plus
+// three scalars) it is cheap to copy and Go's calling convention passes it
+// in registers, so a caller building a fresh TickConfig{...} literal at
+// each call site -- as cmd/wasm's tickJS does -- allocates nothing. Taking
+// its address instead would be a classic escape-analysis trap, reintroducing
+// a per-tick heap allocation this repo's allocation-discipline ADRs
+// (.vibe/decisions/009-011) specifically exist to avoid.
+type TickConfig struct {
+	Bounds      *stage.StageBoundaries
+	Gravity     float64
+	Tick        int
+	ComboWindow int
+}
+
 // Tick advances a full simulation tick for both fighters -- the one
 // function tying every prior engine package into a usable match loop: for
 // each fighter, input recognition, CNS state-machine execution, and
@@ -96,11 +118,8 @@ type TickResult struct {
 // programs is read-only character data, loaded once per fighter outside
 // the simulation loop. runtimes is each fighter's evolving state as of the
 // start of this tick (see FighterRuntime); inputs is this tick's raw
-// device input per fighter. bounds is the current stage's horizontal
-// boundaries; gravity and comboWindow are simulation constants the caller
-// supplies (engine holds no default balance data of its own, matching
-// physics.Step and combat.ApplyHits's own existing contracts). tick is the
-// current simulation tick number (see input.Step).
+// device input per fighter. cfg carries this tick's simulation constants
+// and current tick number -- see TickConfig.
 //
 // Returns a descriptive error, never a panic, if either fighter's current
 // state is not present in its own loaded FighterProgram, or if physics
@@ -110,15 +129,13 @@ func Tick(
 	programs [2]FighterProgram,
 	runtimes [2]FighterRuntime,
 	inputs [2]input.TickInput,
-	bounds *stage.StageBoundaries,
-	gravity float64,
-	tick, comboWindow int,
+	cfg TickConfig,
 ) (TickResult, error) {
-	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), inputs[match.SideP1], tick)
+	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), inputs[match.SideP1], cfg.Tick)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
 	}
-	p2Out, err := tickFighter(programs[match.SideP2], runtimes[match.SideP2], state.Fighter(match.SideP2), inputs[match.SideP2], tick)
+	p2Out, err := tickFighter(programs[match.SideP2], runtimes[match.SideP2], state.Fighter(match.SideP2), inputs[match.SideP2], cfg.Tick)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
 	}
@@ -133,19 +150,19 @@ func Tick(
 	runtimesOut[match.SideP2] = p2Out.Runtime
 
 	if p1Out.HasHitDef {
-		newState, newCombo, _ := combat.ApplyHits(state, events, match.SideP1, p1Out.HitDef, runtimesOut[match.SideP1].Combo, tick, comboWindow)
+		newState, newCombo, _ := combat.ApplyHits(state, events, match.SideP1, p1Out.HitDef, runtimesOut[match.SideP1].Combo, cfg.Tick, cfg.ComboWindow)
 		state = newState
 		runtimesOut[match.SideP1].Combo = newCombo
 	}
 	if p2Out.HasHitDef {
-		newState, newCombo, _ := combat.ApplyHits(state, events, match.SideP2, p2Out.HitDef, runtimesOut[match.SideP2].Combo, tick, comboWindow)
+		newState, newCombo, _ := combat.ApplyHits(state, events, match.SideP2, p2Out.HitDef, runtimesOut[match.SideP2].Combo, cfg.Tick, cfg.ComboWindow)
 		state = newState
 		runtimesOut[match.SideP2].Combo = newCombo
 	}
 
 	p1Fs := state.Fighter(match.SideP1)
 	p1Fs.StateNo = runtimesOut[match.SideP1].Context.StateNo
-	updatedP1, err := physics.Step(p1Fs, bounds, gravity)
+	updatedP1, err := physics.Step(p1Fs, cfg.Bounds, cfg.Gravity)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: physics: %w", match.SideP1, err)
 	}
@@ -153,7 +170,7 @@ func Tick(
 
 	p2Fs := state.Fighter(match.SideP2)
 	p2Fs.StateNo = runtimesOut[match.SideP2].Context.StateNo
-	updatedP2, err := physics.Step(p2Fs, bounds, gravity)
+	updatedP2, err := physics.Step(p2Fs, cfg.Bounds, cfg.Gravity)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: physics: %w", match.SideP2, err)
 	}

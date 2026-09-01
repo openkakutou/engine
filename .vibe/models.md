@@ -121,13 +121,23 @@ Defined in: `tick.go` (root package)
 Built via: `NewFighterRuntime(fs match.FighterState, states map[int]cns.StateDef) (FighterRuntime, error)` — Time/AnimTime start at 0, Anim/Ctrl take the entered state's own declared values.
 Defined in: `tick.go` (root package)
 
+## TickConfig
+| Field | Type | Notes |
+|---|---|---|
+| Bounds | `*stage.StageBoundaries` | Current stage's horizontal boundaries |
+| Gravity | `float64` | Simulation constant, caller-supplied |
+| Tick | `int` | Current simulation tick number, advanced by 1 each call |
+| ComboWindow | `int` | Simulation constant, caller-supplied |
+Passed by value to `Tick`, not by pointer -- see the type's own doc comment (allocation discipline, `.vibe/decisions/009-011`).
+Defined in: `tick.go` (root package)
+
 ## TickResult
 | Field | Type | Notes |
 |---|---|---|
 | State | `match.MatchState` | |
 | Fighters | `[2]FighterRuntime` | Indexed by `match.Side` |
 | Round | `round.RoundResult` | `Outcome: OutcomeNone` when the round is still in progress |
-Returned by: `Tick(state match.MatchState, programs [2]FighterProgram, runtimes [2]FighterRuntime, inputs [2]input.TickInput, bounds *stage.StageBoundaries, gravity float64, tick, comboWindow int) (TickResult, error)`
+Returned by: `Tick(state match.MatchState, programs [2]FighterProgram, runtimes [2]FighterRuntime, inputs [2]input.TickInput, cfg TickConfig) (TickResult, error)`
 Defined in: `tick.go` (root package)
 
 ## round.RoundResult

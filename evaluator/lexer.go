@@ -64,37 +64,22 @@ func lex(input string) ([]token, error) {
 			i++
 
 		case c == '"':
-			j := i + 1
-			for j < n && input[j] != '"' {
-				j++
+			tok, next, err := scanString(input, i)
+			if err != nil {
+				return nil, err
 			}
-			if j >= n {
-				return nil, fmt.Errorf("evaluator: unterminated string literal starting at position %d in %q", i, input)
-			}
-			toks = append(toks, token{kind: tokString, text: input[i+1 : j]})
-			i = j + 1
+			toks = append(toks, tok)
+			i = next
 
 		case isDigit(c) || (c == '.' && i+1 < n && isDigit(input[i+1])):
-			j := i
-			for j < n && isDigit(input[j]) {
-				j++
-			}
-			if j < n && input[j] == '.' {
-				j++
-				for j < n && isDigit(input[j]) {
-					j++
-				}
-			}
-			toks = append(toks, token{kind: tokNumber, text: input[i:j]})
-			i = j
+			tok, next := scanNumber(input, i)
+			toks = append(toks, tok)
+			i = next
 
 		case isIdentStart(c):
-			j := i
-			for j < n && isIdentPart(input[j]) {
-				j++
-			}
-			toks = append(toks, token{kind: tokIdent, text: input[i:j]})
-			i = j
+			tok, next := scanIdent(input, i)
+			toks = append(toks, tok)
+			i = next
 
 		default:
 			if op, ok := matchMultiCharOp(input[i:]); ok {
@@ -113,6 +98,50 @@ func lex(input string) ([]token, error) {
 
 	toks = append(toks, token{kind: tokEOF})
 	return toks, nil
+}
+
+// scanString scans a double-quoted string literal starting at i (which
+// must point at the opening '"'), returning the produced tokString token
+// and the index just past the closing '"'. Returns a descriptive error,
+// never a panic, for an unterminated literal.
+func scanString(input string, i int) (token, int, error) {
+	n := len(input)
+	j := i + 1
+	for j < n && input[j] != '"' {
+		j++
+	}
+	if j >= n {
+		return token{}, 0, fmt.Errorf("evaluator: unterminated string literal starting at position %d in %q", i, input)
+	}
+	return token{kind: tokString, text: input[i+1 : j]}, j + 1, nil
+}
+
+// scanNumber scans a numeric literal (integer or decimal) starting at i,
+// returning the produced tokNumber token and the index just past it.
+func scanNumber(input string, i int) (token, int) {
+	n := len(input)
+	j := i
+	for j < n && isDigit(input[j]) {
+		j++
+	}
+	if j < n && input[j] == '.' {
+		j++
+		for j < n && isDigit(input[j]) {
+			j++
+		}
+	}
+	return token{kind: tokNumber, text: input[i:j]}, j
+}
+
+// scanIdent scans an identifier starting at i, returning the produced
+// tokIdent token and the index just past it.
+func scanIdent(input string, i int) (token, int) {
+	n := len(input)
+	j := i
+	for j < n && isIdentPart(input[j]) {
+		j++
+	}
+	return token{kind: tokIdent, text: input[i:j]}, j
 }
 
 func matchMultiCharOp(rest string) (string, bool) {

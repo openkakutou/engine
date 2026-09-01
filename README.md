@@ -276,7 +276,7 @@ func main() {
 		[2]engine.FighterProgram{prog, prog},
 		[2]engine.FighterRuntime{p1Runtime, p2Runtime},
 		[2]input.TickInput{},
-		bounds, 1.0, 1, 60,
+		engine.TickConfig{Bounds: bounds, Gravity: 1.0, Tick: 1, ComboWindow: 60},
 	)
 	if err != nil {
 		panic(err)

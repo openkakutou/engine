@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Breaking:** Reduced complexity in the trigger-expression parser/lexer and simplified the per-tick simulation function's parameter list by grouping the stage boundaries, gravity, and combo-window constants into a single configuration value. No change to the WebAssembly-facing API, but any code calling the Go `Tick` function directly needs to pass the new `TickConfig` value instead of four separate parameters.
+
 ## [0.8.0] - 2026-08-30
 
 ### Added

@@ -131,7 +131,7 @@ func TestIntegration_FullScriptedMatch_TwoRealCharactersRunsToACorrectWinConditi
 	var winner match.Side
 
 	for tick := 1; tick <= maxTicks; tick++ {
-		result, err := Tick(*state, programs, runtimes, [2]input.TickInput{match.SideP1: p1Input, match.SideP2: p2Input}, bounds, 0, tick, 60)
+		result, err := Tick(*state, programs, runtimes, [2]input.TickInput{match.SideP1: p1Input, match.SideP2: p2Input}, TickConfig{Bounds: bounds, Gravity: 0, Tick: tick, ComboWindow: 60})
 		if err != nil {
 			t.Fatalf("Tick failed at tick %d: %v", tick, err)
 		}

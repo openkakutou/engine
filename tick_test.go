@@ -50,7 +50,7 @@ func TestTick_AdvancesPhysics_WhenNoStateChangeOccurs(t *testing.T) {
 		[2]FighterProgram{match.SideP1: p1, match.SideP2: p2},
 		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
 		[2]input.TickInput{},
-		testBounds(), 1.0, 1, 60,
+		TickConfig{Bounds: testBounds(), Gravity: 1.0, Tick: 1, ComboWindow: 60},
 	)
 	if err != nil {
 		t.Fatalf("Tick returned an error: %v", err)
@@ -114,7 +114,7 @@ func TestTick_StateTransition_ResetsAnimAndAnimTime_ToTheEnteredStatesOwn(t *tes
 		[2]FighterProgram{match.SideP1: prog, match.SideP2: idleProg},
 		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
 		[2]input.TickInput{match.SideP1: p1Input},
-		testBounds(), 0, 1, 60,
+		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
 	)
 	if err != nil {
 		t.Fatalf("Tick returned an error: %v", err)
@@ -188,7 +188,7 @@ func TestTick_AppliesActiveHitDef_ReducesDefenderHealthAndReportsKO(t *testing.T
 		[2]FighterProgram{match.SideP1: attacker, match.SideP2: defender},
 		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
 		[2]input.TickInput{},
-		testBounds(), 0, 1, 60,
+		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
 	)
 	if err != nil {
 		t.Fatalf("Tick returned an error: %v", err)
@@ -244,6 +244,55 @@ func TestCurrentFrame_ReturnsZeroFrame_WhenAnimationHasNoFrames(t *testing.T) {
 	}
 }
 
+func TestTick_TickConfigAddsNoAllocationBeyondInputRecognition(t *testing.T) {
+	states := idleStates()
+	p1 := FighterProgram{States: states}
+	p2 := FighterProgram{States: states}
+
+	p1Fighter := match.FighterState{Side: match.SideP1, Position: match.Position{X: -10}, Health: 1000}
+	p2Fighter := match.FighterState{Side: match.SideP2, Position: match.Position{X: 10}, Health: 1000}
+
+	p1Runtime, err := NewFighterRuntime(p1Fighter, states)
+	if err != nil {
+		t.Fatalf("NewFighterRuntime(p1): %v", err)
+	}
+	p2Runtime, err := NewFighterRuntime(p2Fighter, states)
+	if err != nil {
+		t.Fatalf("NewFighterRuntime(p2): %v", err)
+	}
+
+	state, err := match.NewMatchState(1, 1000, p1Fighter, p2Fighter)
+	if err != nil {
+		t.Fatalf("NewMatchState: %v", err)
+	}
+
+	programs := [2]FighterProgram{match.SideP1: p1, match.SideP2: p2}
+	runtimes := [2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime}
+	inputs := [2]input.TickInput{}
+	bounds := testBounds()
+
+	tick := 1
+	allocs := testing.AllocsPerRun(100, func() {
+		cfg := TickConfig{Bounds: bounds, Gravity: 0, Tick: tick, ComboWindow: 60}
+		if _, err := Tick(*state, programs, runtimes, inputs, cfg); err != nil {
+			t.Fatalf("Tick returned an error: %v", err)
+		}
+		tick++
+	})
+
+	// input.Step allocates its per-command progress/active maps fresh every
+	// call -- 2 allocations per fighter, pre-existing and out of this
+	// item's own scope (tracked separately, see roadmap engine backlog).
+	// TickConfig itself is passed by value, so it must add nothing on top
+	// of that baseline; a regression above 4 here would mean cfg started
+	// escaping to the heap, exactly what TickConfig's own doc comment
+	// warns against.
+	const wantAllocs = 4
+	if allocs != wantAllocs {
+		t.Errorf("Tick allocated %v times per call across repeated ticks, want %d (see TickConfig's own doc comment)", allocs, wantAllocs)
+	}
+}
+
 func TestTick_ReturnsError_WhenAFightersCurrentStateIsNotInItsLoadedStates(t *testing.T) {
 	states := idleStates()
 	p1 := FighterProgram{States: states}
@@ -274,7 +323,7 @@ func TestTick_ReturnsError_WhenAFightersCurrentStateIsNotInItsLoadedStates(t *te
 		[2]FighterProgram{match.SideP1: p1, match.SideP2: p2},
 		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
 		[2]input.TickInput{},
-		testBounds(), 0, 1, 60,
+		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
 	)
 	if err == nil {
 		t.Fatal("expected an error for a fighter whose current state is not loaded, got nil")
