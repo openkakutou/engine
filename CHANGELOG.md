@@ -6,9 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-01
+
+### Added
+
+- A match session can now be explicitly released once a game is done with it (a new `closeMatch` function), instead of staying resident in memory for the life of the WebAssembly module.
+
 ### Fixed
 
 - **Breaking:** Reduced complexity in the trigger-expression parser/lexer and simplified the per-tick simulation function's parameter list by grouping the stage boundaries, gravity, and combo-window constants into a single configuration value. No change to the WebAssembly-facing API, but any code calling the Go `Tick` function directly needs to pass the new `TickConfig` value instead of four separate parameters.
+
+### Security
+
+- Updated the underlying Go runtime to pick up 28 upstream standard-library security fixes, and added a safety limit that stops a maliciously crafted state script from crashing the simulation through unbounded recursion.
 
 ## [0.8.0] - 2026-08-30
 
@@ -69,7 +79,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/openkakutou/engine/compare/v0.8.0...v1.0.0
 [0.8.0]: https://github.com/openkakutou/engine/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/openkakutou/engine/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/openkakutou/engine/compare/v0.6.0...v0.7.0
