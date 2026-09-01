@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Expose Current Animation Number And Frame Timing Via WASM
 
