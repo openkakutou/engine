@@ -122,11 +122,38 @@ type newMatchRequest struct {
 	ComboWindow int                      `json:"comboWindow"`
 }
 
+// FighterAnimState is one fighter's currently resolved animation number and
+// elapsed frame timing -- additive-only, response-side data (see this
+// item's own ADR, .vibe/decisions/012): sourced from the session's
+// Go-resident FighterRuntime (Context.Anim/AnimTime, kept out of JSON on
+// the request side per .vibe/decisions/011), never round-tripped back in.
+// Named AnimNo, not Anim, to read unambiguously next to FighterState's own
+// StateNo in the same response -- a fighter's animation number and its
+// state number are related but not the same thing (a state's declared Anim
+// can differ from its own state number via changeanim) and must not look
+// like the same field twice.
+type FighterAnimState struct {
+	AnimNo   int `json:"animNo"`
+	AnimTime int `json:"animTime"`
+}
+
+// animState builds sess's current per-side FighterAnimState, indexed by
+// match.Side the same way as the request/response's own Fighters/Programs/
+// Starting arrays -- shared by newMatch/tick/resetRound so all three
+// responses populate this field identically.
+func animState(sess *session) [2]FighterAnimState {
+	var out [2]FighterAnimState
+	out[match.SideP1] = FighterAnimState{AnimNo: sess.runtimes[match.SideP1].Context.Anim, AnimTime: sess.runtimes[match.SideP1].Context.AnimTime}
+	out[match.SideP2] = FighterAnimState{AnimNo: sess.runtimes[match.SideP2].Context.Anim, AnimTime: sess.runtimes[match.SideP2].Context.AnimTime}
+	return out
+}
+
 // newMatchResponse is OpenKakutouEngine.newMatch's JSON success payload.
 type newMatchResponse struct {
-	MatchID  int              `json:"matchId"`
-	State    match.MatchState `json:"state"`
-	Progress round.Progress   `json:"progress"`
+	MatchID    int                 `json:"matchId"`
+	State      match.MatchState    `json:"state"`
+	Progress   round.Progress      `json:"progress"`
+	Animations [2]FighterAnimState `json:"animations"`
 }
 
 // newMatch is OpenKakutouEngine.newMatch(requestJSON) as seen from JS:
@@ -175,7 +202,7 @@ func newMatch(args []js.Value) (any, error) {
 		progress:    progress,
 	}
 
-	return newMatchResponse{MatchID: id, State: *state, Progress: progress}, nil
+	return newMatchResponse{MatchID: id, State: *state, Progress: progress, Animations: animState(sessions[id])}, nil
 }
 
 // tickRequest is OpenKakutouEngine.tick's JSON request shape.
@@ -186,11 +213,12 @@ type tickRequest struct {
 
 // tickResponse is OpenKakutouEngine.tick's JSON success payload.
 type tickResponse struct {
-	State       match.MatchState  `json:"state"`
-	Round       round.RoundResult `json:"round"`
-	Progress    round.Progress    `json:"progress"`
-	MatchOver   bool              `json:"matchOver"`
-	MatchWinner match.Side        `json:"matchWinner"`
+	State       match.MatchState    `json:"state"`
+	Round       round.RoundResult   `json:"round"`
+	Progress    round.Progress      `json:"progress"`
+	MatchOver   bool                `json:"matchOver"`
+	MatchWinner match.Side          `json:"matchWinner"`
+	Animations  [2]FighterAnimState `json:"animations"`
 }
 
 // tickJS is OpenKakutouEngine.tick(requestJSON) as seen from JS: advances
@@ -238,6 +266,7 @@ func tickJS(args []js.Value) (any, error) {
 		Progress:    sess.progress,
 		MatchOver:   matchOver,
 		MatchWinner: winner,
+		Animations:  animState(sess),
 	}, nil
 }
 
@@ -251,7 +280,8 @@ type resetRoundRequest struct {
 // resetRoundResponse is OpenKakutouEngine.resetRound's JSON success
 // payload.
 type resetRoundResponse struct {
-	State match.MatchState `json:"state"`
+	State      match.MatchState    `json:"state"`
+	Animations [2]FighterAnimState `json:"animations"`
 }
 
 // closeMatchRequest is OpenKakutouEngine.closeMatch's JSON request shape.
@@ -327,5 +357,5 @@ func resetRoundJS(args []js.Value) (any, error) {
 	sess.runtimes = [2]engine.FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime}
 	sess.tick = 0
 
-	return resetRoundResponse{State: sess.state}, nil
+	return resetRoundResponse{State: sess.state, Animations: animState(sess)}, nil
 }

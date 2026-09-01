@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- The WebAssembly module now reports each fighter's current animation number and how long it's been playing on every match update (start, tick, and round reset), so a game consuming it can show the right sprite frame without recreating the fighting logic itself.
+
 ## [2.0.1] - 2026-09-01
 
 ### Fixed

@@ -98,6 +98,9 @@ assert(created.error === null, `newMatch reports no error (got: ${created.error}
 assert(typeof created.data?.matchId === "number", "newMatch returns a numeric matchId");
 assert(created.data?.state?.round === 1, `new match starts at round 1 (got: ${created.data?.state?.round})`);
 assert(created.data?.progress?.bestOf === 3, "new match's progress carries the requested bestOf");
+assert(created.data?.animations?.[0]?.animNo === 0, `newMatch reports P1's starting animNo as 0 (got: ${created.data?.animations?.[0]?.animNo})`);
+assert(created.data?.animations?.[0]?.animTime === 0, `newMatch reports P1's starting animTime as 0 (got: ${created.data?.animations?.[0]?.animTime})`);
+assert(created.data?.animations?.[1]?.animNo === 0, `newMatch reports P2's starting animNo as 0 (got: ${created.data?.animations?.[1]?.animNo})`);
 
 const matchId = created.data.matchId;
 
@@ -106,6 +109,8 @@ const idleTick = call(globalThis.OpenKakutouEngine.tick, { matchId, inputs: [{},
 assert(idleTick.error === null, `idle tick reports no error (got: ${idleTick.error})`);
 assert(idleTick.data?.round?.outcome === 0, `idle tick reports OutcomeNone (got: ${idleTick.data?.round?.outcome})`);
 assert(idleTick.data?.matchOver === false, "match is not over after an idle tick");
+assert(idleTick.data?.animations?.[0]?.animNo === 0, `idle tick: P1's animNo is still 0, no transition happened (got: ${idleTick.data?.animations?.[0]?.animNo})`);
+assert(idleTick.data?.animations?.[0]?.animTime === 1, `idle tick: P1's animTime advanced to 1 (got: ${idleTick.data?.animations?.[0]?.animTime})`);
 
 // --- tick with P1's attack button held: P1's ChangeState controller
 // (state 0) fires, moving it into its attack state (200) -- a controller
@@ -116,6 +121,10 @@ const transitionTick = call(globalThis.OpenKakutouEngine.tick, { matchId, inputs
 assert(transitionTick.error === null, `transition tick reports no error (got: ${transitionTick.error})`);
 assert(transitionTick.data?.round?.outcome === 0, `transition tick reports OutcomeNone -- no hit yet (got: ${transitionTick.data?.round?.outcome})`);
 assert(transitionTick.data?.state?.fighters?.[1]?.health === 20, "P2 is untouched on the transition tick");
+assert(transitionTick.data?.animations?.[0]?.animNo === 200, `transition tick: P1's animNo switches to its new state's 200 (got: ${transitionTick.data?.animations?.[0]?.animNo})`);
+assert(transitionTick.data?.animations?.[0]?.animTime === 0, `transition tick: P1's animTime resets to 0 on the transition (got: ${transitionTick.data?.animations?.[0]?.animTime})`);
+assert(transitionTick.data?.animations?.[1]?.animNo === 0, `transition tick: P2 (untouched) keeps animNo 0 (got: ${transitionTick.data?.animations?.[1]?.animNo})`);
+assert(transitionTick.data?.animations?.[1]?.animTime === 2, `transition tick: P2's animTime keeps advancing, now 2 (got: ${transitionTick.data?.animations?.[1]?.animTime})`);
 
 // --- next tick: P1 is now actually in state 200, so its own HitDef
 // controller (trigger "Time = 0", true on the first tick spent in that
@@ -129,6 +138,8 @@ assert(hitTick.data?.round?.outcome === 1, `hit tick reports OutcomeKO (got: ${h
 assert(hitTick.data?.round?.winner === 0, `P1 (side 0) wins the round (got: ${hitTick.data?.round?.winner})`);
 assert(hitTick.data?.progress?.wins?.[0] === 1, "P1's round win is recorded in progress");
 assert(hitTick.data?.matchOver === false, "bestOf 3 is not decided after a single round win");
+assert(hitTick.data?.animations?.[0]?.animNo === 200, `hit tick: P1 stays in animNo 200, no further transition (got: ${hitTick.data?.animations?.[0]?.animNo})`);
+assert(hitTick.data?.animations?.[0]?.animTime === 1, `hit tick: P1's animTime advances to 1 within animNo 200 (got: ${hitTick.data?.animations?.[0]?.animTime})`);
 
 // --- resetRound: both fighters restored for round 2 ---
 const reset = call(globalThis.OpenKakutouEngine.resetRound, {
@@ -139,6 +150,8 @@ const reset = call(globalThis.OpenKakutouEngine.resetRound, {
 assert(reset.error === null, `resetRound reports no error (got: ${reset.error})`);
 assert(reset.data?.state?.round === 2, `resetRound advances to round 2 (got: ${reset.data?.state?.round})`);
 assert(reset.data?.state?.fighters?.[1]?.health === 20, `resetRound restores P2's health to 20 (got: ${reset.data?.state?.fighters?.[1]?.health})`);
+assert(reset.data?.animations?.[0]?.animNo === 0, `resetRound restores P1's animNo to its round-start state 0 (got: ${reset.data?.animations?.[0]?.animNo})`);
+assert(reset.data?.animations?.[0]?.animTime === 0, `resetRound restores P1's animTime to 0 (got: ${reset.data?.animations?.[0]?.animTime})`);
 
 // --- error path: an unknown match ID must not crash the module ---
 const unknown = call(globalThis.OpenKakutouEngine.tick, { matchId: 999999, inputs: [{}, {}] });

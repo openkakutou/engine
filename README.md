@@ -14,7 +14,7 @@ This project is early-stage. Available now:
 - Hit detection — resolves each fighter's currently active hit boxes against the other's vulnerable boxes every simulation tick, correctly positioned and mirrored for whichever way each fighter is facing; a frame with no collision boxes at all (like most idle frames) simply produces no hits
 - Damage, health, and combos — a landed hit subtracts its declared damage from the defender's health, never below zero even on an overkill hit, and builds a combo counter that keeps climbing while hits keep landing close together, resetting once too much time passes between them; a hit with a missing or unreadable damage amount still lands safely instead of crashing the match
 - Round/match flow — decides how a round ends (a knockout, both fighters knocked out at once, or the round timer running out with the healthier fighter winning), resets both fighters to a fresh start for the next round, and tracks who has won how many rounds across a full best-of-N match
-- WebAssembly build — a game running in a browser can load the engine as a compiled module, start a match from two loaded characters, advance it tick by tick, reset between rounds, and release a finished match's memory when it's done, all without needing a Go toolchain of its own
+- WebAssembly build — a game running in a browser can load the engine as a compiled module, start a match from two loaded characters, advance it tick by tick, reset between rounds, and release a finished match's memory when it's done, all without needing a Go toolchain of its own; every match update also reports each fighter's current animation number and how long it's been playing, so the game knows exactly which sprite frame to show
 
 **Scope boundary:** `engine` is combat simulation only — the simulation that runs while two characters fight. It does not cover menus, character selection, or overall game flow; those are the responsibility of `mode-*` game apps (starting with `mode-quick-versus`), which consume `engine` rather than the other way around. See `github.com/openkakutou/roadmap`'s `.vibe/decisions/004` and `.vibe/decisions/008`.
 <!-- vibe:end:features -->
@@ -319,7 +319,9 @@ const created = OpenKakutouEngine.newMatch(JSON.stringify({ programs, starting, 
 const { matchId } = JSON.parse(created.data);
 
 const advanced = OpenKakutouEngine.tick(JSON.stringify({ matchId, inputs: [p1Input, p2Input] }));
-const { state, round, matchOver, matchWinner } = JSON.parse(advanced.data);
+const { state, round, matchOver, matchWinner, animations } = JSON.parse(advanced.data);
+// animations[0]/animations[1] — each fighter's current animation number (animNo) and
+// how many ticks it's been playing (animTime), enough to resolve the right sprite frame
 
 // Once the match is over (or the player leaves), release its memory:
 OpenKakutouEngine.closeMatch(JSON.stringify({ matchId }));
