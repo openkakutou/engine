@@ -150,12 +150,14 @@ func Tick(
 	runtimesOut[match.SideP2] = p2Out.Runtime
 
 	if p1Out.HasHitDef {
-		newState, newCombo, _ := combat.ApplyHits(state, events, match.SideP1, p1Out.HitDef, runtimesOut[match.SideP1].Combo, cfg.Tick, cfg.ComboWindow)
+		damage := combat.DamageParams{Damage: p1Out.HitDef.Parameters["damage"]}
+		newState, newCombo, _ := combat.ApplyHits(state, events, match.SideP1, damage, runtimesOut[match.SideP1].Combo, cfg.Tick, cfg.ComboWindow)
 		state = newState
 		runtimesOut[match.SideP1].Combo = newCombo
 	}
 	if p2Out.HasHitDef {
-		newState, newCombo, _ := combat.ApplyHits(state, events, match.SideP2, p2Out.HitDef, runtimesOut[match.SideP2].Combo, cfg.Tick, cfg.ComboWindow)
+		damage := combat.DamageParams{Damage: p2Out.HitDef.Parameters["damage"]}
+		newState, newCombo, _ := combat.ApplyHits(state, events, match.SideP2, damage, runtimesOut[match.SideP2].Combo, cfg.Tick, cfg.ComboWindow)
 		state = newState
 		runtimesOut[match.SideP2].Combo = newCombo
 	}

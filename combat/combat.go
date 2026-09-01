@@ -2,9 +2,12 @@
 // damage subtracted from the defender's health (never below zero) and a
 // per-defender combo counter tracked across simulation ticks. Damage comes
 // from a MUGEN HitDef state controller's raw, unevaluated "damage" string
-// parameter (character/cns's Controller.Parameters) -- interpreted
-// numerically here for the first time in the backlog. This package does
-// not drive any state-machine transition (e.g. a hit-reaction state) --
+// parameter -- interpreted numerically here for the first time in the
+// backlog. This package takes only that string (DamageParams), not the
+// full character/cns.Controller a HitDef is parsed into; the caller
+// extracts it, keeping this package decoupled from a controller shape it
+// otherwise never reads. This package does not drive any state-machine
+// transition (e.g. a hit-reaction state) --
 // no acceptance criterion of the item that introduced it asked for that,
 // and it would require state-machine integration out of this item's own
 // scope. See .vibe/decisions/010-combat-hit-dedup-scope-and-allocation-discipline.md
@@ -18,7 +21,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/openkakutou/character/cns"
 	"github.com/openkakutou/engine/hitdetect"
 	"github.com/openkakutou/engine/match"
 )
@@ -27,6 +29,23 @@ import (
 // missing or not a valid integer, rather than crashing or applying an
 // undefined amount.
 const DefaultDamage = 0
+
+// DamageParams is the subset of a HitDef controller's parameters ApplyHits
+// actually reads: its raw, unevaluated "damage" string. Narrower than the
+// full cns.Controller ApplyHits used to take, decoupling this package from
+// a controller shape it doesn't need -- unlike statemachine.ApplyController
+// and zssexec's own controller-call handling, which genuinely need the
+// whole cns.Controller because they dispatch across multiple controller
+// types, ApplyHits is already scoped by its caller to exactly one type
+// (HitDef) and reads exactly one field. See this item's own backlog entry.
+type DamageParams struct {
+	// Damage is the HitDef's raw "damage" parameter, unevaluated. Empty
+	// when the parameter was missing from the controller -- parseDamage
+	// falls back to DefaultDamage for both a missing and an unparseable
+	// value, so the zero value here is a valid "no damage declared" input,
+	// not a special case callers need to guard against.
+	Damage string
+}
 
 // ComboState tracks one fighter's (the defender's) combo progress across
 // simulation ticks -- threaded by the caller between calls to ApplyHits,
@@ -76,7 +95,7 @@ func ApplyHits(
 	state match.MatchState,
 	events []hitdetect.HitEvent,
 	attacker match.Side,
-	hitDef cns.Controller,
+	hitDef DamageParams,
 	combo ComboState,
 	tick, comboWindow int,
 ) (match.MatchState, ComboState, HitResult) {
@@ -129,14 +148,11 @@ func findLandedHit(events []hitdetect.HitEvent, attacker match.Side) (match.Side
 	return 0, false
 }
 
-// parseDamage reads hitDef's "damage" parameter as an integer, falling
-// back to DefaultDamage when it's missing or not a valid integer.
-func parseDamage(hitDef cns.Controller) int {
-	raw, ok := hitDef.Parameters["damage"]
-	if !ok {
-		return DefaultDamage
-	}
-	value, err := strconv.Atoi(strings.TrimSpace(raw))
+// parseDamage reads hitDef's Damage field as an integer, falling back to
+// DefaultDamage when it's empty (the parameter was missing) or not a valid
+// integer.
+func parseDamage(hitDef DamageParams) int {
+	value, err := strconv.Atoi(strings.TrimSpace(hitDef.Damage))
 	if err != nil {
 		return DefaultDamage
 	}

@@ -3,7 +3,6 @@ package combat
 import (
 	"testing"
 
-	"github.com/openkakutou/character/cns"
 	"github.com/openkakutou/engine/hitdetect"
 	"github.com/openkakutou/engine/match"
 )
@@ -21,11 +20,8 @@ func newTestState(t *testing.T, p1Health, p2Health int) match.MatchState {
 	return *ms
 }
 
-func hitDefWithDamage(damage string) cns.Controller {
-	return cns.Controller{
-		Type:       "HitDef",
-		Parameters: map[string]string{"damage": damage},
-	}
+func hitDefWithDamage(damage string) DamageParams {
+	return DamageParams{Damage: damage}
 }
 
 func TestApplyHits_ReducesDefenderHealthByDeclaredDamage(t *testing.T) {
@@ -97,7 +93,7 @@ func TestApplyHits_FallsBackToDefaultDamage_WhenDamageParameterIsMissing(t *test
 	events := []hitdetect.HitEvent{
 		{Attacker: match.SideP1, Defender: match.SideP2},
 	}
-	noDamageParam := cns.Controller{Type: "HitDef", Parameters: map[string]string{}}
+	noDamageParam := DamageParams{}
 
 	newState, _, result := ApplyHits(
 		state, events, match.SideP1, noDamageParam, ComboState{}, 1, 60,
@@ -206,6 +202,24 @@ func TestApplyHits_MultiHitComboSequence_EndingInALethalOverkillHit(t *testing.T
 	}
 	if combo.Count != 3 {
 		t.Errorf("hit 3: combo count = %d, want 3", combo.Count)
+	}
+}
+
+func TestApplyHits_AcceptsDamageParamsInsteadOfFullController(t *testing.T) {
+	state := newTestState(t, 1000, 1000)
+	events := []hitdetect.HitEvent{
+		{Attacker: match.SideP1, Defender: match.SideP2},
+	}
+
+	newState, _, result := ApplyHits(
+		state, events, match.SideP1, DamageParams{Damage: "30"}, ComboState{}, 1, 60,
+	)
+
+	if got := newState.Fighter(match.SideP2).Health; got != 970 {
+		t.Errorf("defender health = %d, want 970", got)
+	}
+	if result.Damage != 30 {
+		t.Errorf("result.Damage = %d, want 30", result.Damage)
 	}
 }
 

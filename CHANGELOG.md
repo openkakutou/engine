@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Breaking:** Reduced how much of a MUGEN hit definition's internal data the damage-resolution code depends on, so it only reads the declared damage amount instead of the whole hit definition. No change to the WebAssembly-facing API, but any code calling the Go `combat.ApplyHits` function directly needs to pass a `DamageParams` value instead of the full controller.
+
 ## [1.0.0] - 2026-09-01
 
 ### Added

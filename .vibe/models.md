@@ -74,6 +74,13 @@ Defined in: `zssexec/zssexec.go`
 Zero value (nothing held) is valid and usable.
 Defined in: `input/matcher.go`
 
+## DamageParams
+| Field | Type | Notes |
+|---|---|---|
+| Damage | `string` | Raw, unevaluated `HitDef` "damage" parameter; empty when it was missing from the controller |
+Passed to `ApplyHits` instead of the full `character/cns.Controller` a `HitDef` is parsed into -- the caller extracts it.
+Defined in: `combat/combat.go`
+
 ## ComboState
 | Field | Type | Notes |
 |---|---|---|
@@ -91,7 +98,7 @@ Defined in: `combat/combat.go`
 | Damage | `int` | The amount actually subtracted (post-`DefaultDamage`-fallback) |
 | HealthBefore / HealthAfter | `int` | Defender's health before/after this hit; HealthAfter is floored at 0 |
 | ComboCount | `int` | The defender's combo count after this hit |
-Returned by: `combat.ApplyHits(...)` — a zero `HitResult` when no event matched the attacking side.
+Returned by: `combat.ApplyHits(state, events, attacker, hitDef DamageParams, combo, tick, comboWindow)` — a zero `HitResult` when no event matched the attacking side.
 Defined in: `combat/combat.go`
 
 ## HitEvent
