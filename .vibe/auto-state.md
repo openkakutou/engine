@@ -1,9 +1,7 @@
 ---
-status: running
+status: idle
 started: 2026-09-17T11:30
 limit: 1
-current: 012
-attempt: 1
 ---
 # Auto run journal
 
@@ -16,3 +14,6 @@ attempt: 1
 
 ## 2026-08-09T15:00 — run started (limit: 1)
 - 003 — feature — done (5ba8d28; fixed up in 34e0568: dropped an unneeded local `replace` directive for `character` the implementing agent had left in `go.mod`)
+
+## 2026-09-17T11:30 — run started (limit: 1)
+- 012 — feature — blocked: precondition still doesn't hold (no new controller type/trigger added since the 2026-08-31 deferral, re-confirmed 52681a8)
