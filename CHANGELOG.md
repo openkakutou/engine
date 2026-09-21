@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Removed leftover dead code flagged by a code review pass: an unused test helper, unused intermediate variables in a command-matching test, and unused instructions in the `wasm-lang-spike` benchmark's bytecode interpreter. No behavior change.
+
 ## [2.1.0] - 2026-09-02
 
 ### Added

@@ -78,9 +78,9 @@ func TestStep_SequenceCompletedAfterTheBufferWindowElapses_NeverRecognizesTheCom
 
 	// Now finish the sequence -- too late, the window already elapsed.
 	var active map[string]bool
-	s, active = Step(s, 17, match.FacingRight, TickInput{Down: true, Right: true}, cmds)
-	s, active = Step(s, 18, match.FacingRight, TickInput{Right: true}, cmds)
-	s, active = Step(s, 19, match.FacingRight, TickInput{Buttons: map[string]bool{"a": true}}, cmds)
+	s, _ = Step(s, 17, match.FacingRight, TickInput{Down: true, Right: true}, cmds)
+	s, _ = Step(s, 18, match.FacingRight, TickInput{Right: true}, cmds)
+	_, active = Step(s, 19, match.FacingRight, TickInput{Buttons: map[string]bool{"a": true}}, cmds)
 
 	if active["QCF_a"] {
 		t.Errorf("QCF_a incorrectly recognized after its recognition window (%d ticks) had already elapsed", cmds.Defaults.Time)

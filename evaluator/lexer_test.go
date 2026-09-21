@@ -2,14 +2,6 @@ package evaluator
 
 import "testing"
 
-func tokenKinds(toks []token) []tokenKind {
-	kinds := make([]tokenKind, len(toks))
-	for i, t := range toks {
-		kinds[i] = t.kind
-	}
-	return kinds
-}
-
 func TestLex_TokenizesArithmeticAndComparisonExpression(t *testing.T) {
 	toks, err := lex(`1 + 2 * 3 = 7`)
 	if err != nil {

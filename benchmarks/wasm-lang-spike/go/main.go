@@ -44,11 +44,7 @@ const (
 	opPushConst = iota
 	opPushVar
 	opAdd
-	opSub
-	opMul
 	opGT
-	opLT
-	opAnd
 )
 
 type instr struct {
@@ -90,39 +86,11 @@ func evalProgram(p []instr, f *fighter) float64 {
 			a := stack[len(stack)-2]
 			stack = stack[:len(stack)-2]
 			stack = append(stack, a+b)
-		case opSub:
-			b := stack[len(stack)-1]
-			a := stack[len(stack)-2]
-			stack = stack[:len(stack)-2]
-			stack = append(stack, a-b)
-		case opMul:
-			b := stack[len(stack)-1]
-			a := stack[len(stack)-2]
-			stack = stack[:len(stack)-2]
-			stack = append(stack, a*b)
 		case opGT:
 			b := stack[len(stack)-1]
 			a := stack[len(stack)-2]
 			stack = stack[:len(stack)-2]
 			if a > b {
-				stack = append(stack, 1)
-			} else {
-				stack = append(stack, 0)
-			}
-		case opLT:
-			b := stack[len(stack)-1]
-			a := stack[len(stack)-2]
-			stack = stack[:len(stack)-2]
-			if a < b {
-				stack = append(stack, 1)
-			} else {
-				stack = append(stack, 0)
-			}
-		case opAnd:
-			b := stack[len(stack)-1]
-			a := stack[len(stack)-2]
-			stack = stack[:len(stack)-2]
-			if a != 0 && b != 0 {
 				stack = append(stack, 1)
 			} else {
 				stack = append(stack, 0)
