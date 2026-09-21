@@ -1,9 +1,7 @@
 ---
-status: running
+status: idle
 started: 2026-09-21T10:30
 limit: 1
-current: 015
-attempt: 1
 ---
 # Auto run journal
 
@@ -24,3 +22,4 @@ attempt: 1
 - 012 — fix — blocked: precondition still doesn't hold (no new controller type/trigger added since the 2026-08-31 deferral, re-confirmed f5787c3)
 
 ## 2026-09-21T10:30 — run started (limit: 1)
+- 015 — fix — done (778121f)
