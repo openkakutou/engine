@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-09-21
+
 ### Fixed
 
 - Removed leftover dead code flagged by a code review pass: an unused test helper, unused intermediate variables in a command-matching test, and unused instructions in the `wasm-lang-spike` benchmark's bytecode interpreter. No behavior change.
@@ -101,7 +103,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/openkakutou/engine/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/openkakutou/engine/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/openkakutou/engine/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/openkakutou/engine/compare/v1.0.0...v2.0.0
