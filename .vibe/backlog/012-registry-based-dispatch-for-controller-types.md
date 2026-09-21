@@ -1,5 +1,5 @@
 ---
-status: todo
+status: blocked
 ---
 # Registry Based Dispatch For Controller Types
 
@@ -17,3 +17,5 @@ Deliberately deferred by `/vibe:review` on 2026-08-31 (commit `019027a`) — do 
 Re-checked 2026-09-17 (`/vibe:auto`): precondition still does not hold. `git diff 019027a..HEAD -- statemachine/statemachine.go evaluator/eval.go` is empty — `ApplyController`'s switch is still only `ChangeState`/`VarSet`, and `evalIdentifier`/`evalCall`'s switches are unchanged. `ControllerTypeHitDef` does exist as a constant, but it was already introduced in the same `019027a` commit this deferral note was written against, and it is (and was, at deferral time) deliberately handled outside `ApplyController`'s switch, via its own classification in the root package's `tick.go` — not a new case added to the switch since the deferral. No new trigger/function name was added to the evaluator either. Left `status: todo`; do not implement yet.
 
 Re-checked 2026-09-21 (`/vibe:fix 012 --auto`): precondition still does not hold. `git diff 019027a..HEAD -- statemachine/statemachine.go evaluator/eval.go` is still empty (21 commits landed since the deferral, none touching either file's dispatch). `ApplyController`'s switch remains exactly `ChangeState`/`VarSet`; `evalIdentifier` still handles only `time`/`stateno`/`anim`/`animtime`/`ctrl`/`command`, and `evalCall` only `var`/`sysvar`/`ifelse` — same sets as at the 2026-09-17 re-check. No new controller type or trigger/function name has been added. Left `status: todo`; do not implement yet.
+
+2026-09-21: switched to `status: blocked` (was `todo`). Three consecutive `/vibe:auto`/`/vibe:fix --auto` runs (2026-08-31, 2026-09-17, 2026-09-21) all re-confirmed the identical precondition failure with nothing else in the repo having changed between them — `vibe:auto`'s own item-ranking has no awareness of this deferral note, so leaving `status: todo` made it mechanically re-select this item first (lowest number, review-origin ⇒ "fix") on every run, re-run the exact same check, and re-block, crowding out real progress on this repo's other eligible items (015, 016, 018). `blocked` keeps `vibe:auto` from picking it at all — same convention already used elsewhere in this org for a self-deferred item (e.g. `mode-quick-versus`'s own item 004). Set back to `todo` once a real second/third controller type or trigger/function name is actually being added — the condition this item has been waiting on all along is unchanged.
