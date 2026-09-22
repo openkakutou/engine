@@ -190,10 +190,21 @@ func newMatch(args []js.Value) (any, error) {
 		return nil, fmt.Errorf("side %v: %w", match.SideP2, err)
 	}
 
+	// Rebuilding each side's FighterProgram through NewFighterProgram here,
+	// once at match creation, precomputes its animation lookup for the
+	// whole match's worth of ticks that follow -- req.Programs itself came
+	// straight from JSON decoding, which only ever populates the exported
+	// States/Animations/Commands fields, never the unexported index (see
+	// this item's own ADR, .vibe/decisions/013).
+	programs := [2]engine.FighterProgram{
+		match.SideP1: engine.NewFighterProgram(req.Programs[match.SideP1].States, req.Programs[match.SideP1].Animations, req.Programs[match.SideP1].Commands),
+		match.SideP2: engine.NewFighterProgram(req.Programs[match.SideP2].States, req.Programs[match.SideP2].Animations, req.Programs[match.SideP2].Commands),
+	}
+
 	id := nextID
 	nextID++
 	sessions[id] = &session{
-		programs:    req.Programs,
+		programs:    programs,
 		runtimes:    [2]engine.FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
 		bounds:      &req.Bounds,
 		gravity:     req.Gravity,

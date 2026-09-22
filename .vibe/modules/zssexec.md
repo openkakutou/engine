@@ -1,5 +1,5 @@
 # Module: zssexec
-**Role:** Executes `character/zss`'s parsed Statedef/Function `.zss` script bodies against a fighter's live `evaluator.Context` -- the `.zss` counterpart to `statemachine.Step` for `.cns`-driven state execution.
+**Role:** Executes `character/zss`'s parsed Statedef/Function `.zss` script bodies against a fighter's live `evaluator.Context` -- the `.zss` counterpart to `statemachine.Step` for `.cns`-driven state execution. `Compile` precomputes a script's Statedef/Function blocks into two lookup maps (by state number, by function name) once, so `Step`'s internal `findStatedef`/`findFunction`-shaped lookups are O(1) instead of rescanning the script's blocks on every call -- first-occurrence-wins on a duplicate state number/function name. See `.vibe/decisions/013`.
 **Files:** `zssexec/zssexec.go`, `zssexec/parser.go`
-**Exports:** `Step(ctx evaluator.Context, script zss.Script) (Result, error)`, `Result{Context evaluator.Context}`
+**Exports:** `Compile(script zss.Script) CompiledScript`, `CompiledScript`, `Step(ctx evaluator.Context, prog CompiledScript) (Result, error)`, `Result{Context evaluator.Context}`
 **Depends on:** `modules/evaluator.md` (condition evaluation), `modules/statemachine.md` (reuses `ApplyController` for controller-shaped statements), `character/zss` (external module, `Script`/`Block` -- read-only), `character/cns` (external module, `Controller` -- a `ctrlStmt` wraps one, read-only)

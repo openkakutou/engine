@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Faster per-tick simulation: a fighter's current animation and a `.zss` script's state/function blocks are now looked up instantly instead of being rescanned every time, with no change in behavior.
+
 ## [2.1.1] - 2026-09-21
 
 ### Fixed

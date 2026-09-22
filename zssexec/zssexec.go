@@ -40,9 +40,66 @@ type Result struct {
 	Context evaluator.Context
 }
 
+// CompiledScript is a character's full parsed .zss Script (zss.Script) with
+// its Statedef and Function blocks precomputed into lookup maps once, by
+// Compile -- the .zss counterpart to FighterProgram's own precomputed
+// animation index in the root package (see this item's own ADR,
+// .vibe/decisions/013). Step takes a CompiledScript, never a raw
+// zss.Script, so a caller holding one across a whole match's worth of Step
+// calls pays the O(n) block scan exactly once, not on every findStatedef/
+// findFunction-shaped lookup Step performs internally.
+type CompiledScript struct {
+	statedefs map[int]zss.Block
+	functions map[string]zss.Block
+}
+
+// Compile builds a CompiledScript from script, indexing its Statedef blocks
+// by state number and its Function blocks by name in a single pass over
+// script.Blocks.
+//
+// When script.Blocks contains more than one Statedef with the same number
+// (or more than one Function with the same name), the first one in
+// declaration order is the one every later lookup returns -- matching the
+// original linear scan's own first-match behavior on the same malformed
+// input, not silently flipped to last-occurrence-wins by a naive
+// overwriting map-build loop.
+func Compile(script zss.Script) CompiledScript {
+	statedefs := make(map[int]zss.Block)
+	functions := make(map[string]zss.Block)
+
+	for _, b := range script.Blocks {
+		switch b.Kind {
+		case zss.BlockKindStatedef:
+			if _, exists := statedefs[b.Number]; !exists {
+				statedefs[b.Number] = b
+			}
+		case zss.BlockKindFunction:
+			if _, exists := functions[b.Name]; !exists {
+				functions[b.Name] = b
+			}
+		}
+	}
+
+	return CompiledScript{statedefs: statedefs, functions: functions}
+}
+
+// statedef returns prog's Statedef block for the given state number, if
+// any -- an O(1) lookup into Compile's precomputed index.
+func (prog CompiledScript) statedef(number int) (zss.Block, bool) {
+	b, ok := prog.statedefs[number]
+	return b, ok
+}
+
+// function returns prog's Function block with the given name, if any -- an
+// O(1) lookup into Compile's precomputed index.
+func (prog CompiledScript) function(name string) (zss.Block, bool) {
+	b, ok := prog.functions[name]
+	return b, ok
+}
+
 // Step interprets one simulation tick of ctx's current state (ctx.StateNo)
-// against script, the character's full parsed .zss Script (its Statedef
-// and Function blocks).
+// against prog, the character's full parsed .zss Script, precomputed once
+// by Compile.
 //
 // It runs that Statedef block's script body from the top, evaluating each
 // if/else condition and applying each controller-call statement in
@@ -53,12 +110,12 @@ type Result struct {
 // never mutated; Step returns an independent, updated copy.
 //
 // Step returns a descriptive error, never a panic, when ctx.StateNo has no
-// matching Statedef block in script, when the body contains a construct
+// matching Statedef block in prog, when the body contains a construct
 // this package does not support (see the package doc comment), or when
 // running it fails the same way statemachine.Step's own errors do (an
-// unknown trigger name, a ChangeState target missing from script, ...).
-func Step(ctx evaluator.Context, script zss.Script) (Result, error) {
-	block, ok := findStatedef(script, ctx.StateNo)
+// unknown trigger name, a ChangeState target missing from prog, ...).
+func Step(ctx evaluator.Context, prog CompiledScript) (Result, error) {
+	block, ok := prog.statedef(ctx.StateNo)
 	if !ok {
 		return Result{}, fmt.Errorf("zssexec: current state %d not found in loaded .zss script", ctx.StateNo)
 	}
@@ -70,10 +127,10 @@ func Step(ctx evaluator.Context, script zss.Script) (Result, error) {
 
 	working := ctx
 	exists := func(n int) bool {
-		_, ok := findStatedef(script, n)
+		_, ok := prog.statedef(n)
 		return ok
 	}
-	if _, err := execStmts(stmts, &working, script, exists, 0); err != nil {
+	if _, err := execStmts(stmts, &working, prog, exists, 0); err != nil {
 		return Result{}, fmt.Errorf("zssexec: state %d: %w", ctx.StateNo, err)
 	}
 
@@ -121,9 +178,9 @@ const maxCallDepth = 64
 // soon as this is true. depth is the current "call FunctionName();" nesting
 // level (see maxCallDepth); it does not change for if/else branches, which
 // are not themselves function calls.
-func execStmts(stmts []stmt, ctx *evaluator.Context, script zss.Script, exists func(int) bool, depth int) (bool, error) {
+func execStmts(stmts []stmt, ctx *evaluator.Context, prog CompiledScript, exists func(int) bool, depth int) (bool, error) {
 	for _, s := range stmts {
-		stopped, err := execStmt(s, ctx, script, exists, depth)
+		stopped, err := execStmt(s, ctx, prog, exists, depth)
 		if err != nil {
 			return false, err
 		}
@@ -134,7 +191,7 @@ func execStmts(stmts []stmt, ctx *evaluator.Context, script zss.Script, exists f
 	return false, nil
 }
 
-func execStmt(s stmt, ctx *evaluator.Context, script zss.Script, exists func(int) bool, depth int) (bool, error) {
+func execStmt(s stmt, ctx *evaluator.Context, prog CompiledScript, exists func(int) bool, depth int) (bool, error) {
 	switch st := s.(type) {
 	case ifStmt:
 		v, err := evaluator.Evaluate(st.cond, *ctx)
@@ -145,13 +202,13 @@ func execStmt(s stmt, ctx *evaluator.Context, script zss.Script, exists func(int
 		if !v.Bool() {
 			branch = st.els
 		}
-		return execStmts(branch, ctx, script, exists, depth)
+		return execStmts(branch, ctx, prog, exists, depth)
 
 	case callStmt:
 		if depth >= maxCallDepth {
 			return false, fmt.Errorf("call to %q exceeds maximum call depth %d (likely infinite recursion)", st.name, maxCallDepth)
 		}
-		fn, ok := findFunction(script, st.name)
+		fn, ok := prog.function(st.name)
 		if !ok {
 			return false, fmt.Errorf("call to undefined function %q", st.name)
 		}
@@ -162,7 +219,7 @@ func execStmt(s stmt, ctx *evaluator.Context, script zss.Script, exists func(int
 		if err != nil {
 			return false, fmt.Errorf("function %q: %w", st.name, err)
 		}
-		return execStmts(fnStmts, ctx, script, exists, depth+1)
+		return execStmts(fnStmts, ctx, prog, exists, depth+1)
 
 	case ctrlStmt:
 		changed, err := statemachine.ApplyController(st.ctrl, ctx, exists)
@@ -175,26 +232,4 @@ func execStmt(s stmt, ctx *evaluator.Context, script zss.Script, exists func(int
 		// Unreachable: parseBody never produces any other stmt type.
 		return false, fmt.Errorf("internal error: unknown statement type %T", s)
 	}
-}
-
-// findStatedef returns script's Statedef block for the given state number,
-// if any.
-func findStatedef(script zss.Script, number int) (zss.Block, bool) {
-	for _, b := range script.Blocks {
-		if b.Kind == zss.BlockKindStatedef && b.Number == number {
-			return b, true
-		}
-	}
-	return zss.Block{}, false
-}
-
-// findFunction returns script's Function block with the given name, if
-// any.
-func findFunction(script zss.Script, name string) (zss.Block, bool) {
-	for _, b := range script.Blocks {
-		if b.Kind == zss.BlockKindFunction && b.Name == name {
-			return b, true
-		}
-	}
-	return zss.Block{}, false
 }

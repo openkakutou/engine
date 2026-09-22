@@ -293,6 +293,69 @@ func TestTick_TickConfigAddsNoAllocationBeyondInputRecognition(t *testing.T) {
 	}
 }
 
+func TestNewFighterProgram_AnimationLookup_ReturnsMatchingAnimation(t *testing.T) {
+	anims := []air.Animation{
+		{Number: 0, LoopStart: 0},
+		{Number: 5, LoopStart: 2},
+		{Number: 200, LoopStart: 9},
+	}
+	prog := NewFighterProgram(idleStates(), anims, cmd.CommandFile{})
+
+	got := findAnimation(prog, 5)
+	want := anims[1]
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("findAnimation(prog, 5) = %+v, want %+v", got, want)
+	}
+}
+
+func TestNewFighterProgram_AnimationLookup_ReturnsZeroAnimation_WhenNumberNotFound(t *testing.T) {
+	anims := []air.Animation{{Number: 0}, {Number: 5}}
+	prog := NewFighterProgram(idleStates(), anims, cmd.CommandFile{})
+
+	got := findAnimation(prog, 999)
+	if !reflect.DeepEqual(got, air.Animation{}) {
+		t.Errorf("findAnimation(prog, 999) = %+v, want zero Animation (number not loaded)", got)
+	}
+}
+
+// TestNewFighterProgram_DuplicateAnimationNumbers_FirstOccurrenceWins pins
+// the precomputed index to the same "first match in declaration order
+// wins" semantics the original linear scan had -- a naive map-build loop
+// that simply overwrites on every insert would silently flip this to
+// last-occurrence-wins instead, with no compiler error to catch it.
+func TestNewFighterProgram_DuplicateAnimationNumbers_FirstOccurrenceWins(t *testing.T) {
+	anims := []air.Animation{
+		{Number: 5, LoopStart: 1},
+		{Number: 5, LoopStart: 2},
+	}
+	prog := NewFighterProgram(idleStates(), anims, cmd.CommandFile{})
+
+	got := findAnimation(prog, 5)
+	if got.LoopStart != 1 {
+		t.Errorf("findAnimation(prog, 5).LoopStart = %d, want 1 (first-declared animation wins, matching the pre-existing linear-scan behavior)", got.LoopStart)
+	}
+}
+
+// TestFindAnimation_FallsBackToLinearScan_ForRawStructLiteral confirms a
+// FighterProgram built via a raw struct literal (this file's and
+// integration_test.go's own pre-existing pattern, with no precomputed
+// index) still finds the right animation, so none of those existing tests
+// need to change to build through NewFighterProgram instead.
+func TestFindAnimation_FallsBackToLinearScan_ForRawStructLiteral(t *testing.T) {
+	prog := FighterProgram{
+		States: idleStates(),
+		Animations: []air.Animation{
+			{Number: 0},
+			{Number: 5, LoopStart: 3},
+		},
+	}
+
+	got := findAnimation(prog, 5)
+	if got.LoopStart != 3 {
+		t.Errorf("findAnimation(prog, 5).LoopStart = %d, want 3 (fallback linear scan over prog.Animations)", got.LoopStart)
+	}
+}
+
 func TestTick_ReturnsError_WhenAFightersCurrentStateIsNotInItsLoadedStates(t *testing.T) {
 	states := idleStates()
 	p1 := FighterProgram{States: states}

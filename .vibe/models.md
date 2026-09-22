@@ -63,7 +63,15 @@ Defined in: `statemachine/statemachine.go`
 |---|---|---|
 | Context | `evaluator.Context` | The fighter's context after running the current Statedef's `.zss` script body for one `Step` call |
 Unlike `statemachine.Result`, there is no `Applied` field: a `.zss` body is imperative control flow (`if`/`call`/controller statements), not a flat, independently-triggered controller list, so there is no equivalent per-controller "did its trigger hold" list to report.
-Returned by: `Step(ctx evaluator.Context, script zss.Script) (Result, error)`
+Returned by: `Step(ctx evaluator.Context, prog CompiledScript) (Result, error)`
+Defined in: `zssexec/zssexec.go`
+
+## zssexec.CompiledScript
+| Field | Type | Notes |
+|---|---|---|
+| statedefs (unexported) | `map[int]zss.Block` | Keyed by Statedef state number |
+| functions (unexported) | `map[string]zss.Block` | Keyed by Function name |
+Built via: `Compile(script zss.Script) CompiledScript` — precomputes both indices once, first-occurrence-wins on a duplicate state number/function name. See `.vibe/decisions/013`.
 Defined in: `zssexec/zssexec.go`
 
 ## TickInput
@@ -117,6 +125,8 @@ Defined in: `hitdetect/hitdetect.go`
 | States | `map[int]cns.StateDef` | Keyed by state number; read-only, loaded once per fighter |
 | Animations | `[]air.Animation` | |
 | Commands | `cmd.CommandFile` | |
+| animIndex (unexported) | `map[int]air.Animation` | Precomputed by `NewFighterProgram`; `findAnimation` falls back to scanning `Animations` when nil (a raw struct literal or JSON-decoded value) |
+Built via: `NewFighterProgram(states map[int]cns.StateDef, animations []air.Animation, commands cmd.CommandFile) FighterProgram` — precomputes the animation index once, first-occurrence-wins on a duplicate `Number`. See `.vibe/decisions/013`.
 Defined in: `tick.go` (root package)
 
 ## FighterRuntime

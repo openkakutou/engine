@@ -29,6 +29,48 @@ type FighterProgram struct {
 	States     map[int]cns.StateDef `json:"states"`
 	Animations []air.Animation      `json:"animations"`
 	Commands   cmd.CommandFile      `json:"commands"`
+
+	// animIndex is Animations precomputed into a map keyed by Number, built
+	// once by NewFighterProgram -- see this item's own ADR (.vibe/decisions/
+	// 013). It stays nil on a FighterProgram built via a raw struct literal
+	// (this package's own tests, integration_test.go) or JSON-decoded
+	// directly (cmd/wasm's incoming request shape, whose field tags above
+	// only ever populate Animations, never this unexported field); findAnimation
+	// falls back to scanning Animations in that case, so neither of those
+	// existing construction paths needs to change.
+	animIndex map[int]air.Animation
+}
+
+// NewFighterProgram builds a FighterProgram with its animation lookup
+// precomputed once, so tickFighter's per-tick findAnimation call is an O(1)
+// map lookup instead of an O(n) scan over animations for the rest of the
+// match -- see this item's own ADR. Precomputing once here, rather than
+// lazily on first lookup, matters because tickFighter performs exactly one
+// lookup per fighter per tick: building the index on that same call would
+// cost strictly more (build once *and* look up) than the scan it replaces,
+// so the index must be built outside the tick loop, at load time, to pay
+// off at all.
+//
+// When animations contains more than one entry with the same Number, the
+// first one (in slice order) is the one findAnimation returns -- matching
+// the original linear scan's own first-match behavior on the same
+// malformed input, not silently flipped to last-occurrence-wins by a naive
+// overwriting map-build loop.
+func NewFighterProgram(states map[int]cns.StateDef, animations []air.Animation, commands cmd.CommandFile) FighterProgram {
+	index := make(map[int]air.Animation, len(animations))
+	for _, a := range animations {
+		if _, exists := index[a.Number]; exists {
+			continue
+		}
+		index[a.Number] = a
+	}
+
+	return FighterProgram{
+		States:     states,
+		Animations: animations,
+		Commands:   commands,
+		animIndex:  index,
+	}
 }
 
 // FighterRuntime is one fighter's evolving simulation state, threaded
@@ -213,7 +255,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	// i.e. before this tick's own state-machine transition (if any) is
 	// applied. A transition's new animation takes effect starting next
 	// tick, once AnimTime has actually reset -- see this item's own ADR.
-	frame := currentFrame(findAnimation(prog.Animations, ctx.Anim), ctx.AnimTime)
+	frame := currentFrame(findAnimation(prog, ctx.Anim), ctx.AnimTime)
 
 	def, ok := prog.States[ctx.StateNo]
 	if !ok {
@@ -262,14 +304,22 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	}, nil
 }
 
-// findAnimation returns the Animation in anims whose Number matches
-// number, or the zero Animation (no frames) if none matches -- a fighter
-// whose current Anim references data its own FighterProgram doesn't carry
-// simply contributes no Clsn boxes for that tick, the same "no error path,
-// only geometry over whatever's there" stance hitdetect.Detect itself
-// already takes on a frame with no boxes at all.
-func findAnimation(anims []air.Animation, number int) air.Animation {
-	for _, a := range anims {
+// findAnimation returns the Animation in prog whose Number matches number,
+// or the zero Animation (no frames) if none matches -- a fighter whose
+// current Anim references data its own FighterProgram doesn't carry simply
+// contributes no Clsn boxes for that tick, the same "no error path, only
+// geometry over whatever's there" stance hitdetect.Detect itself already
+// takes on a frame with no boxes at all.
+//
+// Uses prog's precomputed animIndex (see NewFighterProgram) when present;
+// falls back to a linear scan over prog.Animations for a FighterProgram
+// built via a raw struct literal or decoded straight from JSON, neither of
+// which populates animIndex.
+func findAnimation(prog FighterProgram, number int) air.Animation {
+	if prog.animIndex != nil {
+		return prog.animIndex[number]
+	}
+	for _, a := range prog.Animations {
 		if a.Number == number {
 			return a
 		}

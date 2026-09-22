@@ -10,10 +10,12 @@ import (
 	"github.com/openkakutou/engine/match"
 )
 
-// mustParseScript builds a zss.Script from the given block sources, one
+// mustParseScript builds a CompiledScript from the given block sources, one
 // "[Statedef ...]"/"[Function ...]" block plus body per string, joined with
-// blank lines the same way real .zss text separates blocks.
-func mustParseScript(t *testing.T, blocks ...string) zss.Script {
+// blank lines the same way real .zss text separates blocks. Compiled (see
+// Compile) before returning, since Step now takes a CompiledScript rather
+// than a raw zss.Script -- see this item's own ADR.
+func mustParseScript(t *testing.T, blocks ...string) CompiledScript {
 	t.Helper()
 	source := ""
 	for i, b := range blocks {
@@ -26,7 +28,7 @@ func mustParseScript(t *testing.T, blocks ...string) zss.Script {
 	if err != nil {
 		t.Fatalf("zss.Parse returned unexpected error: %v", err)
 	}
-	return script
+	return Compile(script)
 }
 
 func TestStep_IfConditionTrue_AppliesChangeState(t *testing.T) {
@@ -211,7 +213,48 @@ func TestStep_ConditionEvaluationError_ReturnsDescriptiveError(t *testing.T) {
 	}
 }
 
-func mustParseFixtureScript(t *testing.T, path string) zss.Script {
+// TestCompile_DuplicateStatedefNumbers_FirstOccurrenceWins pins Compile's
+// precomputed index to the same "first block in declaration order wins"
+// semantics the original findStatedef linear scan had -- a naive map-build
+// loop that overwrites on every insert would silently flip this to
+// last-occurrence-wins instead, with no compiler error to catch it.
+func TestCompile_DuplicateStatedefNumbers_FirstOccurrenceWins(t *testing.T) {
+	script := mustParseScript(t,
+		"[Statedef 0]\nvarSet{v: 0; value: 1;}",
+		"[Statedef 0]\nvarSet{v: 0; value: 2;}",
+	)
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	result, err := Step(ctx, script)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	if result.Context.Vars[0] != 1 {
+		t.Errorf("Vars[0] = %d, want 1 (first-declared Statedef 0 block wins, matching the pre-existing linear-scan behavior)", result.Context.Vars[0])
+	}
+}
+
+// TestCompile_DuplicateFunctionNames_FirstOccurrenceWins is
+// TestCompile_DuplicateStatedefNumbers_FirstOccurrenceWins's Function
+// counterpart, exercising findFunction's own precomputed index instead.
+func TestCompile_DuplicateFunctionNames_FirstOccurrenceWins(t *testing.T) {
+	script := mustParseScript(t,
+		"[Statedef 0]\ncall Helper();",
+		"[Function Helper()]\nvarSet{v: 0; value: 1;}",
+		"[Function Helper()]\nvarSet{v: 0; value: 2;}",
+	)
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	result, err := Step(ctx, script)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	if result.Context.Vars[0] != 1 {
+		t.Errorf("Vars[0] = %d, want 1 (first-declared Function Helper() wins, matching the pre-existing linear-scan behavior)", result.Context.Vars[0])
+	}
+}
+
+func mustParseFixtureScript(t *testing.T, path string) CompiledScript {
 	t.Helper()
 	f, err := os.Open(path)
 	if err != nil {
@@ -223,7 +266,7 @@ func mustParseFixtureScript(t *testing.T, path string) zss.Script {
 	if err != nil {
 		t.Fatalf("zss.Parse returned unexpected error: %v", err)
 	}
-	return script
+	return Compile(script)
 }
 
 // TestStep_RealCharacterFixture_KfmIdle_NoCommandHeld_CallsFunctionAndSetsVar
