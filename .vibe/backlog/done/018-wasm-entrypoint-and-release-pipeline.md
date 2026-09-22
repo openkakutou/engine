@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: []
 ---
 # WASM Entrypoint Release Pipeline
