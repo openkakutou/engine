@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Tagged releases now publish a ready-to-use WebAssembly build: pushing a version tag builds and tests the library, then attaches `engine.wasm` and its matching `wasm_exec.js` to that release, so consuming apps can download a real build instead of compiling it themselves.
+
 ## [2.2.0] - 2026-09-22
 
 ### Added
