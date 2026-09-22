@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-09-22
+
 ### Added
 
 - Faster per-tick simulation: a fighter's current animation and a `.zss` script's state/function blocks are now looked up instantly instead of being rescanned every time, with no change in behavior.
@@ -107,7 +109,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.1.1...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/openkakutou/engine/compare/v2.1.1...v2.2.0
 [2.1.1]: https://github.com/openkakutou/engine/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/openkakutou/engine/compare/v2.0.1...v2.1.0
 [2.0.1]: https://github.com/openkakutou/engine/compare/v2.0.0...v2.0.1
