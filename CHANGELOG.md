@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-09-23
+
 ### Added
 
 - Fighters now have a power/meter (super gauge) value: it starts at 0 at the beginning of a match and at every round reset, is raised or spent by a `PowerAdd` state controller (clamped between 0 and 3000), and is reported alongside health in every match state update, including through the WebAssembly `newMatch`/`tick`/`resetRound` calls.
@@ -119,7 +121,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.3.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/openkakutou/engine/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/openkakutou/engine/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/openkakutou/engine/compare/v2.1.1...v2.2.0
 [2.1.1]: https://github.com/openkakutou/engine/compare/v2.1.0...v2.1.1
