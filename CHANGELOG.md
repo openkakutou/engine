@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Fighters now have a power/meter (super gauge) value: it starts at 0 at the beginning of a match and at every round reset, is raised or spent by a `PowerAdd` state controller (clamped between 0 and 3000), and is reported alongside health in every match state update, including through the WebAssembly `newMatch`/`tick`/`resetRound` calls.
+
 ## [2.3.0] - 2026-09-22
 
 ### Added

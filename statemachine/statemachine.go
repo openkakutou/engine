@@ -8,8 +8,9 @@
 // applied, updating the Context as it goes so that a later controller's
 // trigger can observe an earlier one's effect within the same call. This
 // item intentionally supports only the small set of controller types
-// needed to prove out the execution loop -- ChangeState (state transition)
-// and VarSet (variable assignment) -- not full MUGEN controller-type
+// needed to prove out the execution loop -- ChangeState (state transition),
+// VarSet (variable assignment), and PowerAdd (power/meter gain or spend,
+// clamped to [0, DefaultMaxPower]) -- not full MUGEN controller-type
 // coverage, which is expected to grow via later items. A controller of an
 // unimplemented type is still recorded as "applied" when its trigger
 // evaluates true (so callers can observe that the condition held), but has
@@ -45,7 +46,17 @@ const (
 	ControllerTypeChangeState = "ChangeState"
 	ControllerTypeVarSet      = "VarSet"
 	ControllerTypeHitDef      = "HitDef"
+	ControllerTypePowerAdd    = "PowerAdd"
 )
+
+// DefaultMaxPower is the power/meter cap applied when clamping a
+// PowerAdd controller's effect -- MUGEN's own default player power cap.
+// engine currently has no lifebar/system-config data flowing into it to
+// override this with (its only cross-repo inputs are character and
+// stage), so this stays a hardcoded constant rather than a configurable
+// parameter until a real such data source exists. See
+// .vibe/decisions/015.
+const DefaultMaxPower = 3000
 
 // Result is the outcome of one Step call.
 type Result struct {
@@ -144,6 +155,8 @@ func ApplyController(ctrl cns.Controller, ctx *evaluator.Context, exists func(in
 		return true, applyChangeState(ctrl, ctx, exists)
 	case strings.ToLower(ControllerTypeVarSet):
 		return false, applyVarSet(ctrl, ctx)
+	case strings.ToLower(ControllerTypePowerAdd):
+		return false, applyPowerAdd(ctrl, ctx)
 	default:
 		return false, nil
 	}
@@ -192,5 +205,32 @@ func applyVarSet(ctrl cns.Controller, ctx *evaluator.Context) error {
 		return fmt.Errorf("VarSet index %d out of range 0-%d", idx, len(ctx.Vars)-1)
 	}
 	ctx.Vars[idx] = val.Int()
+	return nil
+}
+
+// applyPowerAdd applies a PowerAdd controller's effect to ctx: its "value"
+// parameter (an evaluated MUGEN trigger expression, positive or negative)
+// is added to ctx.Power, then the result is clamped to [0, DefaultMaxPower]
+// -- never negative, never above the cap -- matching real MUGEN/Ikemen
+// behavior for both gaining power on a landed hit and spending it on a
+// super move.
+func applyPowerAdd(ctrl cns.Controller, ctx *evaluator.Context) error {
+	raw, ok := ctrl.Parameters["value"]
+	if !ok {
+		return fmt.Errorf(`PowerAdd is missing its required "value" parameter`)
+	}
+	v, err := evaluator.Evaluate(raw, *ctx)
+	if err != nil {
+		return fmt.Errorf("PowerAdd value %q: %w", raw, err)
+	}
+
+	power := ctx.Power + v.Int()
+	if power < 0 {
+		power = 0
+	}
+	if power > DefaultMaxPower {
+		power = DefaultMaxPower
+	}
+	ctx.Power = power
 	return nil
 }

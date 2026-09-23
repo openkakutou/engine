@@ -78,6 +78,11 @@ type FighterState struct {
 	StateNo int `json:"stateNo"`
 	// Health is the fighter's remaining health points.
 	Health int `json:"health"`
+	// Power is the fighter's power/meter (super gauge) value. Unlike
+	// Health, a caller-supplied Power is never trusted as-is: NewMatchState
+	// always resets it to 0 regardless of what value is passed in — see
+	// that constructor's own doc comment and .vibe/decisions/015.
+	Power int `json:"power"`
 }
 
 // MatchState is the live state of a match between two fighters: the round
@@ -105,6 +110,14 @@ type MatchState struct {
 // It returns a descriptive error, rather than a malformed or
 // panic-inducing MatchState, if fighters does not contain exactly two
 // elements or if both elements declare the same Side.
+//
+// Every returned fighter's Power is forced to 0, regardless of what value
+// the given FighterState carried — this is the single mechanism giving
+// both match start (this constructor, called directly) and every round
+// reset (round.ResetRound, which calls this same constructor) a
+// power/meter that always starts empty. Health is not treated this way:
+// it is passed through unchanged, since a fresh round's starting health is
+// the caller's decision, not this package's. See .vibe/decisions/015.
 func NewMatchState(round, roundTimer int, fighters ...FighterState) (*MatchState, error) {
 	if len(fighters) != numSides {
 		return nil, fmt.Errorf("match: NewMatchState requires exactly %d fighters, got %d", numSides, len(fighters))
@@ -123,6 +136,7 @@ func NewMatchState(round, roundTimer int, fighters ...FighterState) (*MatchState
 			return nil, fmt.Errorf("match: NewMatchState received two fighters for the same Side %v", f.Side)
 		}
 		seen[f.Side] = true
+		f.Power = 0
 		ms.Fighters[f.Side] = f
 	}
 

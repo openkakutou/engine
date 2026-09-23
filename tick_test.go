@@ -205,6 +205,69 @@ func TestTick_AppliesActiveHitDef_ReducesDefenderHealthAndReportsKO(t *testing.T
 	}
 }
 
+func TestTick_AppliesPowerAdd_UpdatesFighterStatesPowerInResultState(t *testing.T) {
+	// PowerAdd's effect lives on evaluator.Context (via its embedded
+	// match.FighterState) during statemachine execution, exactly like
+	// StateNo already did before this item -- Tick's own fighter-state
+	// reconciliation must copy it back into result.State the same way it
+	// already copies StateNo back, or the WASM contract would never
+	// observe a fighter's power changing.
+	attackerStates := map[int]cns.StateDef{
+		200: {
+			Number: 200, Type: cns.StateTypeStanding, Anim: 200, Ctrl: false,
+			Controllers: []cns.Controller{
+				{
+					Type:       "PowerAdd",
+					Triggers:   []string{"Time = 0"},
+					Parameters: map[string]string{"value": "30"},
+				},
+			},
+		},
+	}
+	defenderStates := idleStates()
+
+	attacker := FighterProgram{
+		States:     attackerStates,
+		Animations: []air.Animation{{Number: 200, Frames: []air.Frame{{Time: 100}}}},
+	}
+	defender := FighterProgram{
+		States:     defenderStates,
+		Animations: []air.Animation{{Number: 0, Frames: []air.Frame{{Time: 100}}}},
+	}
+
+	p1Fighter := match.FighterState{Side: match.SideP1, StateNo: 200, Health: 1000}
+	p2Fighter := match.FighterState{Side: match.SideP2, StateNo: 0, Health: 1000}
+
+	p1Runtime, err := NewFighterRuntime(p1Fighter, attackerStates)
+	if err != nil {
+		t.Fatalf("NewFighterRuntime(p1): %v", err)
+	}
+	p2Runtime, err := NewFighterRuntime(p2Fighter, defenderStates)
+	if err != nil {
+		t.Fatalf("NewFighterRuntime(p2): %v", err)
+	}
+
+	state, err := match.NewMatchState(1, 1000, p1Fighter, p2Fighter)
+	if err != nil {
+		t.Fatalf("NewMatchState: %v", err)
+	}
+
+	result, err := Tick(
+		*state,
+		[2]FighterProgram{match.SideP1: attacker, match.SideP2: defender},
+		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
+		[2]input.TickInput{},
+		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
+	)
+	if err != nil {
+		t.Fatalf("Tick returned an error: %v", err)
+	}
+
+	if got := result.State.Fighter(match.SideP1).Power; got != 30 {
+		t.Errorf("P1 Power in result.State = %d, want 30", got)
+	}
+}
+
 func TestCurrentFrame_AdvancesThroughFramesAndLoopsAtLoopStart(t *testing.T) {
 	anim := air.Animation{
 		Number: 0,

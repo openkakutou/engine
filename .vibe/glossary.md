@@ -6,7 +6,7 @@ The live state of a match while two characters fight: the round number, the roun
 _Sources: `match/state.go`_
 
 ## Fighter state
-One fighter's live state during a match: position, facing, velocity, current state number, and health. Its state number references a state defined by the fighter's loaded character data (a `cns.StateDef.Number`), but this package does not resolve that reference itself — later packages (evaluator, state machine) do.
+One fighter's live state during a match: position, facing, velocity, current state number, health, and power/meter. Its state number references a state defined by the fighter's loaded character data (a `cns.StateDef.Number`), but this package does not resolve that reference itself — later packages (evaluator, state machine) do.
 **Do not confuse with:** Match state (the two-fighter, round-level state a fighter state lives inside of).
 _Sources: `match/state.go`_
 
@@ -32,6 +32,11 @@ _Sources: `statemachine/statemachine.go`_
 A named input pattern (e.g. `"QCF_a"`) recognized when a fighter's raw per-tick input matches its `.cmd`-declared step sequence within a buffered time window; the `Command` trigger (`Command = "QCF_a"`) checks whether it is currently recognized via `Context.ActiveCommands`, which `input.Step` populates.
 **Do not confuse with:** Trigger (the general expression category `Command` is one specific instance of).
 _Sources: `evaluator/eval.go`, `evaluator/context.go`, `input/matcher.go`_
+
+## Power / meter
+A fighter's super gauge: a value that starts empty (0) at the beginning of a match and at every round reset, is raised or spent by a character's own states via a `PowerAdd` state controller, and is clamped between 0 and a maximum (MUGEN's own default cap of 3000) so it can never go negative or overflow. Unlike health, a fighter's starting power is never taken from what a caller supplies — it always starts empty, both at match start and at every round reset.
+**Do not confuse with:** Health (a fighter's remaining life, which does carry the caller's supplied starting value across a round reset — power does not).
+_Sources: `match/state.go`, `statemachine/statemachine.go`_
 
 ## Grounded
 A fighter's state of resting on, or still falling toward, the stage's ground plane rather than being airborne: at or below ground level (`Position.Y <= 0`) and not moving upward (`Velocity.Y <= 0`). Gravity applies to a fighter only while it is not grounded, and landing — crossing back to the ground plane — zeroes its vertical velocity. A fighter given upward velocity while still at ground level is treated as airborne starting that same tick, not grounded.

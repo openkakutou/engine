@@ -60,6 +60,13 @@ const attackerStates = {
 		number: 200, type: "S", moveType: "A", physics: "S", anim: 200, ctrl: false,
 		controllers: [
 			{ type: "HitDef", triggers: ["Time = 0"], parameters: { damage: "30" } },
+			// PowerAdd fires alongside the HitDef, on the same tick the attack
+			// starts -- exercises the power/meter contract (backlog item 019)
+			// through the same real WASM round trip as everything else here.
+			// The value (2000) is deliberately large enough that a second
+			// application (see the post-reset tick below) proves the
+			// DefaultMaxPower (3000) clamp, not just plain addition.
+			{ type: "PowerAdd", triggers: ["Time = 0"], parameters: { value: "2000" } },
 		],
 	},
 };
@@ -97,6 +104,7 @@ const created = call(globalThis.OpenKakutouEngine.newMatch, newMatchRequest);
 assert(created.error === null, `newMatch reports no error (got: ${created.error})`);
 assert(typeof created.data?.matchId === "number", "newMatch returns a numeric matchId");
 assert(created.data?.state?.round === 1, `new match starts at round 1 (got: ${created.data?.state?.round})`);
+assert(created.data?.state?.fighters?.[0]?.power === 0, `new match starts P1's power at 0 (got: ${created.data?.state?.fighters?.[0]?.power})`);
 assert(created.data?.progress?.bestOf === 3, "new match's progress carries the requested bestOf");
 assert(created.data?.animations?.[0]?.animNo === 0, `newMatch reports P1's starting animNo as 0 (got: ${created.data?.animations?.[0]?.animNo})`);
 assert(created.data?.animations?.[0]?.animTime === 0, `newMatch reports P1's starting animTime as 0 (got: ${created.data?.animations?.[0]?.animTime})`);
@@ -134,6 +142,7 @@ assert(transitionTick.data?.animations?.[1]?.animTime === 2, `transition tick: P
 const hitTick = call(globalThis.OpenKakutouEngine.tick, { matchId, inputs: [{}, {}] });
 assert(hitTick.error === null, `hit tick reports no error (got: ${hitTick.error})`);
 assert(hitTick.data?.state?.fighters?.[1]?.health === 0, `P2 health drops to 0 (got: ${hitTick.data?.state?.fighters?.[1]?.health})`);
+assert(hitTick.data?.state?.fighters?.[0]?.power === 2000, `P1's PowerAdd controller raises its power to 2000 (got: ${hitTick.data?.state?.fighters?.[0]?.power})`);
 assert(hitTick.data?.round?.outcome === 1, `hit tick reports OutcomeKO (got: ${hitTick.data?.round?.outcome})`);
 assert(hitTick.data?.round?.winner === 0, `P1 (side 0) wins the round (got: ${hitTick.data?.round?.winner})`);
 assert(hitTick.data?.progress?.wins?.[0] === 1, "P1's round win is recorded in progress");
@@ -141,15 +150,24 @@ assert(hitTick.data?.matchOver === false, "bestOf 3 is not decided after a singl
 assert(hitTick.data?.animations?.[0]?.animNo === 200, `hit tick: P1 stays in animNo 200, no further transition (got: ${hitTick.data?.animations?.[0]?.animNo})`);
 assert(hitTick.data?.animations?.[0]?.animTime === 1, `hit tick: P1's animTime advances to 1 within animNo 200 (got: ${hitTick.data?.animations?.[0]?.animTime})`);
 
-// --- resetRound: both fighters restored for round 2 ---
+// --- resetRound: both fighters restored for round 2 -- edge case: a
+// client that (incorrectly) echoes back P1's round-1 power in its
+// resetRound request must still get power reset to 0, not carried over
+// (backlog item 019's explicit "resets like Health" requirement, verified
+// here through the real JSON contract, not just the Go unit tests). ---
+const resetStarting = [
+	{ ...newMatchRequest.starting[0], power: 2000 },
+	newMatchRequest.starting[1],
+];
 const reset = call(globalThis.OpenKakutouEngine.resetRound, {
 	matchId,
 	roundTimer: 1000,
-	starting: newMatchRequest.starting,
+	starting: resetStarting,
 });
 assert(reset.error === null, `resetRound reports no error (got: ${reset.error})`);
 assert(reset.data?.state?.round === 2, `resetRound advances to round 2 (got: ${reset.data?.state?.round})`);
 assert(reset.data?.state?.fighters?.[1]?.health === 20, `resetRound restores P2's health to 20 (got: ${reset.data?.state?.fighters?.[1]?.health})`);
+assert(reset.data?.state?.fighters?.[0]?.power === 0, `resetRound forces P1's power back to 0 even though the request echoed back 2000 (got: ${reset.data?.state?.fighters?.[0]?.power})`);
 assert(reset.data?.animations?.[0]?.animNo === 0, `resetRound restores P1's animNo to its round-start state 0 (got: ${reset.data?.animations?.[0]?.animNo})`);
 assert(reset.data?.animations?.[0]?.animTime === 0, `resetRound restores P1's animTime to 0 (got: ${reset.data?.animations?.[0]?.animTime})`);
 

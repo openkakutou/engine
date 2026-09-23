@@ -9,6 +9,7 @@
 | Velocity | `Velocity` | Per-axis movement rate, applied to `Position` by later physics |
 | StateNo | `int` | References a loaded character's `cns.StateDef.Number`; not resolved by this package |
 | Health | `int` | Remaining health points |
+| Power | `int` | Power/meter (super gauge) value; always forced to 0 by `NewMatchState`, regardless of the value supplied — see that constructor |
 Defined in: `match/state.go`
 
 ## MatchState
@@ -17,7 +18,7 @@ Defined in: `match/state.go`
 | Round | `int` | Current round number; 0 in the zero value |
 | RoundTimer | `int` | Remaining round time, in simulation ticks |
 | Fighters | `[2]FighterState` | Indexed by `Side`; use `Fighter(side)` for side-keyed access rather than indexing directly |
-Built via: `NewMatchState(round, roundTimer int, fighters ...FighterState) (*MatchState, error)` — requires exactly one `FighterState` per `Side`, returns a descriptive error otherwise (wrong count, or two fighters sharing the same `Side`).
+Built via: `NewMatchState(round, roundTimer int, fighters ...FighterState) (*MatchState, error)` — requires exactly one `FighterState` per `Side`, returns a descriptive error otherwise (wrong count, or two fighters sharing the same `Side`); also forces each built fighter's `Power` to 0 regardless of the supplied value (unlike `Health`, passed through unchanged). See `.vibe/decisions/015`.
 Defined in: `match/state.go`
 
 ## Position / Velocity

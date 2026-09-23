@@ -38,6 +38,17 @@ func varSetController(trigger string, index, value int) cns.Controller {
 	return c
 }
 
+func powerAddController(trigger string, value int) cns.Controller {
+	c := cns.Controller{
+		Type:       "PowerAdd",
+		Parameters: map[string]string{"value": itoa(value)},
+	}
+	if trigger != "" {
+		c.Triggers = []string{trigger}
+	}
+	return c
+}
+
 func itoa(n int) string {
 	// Avoids importing strconv just for test fixture construction of
 	// small, always-non-negative-or-simple integers used in these tests.
@@ -311,6 +322,103 @@ func TestStep_VarSetIndexOutOfRange_ReturnsDescriptiveError(t *testing.T) {
 	_, err := Step(ctx, states)
 	if err == nil {
 		t.Fatal("expected a descriptive error for a VarSet index out of range, got nil")
+	}
+}
+
+func TestStep_PowerAddController_IncrementsPower(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				powerAddController("", 30), // unconditional
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0, Power: 10}}
+
+	result, err := Step(ctx, states)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	if result.Context.Power != 40 {
+		t.Errorf("Power = %d, want 40 (10 + 30)", result.Context.Power)
+	}
+	if want := []int{0}; !intSlicesEqual(result.Applied, want) {
+		t.Errorf("Applied = %v, want %v", result.Applied, want)
+	}
+}
+
+func TestStep_PowerAddController_ClampsAtDefaultMaxPower(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				powerAddController("", 1000),
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0, Power: 2500}}
+
+	result, err := Step(ctx, states)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	if result.Context.Power != DefaultMaxPower {
+		t.Errorf("Power = %d, want clamped to DefaultMaxPower (%d)", result.Context.Power, DefaultMaxPower)
+	}
+}
+
+func TestStep_PowerAddController_NeverGoesNegative(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				powerAddController("", -500),
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0, Power: 200}}
+
+	result, err := Step(ctx, states)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	if result.Context.Power != 0 {
+		t.Errorf("Power = %d, want floored at 0 (200 - 500)", result.Context.Power)
+	}
+}
+
+func TestStep_PowerAddMissingValueParameter_ReturnsDescriptiveError(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				{Type: "PowerAdd", Parameters: map[string]string{}},
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	_, err := Step(ctx, states)
+	if err == nil {
+		t.Fatal("expected a descriptive error for a PowerAdd controller missing its \"value\" parameter, got nil")
+	}
+}
+
+func TestStep_PowerAddUnevaluableValueExpression_ReturnsDescriptiveError(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				{Type: "PowerAdd", Parameters: map[string]string{"value": "SomeUnknownTrigger"}},
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	_, err := Step(ctx, states)
+	if err == nil {
+		t.Fatal("expected a descriptive error for a PowerAdd \"value\" expression that fails to evaluate, got nil")
 	}
 }
 

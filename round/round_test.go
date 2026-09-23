@@ -139,6 +139,22 @@ func TestResetRound_RestoresBothFightersToTheirStartingStateAndAdvancesRound(t *
 	}
 }
 
+func TestResetRound_ForcesBothFightersPowerToZero_EvenWhenSuppliedNonzero(t *testing.T) {
+	p1Start := match.FighterState{Side: match.SideP1, Health: 1000, Power: 1800}
+	p2Start := match.FighterState{Side: match.SideP2, Health: 1000, Power: 3000}
+
+	state, err := ResetRound(2, 3000, p1Start, p2Start)
+	if err != nil {
+		t.Fatalf("ResetRound returned an error: %v", err)
+	}
+	if got := state.Fighter(match.SideP1).Power; got != 0 {
+		t.Errorf("P1 Power after ResetRound = %d, want 0", got)
+	}
+	if got := state.Fighter(match.SideP2).Power; got != 0 {
+		t.Errorf("P2 Power after ResetRound = %d, want 0", got)
+	}
+}
+
 func TestResetRound_ReturnsError_OnMalformedStartingFighters(t *testing.T) {
 	// Both fighters declaring the same Side is exactly the malformed input
 	// match.NewMatchState already rejects -- ResetRound must surface that,

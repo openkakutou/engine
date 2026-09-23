@@ -20,6 +20,9 @@ func TestFighterState_ZeroValue_HasUsableDefaultFields(t *testing.T) {
 	if fs.Health != 0 {
 		t.Errorf("zero-value FighterState.Health = %d, want 0", fs.Health)
 	}
+	if fs.Power != 0 {
+		t.Errorf("zero-value FighterState.Power = %d, want 0", fs.Power)
+	}
 	if fs.Side != SideP1 {
 		t.Errorf("zero-value FighterState.Side = %v, want SideP1", fs.Side)
 	}
@@ -61,6 +64,31 @@ func TestNewMatchState_ReturnsPopulatedState_WithTwoValidFighters(t *testing.T) 
 	}
 	if got := ms.Fighter(SideP2); got != p2 {
 		t.Errorf("ms.Fighter(SideP2) = %+v, want %+v", got, p2)
+	}
+}
+
+func TestNewMatchState_ForcesPowerToZero_RegardlessOfSuppliedValue(t *testing.T) {
+	// Power always starts at 0, both at match start and at every round
+	// reset -- unlike Health, which is whatever the caller's starting
+	// FighterState supplies. Both paths build their MatchState through
+	// this one constructor (see round.ResetRound), so NewMatchState is
+	// where that invariant is enforced. See .vibe/decisions/015.
+	p1 := FighterState{Side: SideP1, Health: 1000, Power: 2500}
+	p2 := FighterState{Side: SideP2, Health: 1000, Power: 999}
+
+	ms, err := NewMatchState(1, 100, p1, p2)
+	if err != nil {
+		t.Fatalf("NewMatchState returned error: %v", err)
+	}
+	if got := ms.Fighter(SideP1).Power; got != 0 {
+		t.Errorf("P1 Power = %d, want 0 even though the caller supplied 2500", got)
+	}
+	if got := ms.Fighter(SideP2).Power; got != 0 {
+		t.Errorf("P2 Power = %d, want 0 even though the caller supplied 999", got)
+	}
+	// Health, unlike Power, is passed through unchanged.
+	if got := ms.Fighter(SideP1).Health; got != 1000 {
+		t.Errorf("P1 Health = %d, want 1000 (unaffected by the Power reset)", got)
 	}
 }
 

@@ -206,6 +206,7 @@ func Tick(
 
 	p1Fighter := state.Fighter(match.SideP1)
 	p1Fighter.StateNo = runtimesOut[match.SideP1].Context.StateNo
+	p1Fighter.Power = runtimesOut[match.SideP1].Context.Power
 	updatedP1, err := physics.Step(p1Fighter, cfg.Bounds, cfg.Gravity)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: physics: %w", match.SideP1, err)
@@ -214,6 +215,7 @@ func Tick(
 
 	p2Fighter := state.Fighter(match.SideP2)
 	p2Fighter.StateNo = runtimesOut[match.SideP2].Context.StateNo
+	p2Fighter.Power = runtimesOut[match.SideP2].Context.Power
 	updatedP2, err := physics.Step(p2Fighter, cfg.Bounds, cfg.Gravity)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: physics: %w", match.SideP2, err)
