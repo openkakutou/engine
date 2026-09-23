@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: todo
 ---
 # Registry Based Dispatch For Controller Types
 
@@ -19,3 +19,5 @@ Re-checked 2026-09-17 (`/vibe:auto`): precondition still does not hold. `git dif
 Re-checked 2026-09-21 (`/vibe:fix 012 --auto`): precondition still does not hold. `git diff 019027a..HEAD -- statemachine/statemachine.go evaluator/eval.go` is still empty (21 commits landed since the deferral, none touching either file's dispatch). `ApplyController`'s switch remains exactly `ChangeState`/`VarSet`; `evalIdentifier` still handles only `time`/`stateno`/`anim`/`animtime`/`ctrl`/`command`, and `evalCall` only `var`/`sysvar`/`ifelse` — same sets as at the 2026-09-17 re-check. No new controller type or trigger/function name has been added. Left `status: todo`; do not implement yet.
 
 2026-09-21: switched to `status: blocked` (was `todo`). Three consecutive `/vibe:auto`/`/vibe:fix --auto` runs (2026-08-31, 2026-09-17, 2026-09-21) all re-confirmed the identical precondition failure with nothing else in the repo having changed between them — `vibe:auto`'s own item-ranking has no awareness of this deferral note, so leaving `status: todo` made it mechanically re-select this item first (lowest number, review-origin ⇒ "fix") on every run, re-run the exact same check, and re-block, crowding out real progress on this repo's other eligible items (015, 016, 018). `blocked` keeps `vibe:auto` from picking it at all — same convention already used elsewhere in this org for a self-deferred item (e.g. `mode-quick-versus`'s own item 004). Set back to `todo` once a real second/third controller type or trigger/function name is actually being added — the condition this item has been waiting on all along is unchanged.
+
+2026-09-23 (`/vibe:feature 019 --auto`): switched back to `status: todo` (was `blocked`). Backlog item 019 (Model And Expose Power/Meter System) just added `PowerAdd` as a real second case in `statemachine.ApplyController`'s switch, alongside `ChangeState`/`VarSet` — the exact precondition this item has been waiting on since 2026-08-31 now holds. `evaluator.evalIdentifier`/`evalCall`'s own switches are unchanged (this item's `PowerAdd` work never touched the evaluator), so only the `statemachine.ApplyController` half of this item's acceptance criteria has real motivation so far; the `evaluator` half can be revisited in the same pass or deferred again if no matching trigger/function-name need has shown up by then.

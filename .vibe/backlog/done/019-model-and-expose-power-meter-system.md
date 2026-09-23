@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Model And Expose Power/Meter System
 
