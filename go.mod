@@ -4,7 +4,7 @@ go 1.26.7
 
 require (
 	github.com/openkakutou/character v0.9.1
-	github.com/openkakutou/stage v0.12.0
+	github.com/openkakutou/stage v0.13.0
 )
 
 require github.com/openkakutou/sff v0.3.1 // indirect
