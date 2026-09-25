@@ -1,9 +1,7 @@
 ---
-status: running
+status: idle
 started: 2026-09-25T18:00
 limit: 1
-current: 012
-attempt: 1
 ---
 # Auto run journal
 
@@ -36,4 +34,4 @@ attempt: 1
 - 019 — feature — done (31a15ef)
 
 ## 2026-09-25T18:00 — run started (limit: 1, via /vibe:next-task auto 1)
-- 012 — fix — start
+- 012 — fix — blocked: statemachine half shipped (b0e7ef9, registry-based ChangeState/VarSet/PowerAdd dispatch); evaluator half stays deferred, no real second trigger/function-name case has appeared yet
