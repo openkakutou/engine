@@ -582,6 +582,57 @@ func TestStep_RealCharacterIdleStateFixture_ProducesExpectedControllerApplicatio
 	}
 }
 
+// This test proves ApplyController's dispatch is registry-based, not a
+// hardcoded switch: a controller type this package has never heard of
+// ("TestOnlyController") is made dispatchable purely by calling
+// RegisterController -- no case is added anywhere for it. A hardcoded
+// switch could not pass this test no matter how it were extended, since
+// the type name only exists inside the test.
+func TestRegisterController_NewControllerType_IsDispatchedWithoutEditingApplyController(t *testing.T) {
+	const controllerType = "TestOnlyController"
+	called := false
+	RegisterController(controllerType, func(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+		called = true
+		return ctx, nil
+	})
+
+	ctrl := cns.Controller{Type: controllerType}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	changedState, err := ApplyController(ctrl, &ctx, func(int) bool { return true })
+	if err != nil {
+		t.Fatalf("ApplyController returned unexpected error: %v", err)
+	}
+	if changedState {
+		t.Errorf("changedState = true, want false")
+	}
+	if !called {
+		t.Errorf("handler registered for %q was never invoked by ApplyController", controllerType)
+	}
+}
+
+// RegisterController must match case-insensitively, the same way the
+// three built-in controller types (ChangeState/VarSet/PowerAdd) already
+// do -- a real .cns file's Type casing is not guaranteed.
+func TestRegisterController_MatchesControllerTypeCaseInsensitively(t *testing.T) {
+	const controllerType = "AnotherTestOnlyController"
+	called := false
+	RegisterController(controllerType, func(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+		called = true
+		return ctx, nil
+	})
+
+	ctrl := cns.Controller{Type: "anothertestonlycontroller"}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	if _, err := ApplyController(ctrl, &ctx, func(int) bool { return true }); err != nil {
+		t.Fatalf("ApplyController returned unexpected error: %v", err)
+	}
+	if !called {
+		t.Errorf("handler registered for %q was not dispatched for differently-cased type %q", controllerType, ctrl.Type)
+	}
+}
+
 func intSlicesEqual(a, b []int) bool {
 	if len(a) != len(b) {
 		return false

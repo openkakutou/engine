@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Adding a new non-state-changing state-controller type to the simulation loop (e.g. a future `PlaySnd`) no longer requires editing the core controller-dispatch code — it is registered instead, with no change in behavior for existing `ChangeState`/`VarSet`/`PowerAdd` controllers.
+
 ## [2.4.0] - 2026-09-23
 
 ### Added
