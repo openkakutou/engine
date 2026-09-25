@@ -1,5 +1,5 @@
-github.com/openkakutou/character v0.9.0 h1:tFvZX5dxUSSQUzv3q8LIZPwERFHDT1dLyWYJW0APdpM=
-github.com/openkakutou/character v0.9.0/go.mod h1:RKJ6Dm50Bfgu3dGvX6VKRIIiqqFEr/74JxiJYP1isrE=
+github.com/openkakutou/character v0.9.1 h1:xpM8InSeVJ37dkRu6frO3IkRpvui4qkvOpPBUneUKEw=
+github.com/openkakutou/character v0.9.1/go.mod h1:rn4Pe9YRR48/M0Vv5M8uiwlFg8K5J0fbI32jVg42Nyc=
 github.com/openkakutou/sff v0.3.1 h1:+GXnbTq5TE5BLZHefGVhJqU57VHO3hK3TR40nEqDjTY=
 github.com/openkakutou/sff v0.3.1/go.mod h1:82EBFkUd/eXXNgfvrHvk2ITwul+X3IEao9jwYGQL44U=
 github.com/openkakutou/stage v0.12.0 h1:qnF4f1M3PEDjV2v4wTclB/B0j5hub6O7H9xNddJ/zas=
