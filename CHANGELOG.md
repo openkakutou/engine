@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-09-26
+
 ### Added
 
 - A character's `PlaySnd` state controller now actually triggers: each fighter's triggered `(group, sample)` sound events are reported on every WebAssembly `tick` call, alongside the existing state and animation data. `engine` only reports which sound was triggered — decoding and playing the actual audio stays each consuming app's own job.
@@ -131,7 +133,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.4.1...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/openkakutou/engine/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/openkakutou/engine/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/openkakutou/engine/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/openkakutou/engine/compare/v2.2.0...v2.3.0
