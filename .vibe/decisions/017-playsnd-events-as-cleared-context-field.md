@@ -1,0 +1,15 @@
+---
+date: 2026-09-26
+status: accepted
+---
+# PlaySnd events ride on evaluator.Context but are cleared to nil by Step, never persisted
+
+**Context:** `statemachine.ApplyController` needed a new `PlaySnd` case that records a triggered `(group, sample)` pair for the WASM `tick` contract. `ApplyController`'s only mutable output channel is `*evaluator.Context` (its return is just `(bool, error)`), and the registry-based `ControllerHandler` shape (decision 016) only takes/returns `evaluator.Context` by value — so recording the event has to go through a new `Context` field, the same way `VarSet`/`PowerAdd` record their own effects.
+
+**Decision:** Add `Sounds []SoundEvent` to `evaluator.Context`, appended to by a new `applyPlaySnd` handler registered through the existing controller registry. Unlike `Vars`/`Power`, which are genuine persistent fighter state, `Sounds` is a per-tick event log: `statemachine.Step` resets it to `nil` before running a state's controllers and again extracts-and-clears it into a new `Result.Sounds` field before returning, so the `Context` a caller holds onto between ticks (`FighterRuntime.Context`) never carries a stale previous tick's events. `Result.Sounds` mirrors the existing `Result.Applied` field: fresh, this-call-only data, never state. The `"group,sample"` raw parameter split is memoized in a package-level map keyed by the raw string, the same `parseCache`/`bodyCache` convention this package's own per-tick reparse-avoidance already follows, so a `PlaySnd` firing every tick for several seconds doesn't re-split/re-allocate on each call.
+
+**Reason:** `ApplyController`'s signature is shared with `zssexec` (decision 008); changing it to add an explicit out-parameter for events would force every call site (including `.zss` execution, which does not need this feature yet) to thread a new parameter through. Piggybacking on `Context` costs one new field and a two-line reset in `Step`, and keeps `ApplyController`'s signature — and every existing caller — unchanged.
+
+**Rejected alternatives:**
+- *Classify `PlaySnd` post-hoc like `HitDef`* (a constant + a scan over `Result.Applied`/`def.Controllers` in the root package, no `ApplyController` case at all) — rejected: the roadmap decision this item implements (`roadmap#026`) and this item's own acceptance criteria explicitly call for `ApplyController` itself to execute `PlaySnd`, evaluating its `"value"` parameter (which can be an expression, not just a literal) the same way `PowerAdd`/`VarSet` do — `HitDef`'s raw-string-passthrough precedent doesn't support expressions and would push evaluator-calling logic out into the root package instead.
+- *Change `ApplyController`'s signature* to `(bool, []SoundEvent, error)` or take an output slice pointer — rejected: only two call sites exist today (`statemachine.Step`, `zssexec`'s `ctrlStmt` case) but both would need updating for a capability `zssexec` doesn't use, and every existing direct test call to `ApplyController` would need updating for the same reason a Context field does not require.

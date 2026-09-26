@@ -52,4 +52,28 @@ type Context struct {
 	// held/triggered this tick, checked by the Command trigger. A nil map
 	// reads every command as not active.
 	ActiveCommands map[string]bool
+	// Sounds is the list of SoundEvents a PlaySnd controller recorded
+	// during the current statemachine.Step call, in trigger order. Unlike
+	// Vars/Power, this is not persistent fighter state: it is a per-tick
+	// event log that Step clears to nil before running a state's
+	// controllers and again before returning, so it never carries over
+	// from a previous simulation tick's Context (see
+	// .vibe/decisions/017 in the engine repo). Lives here, rather than on
+	// statemachine.Result alone, because ApplyController's only mutable
+	// output channel is *Context.
+	Sounds []SoundEvent
+}
+
+// SoundEvent is one PlaySnd controller execution recorded onto a fighter's
+// Context: the (Group, Sample) pair its "value" parameter resolved to,
+// addressing a character's decoded sound the same way character.Sound
+// itself is keyed. engine only reports which sample was triggered -- it
+// never decodes or plays the audio itself (see .vibe/decisions/017).
+type SoundEvent struct {
+	// Group is the sound group index the triggering PlaySnd controller's
+	// "value" parameter resolved to.
+	Group int `json:"group"`
+	// Sample is the sound sample index within Group the same "value"
+	// parameter resolved to.
+	Sample int `json:"sample"`
 }

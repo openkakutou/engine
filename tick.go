@@ -123,6 +123,12 @@ type TickResult struct {
 	State    match.MatchState
 	Fighters [2]FighterRuntime
 	Round    round.RoundResult
+	// Sounds is each fighter's PlaySnd events recorded this tick, indexed
+	// by match.Side like every other per-side result here -- nil for a
+	// side that triggered none, matching this package's idiomatic Go API
+	// (JSON-null-vs-empty-array normalization is cmd/wasm's own
+	// boundary-only responsibility). See .vibe/decisions/017.
+	Sounds [2][]evaluator.SoundEvent
 }
 
 // TickConfig bundles Tick's simulation-constant parameters (bounds,
@@ -222,10 +228,15 @@ func Tick(
 	}
 	state.Fighters[match.SideP2] = updatedP2
 
+	var sounds [2][]evaluator.SoundEvent
+	sounds[match.SideP1] = p1Out.Sounds
+	sounds[match.SideP2] = p2Out.Sounds
+
 	return TickResult{
 		State:    state,
 		Fighters: runtimesOut,
 		Round:    round.CheckOutcome(&state),
+		Sounds:   sounds,
 	}, nil
 }
 
@@ -238,6 +249,7 @@ type fighterTickOutput struct {
 	Frame     air.Frame
 	HasHitDef bool
 	HitDef    cns.Controller
+	Sounds    []evaluator.SoundEvent
 }
 
 // tickFighter advances one fighter's own per-tick simulation -- input
@@ -303,6 +315,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		Frame:     frame,
 		HasHitDef: hasHitDef,
 		HitDef:    hitDef,
+		Sounds:    result.Sounds,
 	}, nil
 }
 

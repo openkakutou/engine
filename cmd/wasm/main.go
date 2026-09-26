@@ -26,6 +26,7 @@ import (
 	"syscall/js"
 
 	"github.com/openkakutou/engine"
+	"github.com/openkakutou/engine/evaluator"
 	"github.com/openkakutou/engine/input"
 	"github.com/openkakutou/engine/match"
 	"github.com/openkakutou/engine/round"
@@ -230,12 +231,37 @@ type tickResponse struct {
 	MatchOver   bool                `json:"matchOver"`
 	MatchWinner match.Side          `json:"matchWinner"`
 	Animations  [2]FighterAnimState `json:"animations"`
+	// Sounds is each fighter's PlaySnd events triggered this tick, indexed
+	// by match.Side like Animations -- unlike Animations (current,
+	// continuous state, safe to read late), this is a discrete per-tick
+	// event log: a client that skips a tick's response loses that event
+	// permanently, it is not recoverable from a later tick's own Sounds.
+	// Each side is always a JSON array, normalized to `[]` rather than
+	// `null` when empty (see normalizeSoundEvents) -- engine.TickResult's
+	// own Go API keeps the idiomatic nil-slice-means-empty instead; see
+	// .vibe/decisions/017.
+	Sounds [2][]evaluator.SoundEvent `json:"sounds"`
+}
+
+// normalizeSoundEvents returns events unchanged if non-nil, or a non-nil
+// empty slice otherwise -- so tickResponse.Sounds always marshals to a
+// JSON array (`[]`), never `null`, for a side that triggered no PlaySnd
+// controller this tick. engine.TickResult.Sounds itself stays a Go-idiomatic
+// nil slice; this normalization is specific to this JSON/JS-facing
+// boundary, mirroring character's own LoadBytes normalization guarantee
+// (see character's .vibe/decisions/019) -- not retrofitted onto the Go API.
+func normalizeSoundEvents(events []evaluator.SoundEvent) []evaluator.SoundEvent {
+	if events == nil {
+		return []evaluator.SoundEvent{}
+	}
+	return events
 }
 
 // tickJS is OpenKakutouEngine.tick(requestJSON) as seen from JS: advances
 // matchId's session by exactly one simulation tick and reports the
-// resulting state, this tick's round outcome (if any), and updated
-// best-of-N progress. A round outcome other than OutcomeNone is recorded
+// resulting state, this tick's round outcome (if any), updated best-of-N
+// progress, and each fighter's sound events triggered this tick (see
+// tickResponse.Sounds). A round outcome other than OutcomeNone is recorded
 // into the session's Progress automatically -- the caller does not also
 // call anything else to register it -- but the session's own MatchState
 // is not reset for the next round on its own; the caller drives that via
@@ -278,6 +304,10 @@ func tickJS(args []js.Value) (any, error) {
 		MatchOver:   matchOver,
 		MatchWinner: winner,
 		Animations:  animState(sess),
+		Sounds: [2][]evaluator.SoundEvent{
+			match.SideP1: normalizeSoundEvents(result.Sounds[match.SideP1]),
+			match.SideP2: normalizeSoundEvents(result.Sounds[match.SideP2]),
+		},
 	}, nil
 }
 

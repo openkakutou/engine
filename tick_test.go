@@ -7,6 +7,7 @@ import (
 	"github.com/openkakutou/character/air"
 	"github.com/openkakutou/character/cmd"
 	"github.com/openkakutou/character/cns"
+	"github.com/openkakutou/engine/evaluator"
 	"github.com/openkakutou/engine/input"
 	"github.com/openkakutou/engine/match"
 	"github.com/openkakutou/engine/round"
@@ -265,6 +266,158 @@ func TestTick_AppliesPowerAdd_UpdatesFighterStatesPowerInResultState(t *testing.
 
 	if got := result.State.Fighter(match.SideP1).Power; got != 30 {
 		t.Errorf("P1 Power in result.State = %d, want 30", got)
+	}
+}
+
+func TestTick_PlaySndController_RecordsEventForTriggeringFighterOnly(t *testing.T) {
+	attackerStates := map[int]cns.StateDef{
+		200: {
+			Number: 200, Type: cns.StateTypeStanding, Anim: 200, Ctrl: false,
+			Controllers: []cns.Controller{
+				{
+					Type:       "PlaySnd",
+					Triggers:   []string{"Time = 0"},
+					Parameters: map[string]string{"value": "1,3"},
+				},
+			},
+		},
+	}
+	defenderStates := idleStates()
+
+	attacker := FighterProgram{States: attackerStates, Animations: []air.Animation{{Number: 200, Frames: []air.Frame{{Time: 100}}}}}
+	defender := FighterProgram{States: defenderStates, Animations: []air.Animation{{Number: 0, Frames: []air.Frame{{Time: 100}}}}}
+
+	p1Fighter := match.FighterState{Side: match.SideP1, StateNo: 200, Health: 1000}
+	p2Fighter := match.FighterState{Side: match.SideP2, StateNo: 0, Health: 1000}
+
+	p1Runtime, err := NewFighterRuntime(p1Fighter, attackerStates)
+	if err != nil {
+		t.Fatalf("NewFighterRuntime(p1): %v", err)
+	}
+	p2Runtime, err := NewFighterRuntime(p2Fighter, defenderStates)
+	if err != nil {
+		t.Fatalf("NewFighterRuntime(p2): %v", err)
+	}
+
+	state, err := match.NewMatchState(1, 1000, p1Fighter, p2Fighter)
+	if err != nil {
+		t.Fatalf("NewMatchState: %v", err)
+	}
+
+	result, err := Tick(
+		*state,
+		[2]FighterProgram{match.SideP1: attacker, match.SideP2: defender},
+		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
+		[2]input.TickInput{},
+		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
+	)
+	if err != nil {
+		t.Fatalf("Tick returned an error: %v", err)
+	}
+
+	wantP1 := []evaluator.SoundEvent{{Group: 1, Sample: 3}}
+	if !reflect.DeepEqual(result.Sounds[match.SideP1], wantP1) {
+		t.Errorf("Sounds[SideP1] = %v, want %v", result.Sounds[match.SideP1], wantP1)
+	}
+	if len(result.Sounds[match.SideP2]) != 0 {
+		t.Errorf("Sounds[SideP2] = %v, want none -- P2's state has no PlaySnd controller", result.Sounds[match.SideP2])
+	}
+}
+
+func TestTick_NoPlaySndController_ReturnsNoSoundsForEitherFighter(t *testing.T) {
+	states := idleStates()
+	p1 := FighterProgram{States: states, Animations: []air.Animation{{Number: 0, Frames: []air.Frame{{Time: 100}}}}}
+	p2 := FighterProgram{States: states, Animations: []air.Animation{{Number: 0, Frames: []air.Frame{{Time: 100}}}}}
+
+	p1Fighter := match.FighterState{Side: match.SideP1, Health: 1000}
+	p2Fighter := match.FighterState{Side: match.SideP2, Health: 1000}
+
+	p1Runtime, err := NewFighterRuntime(p1Fighter, states)
+	if err != nil {
+		t.Fatalf("NewFighterRuntime(p1): %v", err)
+	}
+	p2Runtime, err := NewFighterRuntime(p2Fighter, states)
+	if err != nil {
+		t.Fatalf("NewFighterRuntime(p2): %v", err)
+	}
+
+	state, err := match.NewMatchState(1, 1000, p1Fighter, p2Fighter)
+	if err != nil {
+		t.Fatalf("NewMatchState: %v", err)
+	}
+
+	result, err := Tick(
+		*state,
+		[2]FighterProgram{match.SideP1: p1, match.SideP2: p2},
+		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
+		[2]input.TickInput{},
+		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
+	)
+	if err != nil {
+		t.Fatalf("Tick returned an error: %v", err)
+	}
+
+	if len(result.Sounds[match.SideP1]) != 0 || len(result.Sounds[match.SideP2]) != 0 {
+		t.Errorf("Sounds = %v, want none for either side on a tick with no PlaySnd controller", result.Sounds)
+	}
+}
+
+func TestTick_BothFightersPlaySnd_EventsDoNotCrossSides(t *testing.T) {
+	p1States := map[int]cns.StateDef{
+		0: {
+			Number: 0, Type: cns.StateTypeStanding, Anim: 0, Ctrl: true,
+			Controllers: []cns.Controller{
+				{Type: "PlaySnd", Triggers: []string{"Time = 0"}, Parameters: map[string]string{"value": "1,0"}},
+			},
+		},
+	}
+	p2States := map[int]cns.StateDef{
+		0: {
+			Number: 0, Type: cns.StateTypeStanding, Anim: 0, Ctrl: true,
+			Controllers: []cns.Controller{
+				{Type: "PlaySnd", Triggers: []string{"Time = 0"}, Parameters: map[string]string{"value": "9,9"}},
+			},
+		},
+	}
+
+	p1 := FighterProgram{States: p1States, Animations: []air.Animation{{Number: 0, Frames: []air.Frame{{Time: 100}}}}}
+	p2 := FighterProgram{States: p2States, Animations: []air.Animation{{Number: 0, Frames: []air.Frame{{Time: 100}}}}}
+
+	p1Fighter := match.FighterState{Side: match.SideP1, Health: 1000}
+	p2Fighter := match.FighterState{Side: match.SideP2, Health: 1000}
+
+	p1Runtime, err := NewFighterRuntime(p1Fighter, p1States)
+	if err != nil {
+		t.Fatalf("NewFighterRuntime(p1): %v", err)
+	}
+	p2Runtime, err := NewFighterRuntime(p2Fighter, p2States)
+	if err != nil {
+		t.Fatalf("NewFighterRuntime(p2): %v", err)
+	}
+
+	state, err := match.NewMatchState(1, 1000, p1Fighter, p2Fighter)
+	if err != nil {
+		t.Fatalf("NewMatchState: %v", err)
+	}
+
+	result, err := Tick(
+		*state,
+		[2]FighterProgram{match.SideP1: p1, match.SideP2: p2},
+		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
+		[2]input.TickInput{},
+		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
+	)
+	if err != nil {
+		t.Fatalf("Tick returned an error: %v", err)
+	}
+
+	wantP1 := []evaluator.SoundEvent{{Group: 1, Sample: 0}}
+	wantP2 := []evaluator.SoundEvent{{Group: 9, Sample: 9}}
+	if !reflect.DeepEqual(result.Sounds[match.SideP1], wantP1) {
+		t.Errorf("Sounds[SideP1] = %v, want %v", result.Sounds[match.SideP1], wantP1)
+	}
+	if !reflect.DeepEqual(result.Sounds[match.SideP2], wantP2) {
+		t.Errorf("Sounds[SideP2] = %v, want %v", result.Sounds[match.SideP2], wantP2)
 	}
 }
 

@@ -49,6 +49,20 @@ func powerAddController(trigger string, value int) cns.Controller {
 	return c
 }
 
+// playSndController builds a minimal PlaySnd controller whose raw "value"
+// parameter is passed through verbatim -- callers pass either a literal
+// "group,sample" pair or an expression on either side, exercising both.
+func playSndController(trigger, value string) cns.Controller {
+	c := cns.Controller{
+		Type:       "PlaySnd",
+		Parameters: map[string]string{"value": value},
+	}
+	if trigger != "" {
+		c.Triggers = []string{trigger}
+	}
+	return c
+}
+
 func itoa(n int) string {
 	// Avoids importing strconv just for test fixture construction of
 	// small, always-non-negative-or-simple integers used in these tests.
@@ -422,6 +436,188 @@ func TestStep_PowerAddUnevaluableValueExpression_ReturnsDescriptiveError(t *test
 	}
 }
 
+func TestStep_PlaySndController_RecordsGroupAndSampleEvent(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				playSndController("", "1,3"), // unconditional
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	result, err := Step(ctx, states)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	want := []evaluator.SoundEvent{{Group: 1, Sample: 3}}
+	if !soundEventsEqual(result.Sounds, want) {
+		t.Errorf("Sounds = %v, want %v", result.Sounds, want)
+	}
+	if result.Context.Sounds != nil {
+		t.Errorf("Context.Sounds = %v, want nil -- Step must clear it before returning; it is a per-tick event log, not persistent fighter state", result.Context.Sounds)
+	}
+}
+
+func TestStep_PlaySndController_SupportsExpressionValues(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				playSndController("", "var(0), var(0)+1"),
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+	ctx.Vars[0] = 2
+
+	result, err := Step(ctx, states)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	want := []evaluator.SoundEvent{{Group: 2, Sample: 3}}
+	if !soundEventsEqual(result.Sounds, want) {
+		t.Errorf("Sounds = %v, want %v (value halves must be evaluated, not treated as literals)", result.Sounds, want)
+	}
+}
+
+func TestStep_MultiplePlaySndControllers_RecordAllEventsInDeclaredOrder(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				playSndController("", "1,0"),
+				playSndController("", "2,5"),
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	result, err := Step(ctx, states)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	want := []evaluator.SoundEvent{{Group: 1, Sample: 0}, {Group: 2, Sample: 5}}
+	if !soundEventsEqual(result.Sounds, want) {
+		t.Errorf("Sounds = %v, want %v in declared order", result.Sounds, want)
+	}
+}
+
+func TestStep_PlaySndController_FalseTrigger_RecordsNoEvent(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				playSndController("Time = 5", "1,0"), // Time starts at 0: false this call
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	result, err := Step(ctx, states)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	if len(result.Sounds) != 0 {
+		t.Errorf("Sounds = %v, want none -- the trigger was false", result.Sounds)
+	}
+}
+
+func TestStep_PlaySndSounds_DoNotLeakAcrossTicks(t *testing.T) {
+	firing := map[int]cns.StateDef{
+		0: {Number: 0, Controllers: []cns.Controller{playSndController("", "1,0")}},
+	}
+	silent := map[int]cns.StateDef{
+		0: {Number: 0, Controllers: []cns.Controller{}},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	first, err := Step(ctx, firing)
+	if err != nil {
+		t.Fatalf("first Step returned unexpected error: %v", err)
+	}
+	if len(first.Sounds) != 1 {
+		t.Fatalf("first Step: Sounds = %v, want exactly 1 event", first.Sounds)
+	}
+
+	second, err := Step(first.Context, silent)
+	if err != nil {
+		t.Fatalf("second Step returned unexpected error: %v", err)
+	}
+	if len(second.Sounds) != 0 {
+		t.Errorf("second Step: Sounds = %v, want none -- must not carry over from the previous tick's Context", second.Sounds)
+	}
+}
+
+func TestStep_PlaySndMissingValueParameter_ReturnsDescriptiveError(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				{Type: "PlaySnd", Parameters: map[string]string{}},
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	_, err := Step(ctx, states)
+	if err == nil {
+		t.Fatal(`expected a descriptive error for a PlaySnd controller missing its "value" parameter, got nil`)
+	}
+}
+
+func TestStep_PlaySndValueMissingComma_ReturnsDescriptiveError(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				playSndController("", "1"),
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	_, err := Step(ctx, states)
+	if err == nil {
+		t.Fatal(`expected a descriptive error for a PlaySnd "value" missing its "group,sample" comma, got nil`)
+	}
+}
+
+func TestStep_PlaySndUnevaluableGroupExpression_ReturnsDescriptiveError(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				playSndController("", "SomeUnknownTrigger,0"),
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	_, err := Step(ctx, states)
+	if err == nil {
+		t.Fatal(`expected a descriptive error for a PlaySnd "value" group expression that fails to evaluate, got nil`)
+	}
+}
+
+func TestStep_PlaySndUnevaluableSampleExpression_ReturnsDescriptiveError(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {
+			Number: 0,
+			Controllers: []cns.Controller{
+				playSndController("", "0,SomeUnknownTrigger"),
+			},
+		},
+	}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	_, err := Step(ctx, states)
+	if err == nil {
+		t.Fatal(`expected a descriptive error for a PlaySnd "value" sample expression that fails to evaluate, got nil`)
+	}
+}
+
 func TestStep_UnimplementedControllerType_TriggersTrueButHasNoEffect(t *testing.T) {
 	states := map[int]cns.StateDef{
 		0: {
@@ -634,6 +830,18 @@ func TestRegisterController_MatchesControllerTypeCaseInsensitively(t *testing.T)
 }
 
 func intSlicesEqual(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func soundEventsEqual(a, b []evaluator.SoundEvent) bool {
 	if len(a) != len(b) {
 		return false
 	}

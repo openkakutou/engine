@@ -43,6 +43,11 @@ A fighter's state of resting on, or still falling toward, the stage's ground pla
 **Do not confuse with:** Stage boundary (the horizontal range a fighter is clamped to, a separate constraint from the vertical ground plane).
 _Sources: `physics/physics.go`_
 
+## Sound event
+One `PlaySnd` state controller execution recorded for a fighter on the tick it triggered: which sound was cued, addressed as a `(group, sample)` pair the same way a character's own decoded sound data is keyed. `engine` only reports that this happened — it never decodes or plays the actual audio, leaving that to whichever app consumes the match update. Unlike a fighter's other per-tick data (animation, position, power), a sound event is a discrete occurrence, not continuous state: it is reported once, on the tick it happened, and does not persist or reappear on a later tick.
+**Do not confuse with:** Hit event (the result of a collision, detected independently of any state controller; a sound event is instead an explicit authoring choice in a character's own state data).
+_Sources: `statemachine/statemachine.go`, `evaluator/context.go`_
+
 ## Hit box / hurt box
 The two kinds of Clsn (collision) box a fighter's currently active animation frame can carry: a hit box (Clsn1) is a region that can land an attack on an opponent; a hurt box (Clsn2) is a region vulnerable to being hit. `engine/hitdetect` resolves a fighter's hit boxes against the other's hurt boxes each simulation tick to find overlaps.
 **Do not confuse with:** Hit event (the *result* of a hit box overlapping a hurt box, not the boxes themselves).

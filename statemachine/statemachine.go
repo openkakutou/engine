@@ -9,9 +9,11 @@
 // trigger can observe an earlier one's effect within the same call. This
 // item intentionally supports only the small set of controller types
 // needed to prove out the execution loop -- ChangeState (state transition),
-// VarSet (variable assignment), and PowerAdd (power/meter gain or spend,
-// clamped to [0, DefaultMaxPower]) -- not full MUGEN controller-type
-// coverage, which is expected to grow via later items. A controller of an
+// VarSet (variable assignment), PowerAdd (power/meter gain or spend,
+// clamped to [0, DefaultMaxPower]), and PlaySnd (recording a triggered
+// (group, sample) sound event -- engine never decodes or plays the audio
+// itself) -- not full MUGEN controller-type coverage, which is expected to
+// grow via later items. A controller of an
 // unimplemented type is still recorded as "applied" when its trigger
 // evaluates true (so callers can observe that the condition held), but has
 // no effect on the Context.
@@ -47,6 +49,7 @@ const (
 	ControllerTypeVarSet      = "VarSet"
 	ControllerTypeHitDef      = "HitDef"
 	ControllerTypePowerAdd    = "PowerAdd"
+	ControllerTypePlaySnd     = "PlaySnd"
 )
 
 // DefaultMaxPower is the power/meter cap applied when clamping a
@@ -68,6 +71,12 @@ type Result struct {
 	// this call, in declared order. An index appears here even if the
 	// controller's type has no implemented effect.
 	Applied []int
+	// Sounds lists every SoundEvent a PlaySnd controller recorded during
+	// this call, in trigger order -- fresh, this-call-only data exactly
+	// like Applied, never carried over from Context between calls (see
+	// evaluator.Context.Sounds's own doc comment and
+	// .vibe/decisions/017).
+	Sounds []evaluator.SoundEvent
 }
 
 // Step interprets one simulation tick of ctx's current state (ctx.StateNo)
@@ -94,6 +103,12 @@ func Step(ctx evaluator.Context, states map[int]cns.StateDef) (Result, error) {
 	}
 
 	working := ctx
+	// Sounds is this call's own event log, never Context's carried-forward
+	// state -- reset here so a previous tick's already-reported events
+	// (still sitting in ctx.Sounds because the caller threads Context
+	// tick-to-tick via FighterRuntime) can never be mistaken for this
+	// call's. See evaluator.Context.Sounds's own doc comment.
+	working.Sounds = nil
 	var applied []int
 
 	for i, ctrl := range def.Controllers {
@@ -115,7 +130,9 @@ func Step(ctx evaluator.Context, states map[int]cns.StateDef) (Result, error) {
 		}
 	}
 
-	return Result{Context: working, Applied: applied}, nil
+	sounds := working.Sounds
+	working.Sounds = nil
+	return Result{Context: working, Applied: applied, Sounds: sounds}, nil
 }
 
 // triggersPass reports whether every trigger expression in triggers
@@ -165,6 +182,7 @@ var controllerHandlers = map[string]ControllerHandler{}
 func init() {
 	RegisterController(ControllerTypeVarSet, applyVarSet)
 	RegisterController(ControllerTypePowerAdd, applyPowerAdd)
+	RegisterController(ControllerTypePlaySnd, applyPlaySnd)
 }
 
 // RegisterController associates a controller type name (matched
@@ -285,5 +303,64 @@ func applyPowerAdd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Contex
 		power = DefaultMaxPower
 	}
 	ctx.Power = power
+	return ctx, nil
+}
+
+// playSndValueCache memoizes splitting a PlaySnd controller's raw "value"
+// parameter ("group,sample") into its two half-expressions, keyed by the
+// raw string itself -- the same per-tick reparse-avoidance convention
+// evaluator.Evaluate's own parseCache and zssexec's bodyCache already
+// follow (see their doc comments): a controller's raw parameter text is
+// loaded once per character and never changes for the life of a match, so
+// re-splitting it on every tick a PlaySnd fires would reintroduce exactly
+// the per-tick string/slice allocation those caches exist to avoid. A
+// malformed value (missing comma) is deliberately not cached -- see
+// splitPlaySndValue. Safe as a plain, unsynchronized map for the same
+// single-threaded, no-goroutines reason those caches are.
+var playSndValueCache = make(map[string][2]string)
+
+// splitPlaySndValue splits raw into its two "group,sample" half-expressions
+// (trimmed of surrounding whitespace), reusing playSndValueCache on repeat
+// calls with the same raw string. Returns a descriptive error, never
+// cached, when raw has no comma to split on.
+func splitPlaySndValue(raw string) ([2]string, error) {
+	if parts, ok := playSndValueCache[raw]; ok {
+		return parts, nil
+	}
+	idx := strings.IndexByte(raw, ',')
+	if idx < 0 {
+		return [2]string{}, fmt.Errorf(`PlaySnd value %q must be "group,sample"`, raw)
+	}
+	parts := [2]string{strings.TrimSpace(raw[:idx]), strings.TrimSpace(raw[idx+1:])}
+	playSndValueCache[raw] = parts
+	return parts, nil
+}
+
+// applyPlaySnd applies a PlaySnd controller's effect: its "value" parameter
+// ("group,sample", each half a MUGEN trigger expression, not necessarily a
+// literal) is split and evaluated against ctx, and the resolved
+// evaluator.SoundEvent is appended to ctx.Sounds -- engine only records
+// which sample was triggered; it never decodes or plays the audio itself
+// (see .vibe/decisions/017).
+func applyPlaySnd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+	raw, ok := ctrl.Parameters["value"]
+	if !ok {
+		return evaluator.Context{}, fmt.Errorf(`PlaySnd is missing its required "value" parameter`)
+	}
+	parts, err := splitPlaySndValue(raw)
+	if err != nil {
+		return evaluator.Context{}, err
+	}
+
+	groupVal, err := evaluator.Evaluate(parts[0], ctx)
+	if err != nil {
+		return evaluator.Context{}, fmt.Errorf("PlaySnd value group %q: %w", parts[0], err)
+	}
+	sampleVal, err := evaluator.Evaluate(parts[1], ctx)
+	if err != nil {
+		return evaluator.Context{}, fmt.Errorf("PlaySnd value sample %q: %w", parts[1], err)
+	}
+
+	ctx.Sounds = append(ctx.Sounds, evaluator.SoundEvent{Group: groupVal.Int(), Sample: sampleVal.Int()})
 	return ctx, nil
 }

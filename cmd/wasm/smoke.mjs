@@ -67,6 +67,10 @@ const attackerStates = {
 			// application (see the post-reset tick below) proves the
 			// DefaultMaxPower (3000) clamp, not just plain addition.
 			{ type: "PowerAdd", triggers: ["Time = 0"], parameters: { value: "2000" } },
+			// PlaySnd fires alongside HitDef/PowerAdd on the same tick --
+			// exercises the sound-trigger-events contract (backlog item 020)
+			// through the real WASM round trip, not just the Go unit tests.
+			{ type: "PlaySnd", triggers: ["Time = 0"], parameters: { value: "1,3" } },
 		],
 	},
 };
@@ -119,6 +123,8 @@ assert(idleTick.data?.round?.outcome === 0, `idle tick reports OutcomeNone (got:
 assert(idleTick.data?.matchOver === false, "match is not over after an idle tick");
 assert(idleTick.data?.animations?.[0]?.animNo === 0, `idle tick: P1's animNo is still 0, no transition happened (got: ${idleTick.data?.animations?.[0]?.animNo})`);
 assert(idleTick.data?.animations?.[0]?.animTime === 1, `idle tick: P1's animTime advanced to 1 (got: ${idleTick.data?.animations?.[0]?.animTime})`);
+assert(Array.isArray(idleTick.data?.sounds?.[0]) && idleTick.data.sounds[0].length === 0, `idle tick: P1's sounds is an empty array, not null (got: ${JSON.stringify(idleTick.data?.sounds?.[0])})`);
+assert(Array.isArray(idleTick.data?.sounds?.[1]) && idleTick.data.sounds[1].length === 0, `idle tick: P2's sounds is an empty array, not null (got: ${JSON.stringify(idleTick.data?.sounds?.[1])})`);
 
 // --- tick with P1's attack button held: P1's ChangeState controller
 // (state 0) fires, moving it into its attack state (200) -- a controller
@@ -149,6 +155,8 @@ assert(hitTick.data?.progress?.wins?.[0] === 1, "P1's round win is recorded in p
 assert(hitTick.data?.matchOver === false, "bestOf 3 is not decided after a single round win");
 assert(hitTick.data?.animations?.[0]?.animNo === 200, `hit tick: P1 stays in animNo 200, no further transition (got: ${hitTick.data?.animations?.[0]?.animNo})`);
 assert(hitTick.data?.animations?.[0]?.animTime === 1, `hit tick: P1's animTime advances to 1 within animNo 200 (got: ${hitTick.data?.animations?.[0]?.animTime})`);
+assert(JSON.stringify(hitTick.data?.sounds?.[0]) === JSON.stringify([{ group: 1, sample: 3 }]), `hit tick: P1's PlaySnd controller triggers group 1 sample 3 (got: ${JSON.stringify(hitTick.data?.sounds?.[0])})`);
+assert(Array.isArray(hitTick.data?.sounds?.[1]) && hitTick.data.sounds[1].length === 0, `hit tick: P2 (no PlaySnd controller of its own) has an empty sounds array, not null (got: ${JSON.stringify(hitTick.data?.sounds?.[1])})`);
 
 // --- resetRound: both fighters restored for round 2 -- edge case: a
 // client that (incorrectly) echoes back P1's round-1 power in its

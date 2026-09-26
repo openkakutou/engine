@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- A character's `PlaySnd` state controller now actually triggers: each fighter's triggered `(group, sample)` sound events are reported on every WebAssembly `tick` call, alongside the existing state and animation data. `engine` only reports which sound was triggered — decoding and playing the actual audio stays each consuming app's own job.
+
 ## [2.4.1] - 2026-09-25
 
 ### Fixed
