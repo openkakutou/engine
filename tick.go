@@ -232,10 +232,24 @@ func Tick(
 	sounds[match.SideP1] = p1Out.Sounds
 	sounds[match.SideP2] = p2Out.Sounds
 
+	// A RoundTimer of 0 at the start of a tick is an untimed round
+	// (MUGEN/Ikemen's "unlimited time" convention): it neither counts down
+	// nor ends on time. Otherwise the timer counts down one tick, and
+	// reaching 0 is a timeout, which CheckOutcome resolves.
+	untimed := state.RoundTimer <= 0
+	if !untimed {
+		state.RoundTimer--
+	}
+
+	result := round.CheckOutcome(&state)
+	if untimed && (result.Outcome == round.OutcomeTimeout || result.Outcome == round.OutcomeTimeoutDraw) {
+		result = round.RoundResult{}
+	}
+
 	return TickResult{
 		State:    state,
 		Fighters: runtimesOut,
-		Round:    round.CheckOutcome(&state),
+		Round:    result,
 		Sounds:   sounds,
 	}, nil
 }

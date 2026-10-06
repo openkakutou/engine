@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A round now ends when its time runs out: the round timer counts down every tick, and reaching zero ends the round in favor of the fighter with more health (a draw if equal), instead of the match only ever ending by KO. A round started with a timer of 0 stays untimed and never ends on time.
+
 ## [2.5.0] - 2026-09-26
 
 ### Added

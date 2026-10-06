@@ -608,3 +608,84 @@ func TestTick_ReturnsError_WhenAFightersCurrentStateIsNotInItsLoadedStates(t *te
 		t.Fatal("expected an error for a fighter whose current state is not loaded, got nil")
 	}
 }
+
+// tickOnce runs one Tick over idle fighters with the given health and round
+// timer, returning the result.
+func tickOnce(t *testing.T, roundTimer, p1Health, p2Health int) TickResult {
+	t.Helper()
+	states := idleStates()
+	p1Fighter := match.FighterState{Side: match.SideP1, Position: match.Position{X: -10}, Health: p1Health}
+	p2Fighter := match.FighterState{Side: match.SideP2, Position: match.Position{X: 10}, Health: p2Health}
+	p1Runtime, err := NewFighterRuntime(p1Fighter, states)
+	if err != nil {
+		t.Fatalf("NewFighterRuntime(p1): %v", err)
+	}
+	p2Runtime, err := NewFighterRuntime(p2Fighter, states)
+	if err != nil {
+		t.Fatalf("NewFighterRuntime(p2): %v", err)
+	}
+	state, err := match.NewMatchState(1, roundTimer, p1Fighter, p2Fighter)
+	if err != nil {
+		t.Fatalf("NewMatchState: %v", err)
+	}
+	result, err := Tick(
+		*state,
+		[2]FighterProgram{match.SideP1: {States: states}, match.SideP2: {States: states}},
+		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
+		[2]input.TickInput{},
+		TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60},
+	)
+	if err != nil {
+		t.Fatalf("Tick returned an error: %v", err)
+	}
+	return result
+}
+
+func TestTick_DecrementsRoundTimerByOne(t *testing.T) {
+	result := tickOnce(t, 5, 1000, 1000)
+
+	if result.State.RoundTimer != 4 {
+		t.Errorf("RoundTimer = %d, want 4", result.State.RoundTimer)
+	}
+	if result.Round.Outcome != round.OutcomeNone {
+		t.Errorf("Round.Outcome = %v, want OutcomeNone while time remains", result.Round.Outcome)
+	}
+}
+
+func TestTick_RoundTimerReachingZero_EndsRoundWithTimeoutForHealthier(t *testing.T) {
+	result := tickOnce(t, 1, 700, 900)
+
+	if result.State.RoundTimer != 0 {
+		t.Errorf("RoundTimer = %d, want 0", result.State.RoundTimer)
+	}
+	if result.Round.Outcome != round.OutcomeTimeout || result.Round.Winner != match.SideP2 {
+		t.Errorf("Round = %+v, want OutcomeTimeout won by SideP2 (more health)", result.Round)
+	}
+}
+
+func TestTick_RoundTimerReachingZero_WithEqualHealthIsATimeoutDraw(t *testing.T) {
+	result := tickOnce(t, 1, 800, 800)
+
+	if result.Round.Outcome != round.OutcomeTimeoutDraw {
+		t.Errorf("Round.Outcome = %v, want OutcomeTimeoutDraw", result.Round.Outcome)
+	}
+}
+
+func TestTick_UntimedRound_NeverEndsOnTime(t *testing.T) {
+	result := tickOnce(t, 0, 700, 900)
+
+	if result.State.RoundTimer != 0 {
+		t.Errorf("RoundTimer = %d, want 0 (untimed stays at 0)", result.State.RoundTimer)
+	}
+	if result.Round.Outcome != round.OutcomeNone {
+		t.Errorf("Round.Outcome = %v, want OutcomeNone for an untimed round", result.Round.Outcome)
+	}
+}
+
+func TestTick_KOOnTheSameTickTheTimerExpires_IsAKO(t *testing.T) {
+	result := tickOnce(t, 1, 0, 900)
+
+	if result.Round.Outcome != round.OutcomeKO || result.Round.Winner != match.SideP2 {
+		t.Errorf("Round = %+v, want OutcomeKO won by SideP2", result.Round)
+	}
+}
