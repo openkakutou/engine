@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-10-06
+
 ### Fixed
 
 - A round now ends when its time runs out: the round timer counts down every tick, and reaching zero ends the round in favor of the fighter with more health (a draw if equal), instead of the match only ever ending by KO. A round started with a timer of 0 stays untimed and never ends on time.
@@ -137,7 +139,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.5.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.5.1...HEAD
+[2.5.1]: https://github.com/openkakutou/engine/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/openkakutou/engine/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/openkakutou/engine/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/openkakutou/engine/compare/v2.3.0...v2.4.0
