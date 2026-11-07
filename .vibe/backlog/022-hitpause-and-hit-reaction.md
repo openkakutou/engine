@@ -1,5 +1,5 @@
 ---
-status: todo
+status: in_progress
 ---
 # Hit pause and hit-reaction states
 
