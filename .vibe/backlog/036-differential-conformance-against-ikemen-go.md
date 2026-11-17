@@ -7,7 +7,9 @@ depends_on: [030]
 ## Description
 Roadmap decision `036`: fidelity during a fight is the first goal. The conformance harness (030) counts unsupported controllers and triggers; it cannot tell whether supported ones behave like the reference. Record, from Ikemen GO, the per-tick state (state number, animation and element, position, velocity, life, power, hit/guard flags) of both fighters for a scripted input sequence on the acceptance characters, and compare the engine's run tick by tick, reporting the first divergence.
 
-First establish feasibility (driving Ikemen GO with recorded inputs and dumping its state, e.g. through its debug or Lua hooks); if it is not feasible, record why in an ADR and fall back to hand-checked reference traces.
+The replay is the shared basis of game#051 (full-match states and screenshots): inputs of both players recorded frame by frame, both engines stepped one frame at a time with no wall clock, and the same random seed, so `Random` cannot cause false divergences.
+
+First establish feasibility, including whether Ikemen GO can be given a fixed random seed (driving Ikemen GO with recorded inputs and dumping its state, e.g. through its debug or Lua hooks); if it is not feasible, record why in an ADR and fall back to hand-checked reference traces.
 
 🔒 MUST: MUGEN 1.0/1.1 and Ikemen GO compatibility, verified through Ikemen GO as the reference (roadmap decision `038`): no separate MUGEN check. Only characters that work in Ikemen GO are compared.
 
