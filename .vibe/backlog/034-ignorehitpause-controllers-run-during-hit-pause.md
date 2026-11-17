@@ -14,3 +14,4 @@ Item 022 freezes a fighter during a hit pause by skipping its state machine enti
 
 ## Notes
 Deferred from item 022 by the Product Owner. Must stay compatible with MUGEN 1.0/1.1 and Ikemen GO.
+Combat-completeness milestone, step order in roadmap decision `036`.

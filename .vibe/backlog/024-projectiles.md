@@ -1,5 +1,6 @@
 ---
 status: todo
+depends_on: [027, 028]
 ---
 # Projectile spawn, movement and collision
 
@@ -15,3 +16,4 @@ Support the Projectile controller: a state spawns a projectile with its own anim
 
 ## Notes
 Cross-repo: game must render the new projectile data (tracked in that repo once this lands).
+Combat-completeness milestone, step order in roadmap decision `036`.

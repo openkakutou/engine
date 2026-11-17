@@ -1,6 +1,6 @@
 ---
 status: todo
-depends_on: [022]
+depends_on: [023]
 ---
 # Throws: grab, hold and throw states
 
@@ -12,3 +12,6 @@ Implement throws: a HitDef with a throw/grab attribute that connects puts the de
 - [ ] TargetState / TargetBind style controllers move the defender during the throw
 - [ ] Defender is released cleanly at the end of the throw or on a round reset
 - [ ] Fixture test with a real character's command throw
+
+## Notes
+Combat-completeness milestone, step order in roadmap decision `036`.

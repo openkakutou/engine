@@ -1,5 +1,6 @@
 ---
 status: todo
+depends_on: [028]
 ---
 # True semantics for .cmd modifier prefixes (~, $, /, >)
 
@@ -10,3 +11,6 @@ Decision 006 deliberately recognised the command-string modifiers without implem
 - [ ] ~ release, / hold, $ direction guarantee and > strict one-tick timing each have distinct tested behaviour
 - [ ] A corpus test over real .cmd files lists commands whose match result changes versus the old simplification
 - [ ] Decision 006 is superseded by a new decision recording the final semantics
+
+## Notes
+Combat-completeness milestone, step order in roadmap decision `036`.

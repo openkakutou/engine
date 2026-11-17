@@ -14,3 +14,4 @@ Add a harness that loads real MUGEN and Ikemen GO characters, runs a scripted ma
 
 ## Notes
 Same approach as character/stage corpus_compat tests. The acceptance characters of roadmap 013 should be among those used. Do not commit copyrighted assets.
+Combat-completeness milestone, step order in roadmap decision `036`.

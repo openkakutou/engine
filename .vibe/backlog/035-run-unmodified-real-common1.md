@@ -13,3 +13,6 @@ depends_on: [027, 028, 034]
 - [ ] Both real common files load with no unsupported controller or trigger left
 - [ ] Integration test: a real character goes through the common states above with each file
 - [ ] The trimmed fixture is retired or kept only for unit tests
+
+## Notes
+Combat-completeness milestone, step order in roadmap decision `036`.

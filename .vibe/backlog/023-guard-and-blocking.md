@@ -1,6 +1,6 @@
 ---
 status: todo
-depends_on: [022]
+depends_on: [022, 035]
 ---
 # Guarding: block detection, guard damage and chip
 
@@ -12,3 +12,6 @@ Add blocking: a defender holding back (or guard command) when hit by a guardable
 - [ ] High/low guard flags are honoured (a crouching guard does not block an overhead)
 - [ ] Chip damage cannot reduce health below 1 unless the HitDef allows it
 - [ ] Real-character fixture test covering stand guard, crouch guard and an unguardable hit
+
+## Notes
+Combat-completeness milestone, step order in roadmap decision `036`.

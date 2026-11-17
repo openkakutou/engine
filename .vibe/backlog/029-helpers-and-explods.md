@@ -1,5 +1,6 @@
 ---
 status: todo
+depends_on: [024]
 ---
 # Helpers And Explods
 
@@ -14,3 +15,4 @@ Support the Helper controller (spawned sub-entities with their own state machine
 
 ## Notes
 Interacts with projectiles (024) and game 024; keep the per-tick report format consistent with how projectiles are exposed. Match state must remain JSON-serializable across the WASM boundary. Compat is a MUST: MUGEN 1.0/1.1 and Ikemen GO, validated against real community files.
+Combat-completeness milestone, step order in roadmap decision `036`.

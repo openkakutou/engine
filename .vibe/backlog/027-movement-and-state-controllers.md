@@ -1,5 +1,6 @@
 ---
 status: todo
+depends_on: [030]
 ---
 # Movement And State Controllers
 
@@ -15,3 +16,4 @@ Implement the controllers every character relies on to move and change state: Ve
 
 ## Notes
 Engine currently implements only ChangeState, VarSet, PowerAdd and PlaySnd (docs/architecture.md), so real characters cannot yet play out. Item 012 (registry dispatch) is blocked: prefer building on its registry, or extend the existing RegisterController map. Feeds roadmap 013 (combat-completeness milestone). Compat is a MUST: MUGEN 1.0/1.1 and Ikemen GO, validated against real community files.
+Combat-completeness milestone, step order in roadmap decision `036`.
