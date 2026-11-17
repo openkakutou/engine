@@ -198,6 +198,17 @@ func RegisterController(controllerType string, handler ControllerHandler) {
 	controllerHandlers[strings.ToLower(controllerType)] = handler
 }
 
+// IsSupportedController reports whether controllerType (case-insensitive)
+// is ChangeState or a type registered through RegisterController.
+func IsSupportedController(controllerType string) bool {
+	t := strings.ToLower(controllerType)
+	if t == strings.ToLower(ControllerTypeChangeState) {
+		return true
+	}
+	_, ok := controllerHandlers[t]
+	return ok
+}
+
 // ApplyController applies ctrl's effect to ctx, mutating it in place. It
 // reports whether the effect was a state change (ChangeState), so the
 // caller can stop processing further controllers for this call. exists
@@ -318,6 +329,10 @@ func applyPowerAdd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Contex
 // splitPlaySndValue. Safe as a plain, unsynchronized map for the same
 // single-threaded, no-goroutines reason those caches are.
 var playSndValueCache = make(map[string][2]string)
+
+// SplitPlaySndValue is splitPlaySndValue for callers outside the package
+// (the conformance harness inspects each half).
+func SplitPlaySndValue(raw string) ([2]string, error) { return splitPlaySndValue(raw) }
 
 // splitPlaySndValue splits raw into its two "group,sample" half-expressions
 // (trimmed of surrounding whitespace), reusing playSndValueCache on repeat

@@ -1,6 +1,8 @@
 package evaluator
 
 import (
+	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -436,5 +438,115 @@ func TestEvaluate_CapitalizedGetHitTriggers_AllocateNothingOnTheCachedPath(t *te
 		if allocs != 0 {
 			t.Errorf("Evaluate(%q) allocated %v times per call, want 0", expr, allocs)
 		}
+	}
+}
+
+func TestEval_UnknownIdentifier_ReturnsUnknownTriggerError(t *testing.T) {
+	_, err := Evaluate("Foo = 1", Context{})
+	var ute *UnknownTriggerError
+	if !errors.As(err, &ute) {
+		t.Fatalf("error %v is not an *UnknownTriggerError", err)
+	}
+	if ute.Name != "foo" || ute.Call {
+		t.Errorf("got Name=%q Call=%v, want Name=foo Call=false", ute.Name, ute.Call)
+	}
+	if err.Error() != `evaluator: unknown trigger "foo"` {
+		t.Errorf("message = %q", err.Error())
+	}
+}
+
+func TestEval_UnknownCall_ReturnsUnknownTriggerError(t *testing.T) {
+	_, err := Evaluate("Bar(1) = 1", Context{})
+	var ute *UnknownTriggerError
+	if !errors.As(err, &ute) {
+		t.Fatalf("error %v is not an *UnknownTriggerError", err)
+	}
+	if ute.Name != "bar" || !ute.Call {
+		t.Errorf("got Name=%q Call=%v, want Name=bar Call=true", ute.Name, ute.Call)
+	}
+	if err.Error() != `evaluator: unknown trigger function "bar"` {
+		t.Errorf("message = %q", err.Error())
+	}
+}
+
+func TestTriggerNames(t *testing.T) {
+	tests := []struct {
+		expr string
+		want []TriggerName
+	}{
+		{"Time = 5 && var(3) > 1", []TriggerName{{"time", false}, {"var", true}}},
+		{`Command = "holdback"`, []TriggerName{{"command", false}}},
+		{`"holdback" != Command && Ctrl`, []TriggerName{{"command", false}, {"ctrl", false}}},
+		{"IfElse(Ctrl, IfElse(Anim = 1, Time, StateNo), -AnimTime)", []TriggerName{
+			{"ifelse", true}, {"ctrl", false}, {"anim", false}, {"time", false}, {"stateno", false}, {"animtime", false}}},
+		{"Time + TIME + var(0) + Var(1)", []TriggerName{{"time", false}, {"var", true}}},
+		{"Time + Time(1)", []TriggerName{{"time", false}, {"time", true}}},
+		{"GetHitVar(hittime) > 0", []TriggerName{{"gethitvar", true}, {"gethitvar(hittime)", false}}},
+		{"Command + 1", []TriggerName{{"command", false}}},
+		{"Zork(Wibble)", []TriggerName{{"zork", true}, {"wibble", false}}},
+	}
+	for _, tc := range tests {
+		got, err := TriggerNames(tc.expr)
+		if err != nil {
+			t.Errorf("TriggerNames(%q) error: %v", tc.expr, err)
+			continue
+		}
+		if !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("TriggerNames(%q) = %v, want %v", tc.expr, got, tc.want)
+		}
+	}
+}
+
+func TestTriggerNames_SyntaxError_ReturnsParseError(t *testing.T) {
+	got, err := TriggerNames("Time = (")
+	if err == nil {
+		t.Fatalf("expected error, got names %v", got)
+	}
+	if got != nil {
+		t.Errorf("names = %v, want nil", got)
+	}
+}
+
+func TestIsKnownTrigger(t *testing.T) {
+	tests := []struct {
+		name string
+		call bool
+		want bool
+	}{
+		{"time", false, true},
+		{"stateno", false, true},
+		{"command", false, true},
+		{"var", true, true},
+		{"ifelse", true, true},
+		{"gethitvar", true, true},
+		{"var", false, false},
+		{"time", true, false},
+		{"inventedtrigger", false, false},
+		{"inventedtrigger", true, false},
+	}
+	for _, tc := range tests {
+		if got := IsKnownTrigger(tc.name, tc.call); got != tc.want {
+			t.Errorf("IsKnownTrigger(%q, %v) = %v, want %v", tc.name, tc.call, got, tc.want)
+		}
+	}
+}
+
+func TestTriggerNames_GetHitVar_YieldsOneEntryPerVariable(t *testing.T) {
+	got, err := TriggerNames("GetHitVar(yvel) > 0 && GetHitVar(HitTime) > 0")
+	if err != nil {
+		t.Fatalf("TriggerNames error: %v", err)
+	}
+	want := []TriggerName{{"gethitvar", true}, {"gethitvar(yvel)", false}, {"gethitvar(hittime)", false}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("TriggerNames = %v, want %v", got, want)
+	}
+}
+
+func TestIsKnownTrigger_GetHitVarVariable_FollowsEvalGetHitVar(t *testing.T) {
+	if !IsKnownTrigger("gethitvar(hittime)", false) {
+		t.Error("gethitvar(hittime) reported unknown, evalGetHitVar handles it")
+	}
+	if IsKnownTrigger("gethitvar(yvel)", false) {
+		t.Error("gethitvar(yvel) reported known, evalGetHitVar rejects it")
 	}
 }

@@ -3,8 +3,11 @@ module github.com/openkakutou/engine
 go 1.26.7
 
 require (
-	github.com/openkakutou/character v0.10.0
+	github.com/openkakutou/character v0.15.0
 	github.com/openkakutou/stage v0.13.0
 )
 
-require github.com/openkakutou/sff v0.3.1 // indirect
+require (
+	github.com/openkakutou/sff v0.8.0
+	github.com/openkakutou/snd v0.7.2 // indirect
+)

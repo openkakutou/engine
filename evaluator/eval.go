@@ -12,6 +12,7 @@
 package evaluator
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -80,16 +81,118 @@ var parseCache = make(map[string]*Expression)
 // when the caller already holds on to the same *Expression across calls;
 // Evaluate itself now also avoids the repeated-parse cost via parseCache.
 func Evaluate(expr string, ctx Context) (Value, error) {
-	e, ok := parseCache[expr]
-	if !ok {
-		var err error
-		e, err = Parse(expr)
-		if err != nil {
-			return Value{}, err
-		}
-		parseCache[expr] = e
+	e, err := cachedParse(expr)
+	if err != nil {
+		return Value{}, err
 	}
 	return e.Eval(ctx)
+}
+
+// cachedParse is Parse behind parseCache.
+func cachedParse(expr string) (*Expression, error) {
+	e, ok := parseCache[expr]
+	if ok {
+		return e, nil
+	}
+	e, err := Parse(expr)
+	if err != nil {
+		return nil, err
+	}
+	parseCache[expr] = e
+	return e, nil
+}
+
+// UnknownTriggerError reports a trigger identifier (Call false) or
+// function-style trigger (Call true) the evaluator does not implement. Name
+// is lower-cased, as the evaluator matches it.
+type UnknownTriggerError struct {
+	Name string
+	Call bool
+}
+
+func (e *UnknownTriggerError) Error() string {
+	if e.Call {
+		return fmt.Sprintf("evaluator: unknown trigger function %q", e.Name)
+	}
+	return fmt.Sprintf("evaluator: unknown trigger %q", e.Name)
+}
+
+// TriggerName is one trigger identifier or function name used by an
+// expression, lower-cased.
+type TriggerName struct {
+	Name string
+	Call bool
+}
+
+// TriggerNames returns every trigger identifier and function name expr
+// uses, in first-appearance order without duplicates. Quoted strings and
+// the GetHitVar argument (a variable name read as written) are not
+// trigger names. A parse error is returned as is.
+func TriggerNames(expr string) ([]TriggerName, error) {
+	e, err := cachedParse(expr)
+	if err != nil {
+		return nil, err
+	}
+	var names []TriggerName
+	seen := make(map[TriggerName]bool)
+	collectTriggerNames(e.root, &names, seen)
+	return names, nil
+}
+
+func collectTriggerNames(n node, names *[]TriggerName, seen map[TriggerName]bool) {
+	add := func(t TriggerName) {
+		if !seen[t] {
+			seen[t] = true
+			*names = append(*names, t)
+		}
+	}
+	switch tn := n.(type) {
+	case identifierNode:
+		add(TriggerName{Name: tn.name})
+	case callNode:
+		add(TriggerName{Name: tn.name, Call: true})
+		if tn.name == "gethitvar" {
+			// One entry per variable, named "gethitvar(<var>)", so a variable
+			// evalGetHitVar does not handle can be reported by IsKnownTrigger.
+			if len(tn.args) == 1 {
+				if id, ok := tn.args[0].(identifierNode); ok {
+					add(TriggerName{Name: "gethitvar(" + id.name + ")"})
+				}
+			}
+			return
+		}
+		for _, arg := range tn.args {
+			collectTriggerNames(arg, names, seen)
+		}
+	case unaryNode:
+		collectTriggerNames(tn.operand, names, seen)
+	case binaryNode:
+		collectTriggerNames(tn.left, names, seen)
+		collectTriggerNames(tn.right, names, seen)
+	}
+}
+
+// IsKnownTrigger reports whether the evaluator implements the trigger
+// identifier (call false) or function (call true) called name, by probing
+// evalIdentifier/evalCall: only an UnknownTriggerError means unknown.
+//
+// A "gethitvar(<var>)" name (as TriggerNames yields, call false) is probed
+// through evalGetHitVar: known when it handles the variable.
+func IsKnownTrigger(name string, call bool) bool {
+	var err error
+	if variable, ok := strings.CutPrefix(name, "gethitvar("); ok && !call {
+		variable = strings.TrimSuffix(variable, ")")
+		_, err = evalGetHitVar(callNode{name: "gethitvar", args: []node{identifierNode{name: variable}}}, Context{})
+		var unknown *unknownGetHitVarError
+		return !errors.As(err, &unknown)
+	}
+	if call {
+		_, err = evalCall(callNode{name: name}, Context{})
+	} else {
+		_, err = evalIdentifier(name, Context{})
+	}
+	var ute *UnknownTriggerError
+	return !errors.As(err, &ute)
 }
 
 // Eval evaluates the parsed expression against ctx, returning MUGEN's
@@ -148,7 +251,7 @@ func evalIdentifier(name string, ctx Context) (Value, error) {
 	case "command":
 		return Value{}, fmt.Errorf(`evaluator: Command must be compared to a quoted command name, e.g. Command = "holdback"`)
 	default:
-		return Value{}, fmt.Errorf("evaluator: unknown trigger %q", name)
+		return Value{}, &UnknownTriggerError{Name: name}
 	}
 }
 
@@ -173,13 +276,21 @@ func evalCall(n callNode, ctx Context) (Value, error) {
 		}
 		return evalNode(n.args[2], ctx)
 	default:
-		return Value{}, fmt.Errorf("evaluator: unknown trigger function %q", n.name)
+		return Value{}, &UnknownTriggerError{Name: n.name, Call: true}
 	}
 }
 
 // evalGetHitVar reads GetHitVar(name). Like Command, its argument is a name
 // read as written, never evaluated; an unknown name is an error rather than
 // a silent 0.
+// unknownGetHitVarError is evalGetHitVar's rejection of a variable it does
+// not handle; IsKnownTrigger recognizes it by type.
+type unknownGetHitVarError struct{ name string }
+
+func (e *unknownGetHitVarError) Error() string {
+	return fmt.Sprintf("evaluator: GetHitVar: unknown variable %q", e.name)
+}
+
 func evalGetHitVar(n callNode, ctx Context) (Value, error) {
 	if len(n.args) != 1 {
 		return Value{}, fmt.Errorf("evaluator: GetHitVar() expects 1 argument, got %d", len(n.args))
@@ -203,7 +314,7 @@ func evalGetHitVar(n callNode, ctx Context) (Value, error) {
 	case "airtype":
 		return intValue(float64(g.AirType)), nil
 	default:
-		return Value{}, fmt.Errorf("evaluator: GetHitVar: unknown variable %q", id.name)
+		return Value{}, &unknownGetHitVarError{name: id.name}
 	}
 }
 

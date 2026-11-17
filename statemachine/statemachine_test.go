@@ -852,3 +852,37 @@ func soundEventsEqual(a, b []evaluator.SoundEvent) bool {
 	}
 	return true
 }
+
+func TestIsSupportedController(t *testing.T) {
+	tests := []struct {
+		typ  string
+		want bool
+	}{
+		{"VarSet", true},
+		{"varset", true},
+		{"VARSET", true},
+		{"PlaySnd", true},
+		{"ChangeState", true},
+		{"changestate", true},
+		{"InventedController", false},
+		{"", false},
+	}
+	for _, tc := range tests {
+		if got := IsSupportedController(tc.typ); got != tc.want {
+			t.Errorf("IsSupportedController(%q) = %v, want %v", tc.typ, got, tc.want)
+		}
+	}
+}
+
+func TestSplitPlaySndHalves_SplitsAtFirstComma(t *testing.T) {
+	got, err := SplitPlaySndValue(" 0 , Random % 3 ")
+	if err != nil {
+		t.Fatalf("SplitPlaySndValue error: %v", err)
+	}
+	if got != [2]string{"0", "Random % 3"} {
+		t.Errorf("got %q", got)
+	}
+	if _, err := SplitPlaySndValue("5"); err == nil {
+		t.Error("expected error for a value with no comma")
+	}
+}

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- A conformance tool runs real characters against themselves with simulated inputs and reports which state controllers and triggers the engine does not support yet, how often each is reached, and which characters fail to load or crash, so the next combat features can be chosen from real data.
+
 ## [2.6.1] - 2026-11-17
 
 ### Fixed
