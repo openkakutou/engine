@@ -1,6 +1,6 @@
 ---
 status: todo
-depends_on: [030, 037]
+depends_on: [030]
 ---
 # Differential conformance against Ikemen GO
 
@@ -15,10 +15,13 @@ First establish feasibility, including whether Ikemen GO can be given a fixed ra
 
 🔒 MUST: MUGEN 1.0/1.1 and Ikemen GO compatibility, verified through Ikemen GO as the reference (roadmap decision `038`): no separate MUGEN check. Only characters that work in Ikemen GO are compared.
 
+**This is the milestone's goal measure** (roadmap decision `042`): the headline figure is, per scripted match, the number of frames identical to Ikemen GO before the first divergence, tracked after every engine step.
+
 ## Acceptance Criteria
 - [ ] A reference trace exists for each acceptance character's scripted sequence
 - [ ] The engine run is compared tick by tick, first divergence reported with both values
 - [ ] Runs in CI on the recorded traces
+- [ ] Reports frames identical before the first divergence, per match, so progress is tracked step by step
 
 ## Notes
 Combat-completeness milestone, step order in roadmap decision `036`.
