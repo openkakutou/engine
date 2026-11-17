@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.6.1] - 2026-11-17
+
 ### Fixed
 
 - A hit whose damage is written with two values (hit damage and guard damage, the usual form in real characters such as Kung Fu Man) now deals its hit damage instead of none; the guard damage is kept for blocking.
@@ -149,7 +151,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.6.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.6.1...HEAD
+[2.6.1]: https://github.com/openkakutou/engine/compare/v2.6.0...v2.6.1
 [2.6.0]: https://github.com/openkakutou/engine/compare/v2.5.1...v2.6.0
 [2.5.1]: https://github.com/openkakutou/engine/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/openkakutou/engine/compare/v2.4.1...v2.5.0
