@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 ---
 # HitDef damage written as two values deals no damage
 
