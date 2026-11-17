@@ -1,0 +1,115 @@
+; Get-hit states for the hit-pause / hit-reaction tests (backlog item 022).
+;
+; Styled after (not copied from) Ikemen GO's data/common1.cns.zss, the
+; ZSS file Ikemen GO ships its common states in (MIT, see
+; Ikemen_GO/License.txt). The engine's Tick is CNS-only, so the logic is
+; rewritten here in CNS using only triggers the evaluator supports:
+;   5000 shaking, stand   <- common1.cns.zss lines 497-512
+;   5001 knocked back     <- lines 516-518 + IkSys_GetHitKnockedBack 479-493
+;   5010 shaking, crouch  <- lines 522-535
+;   5011 knocked back     <- lines 541-543 (the "nextState" 11 is state 11 below)
+;   5020 shaking, air     <- lines 547-561
+;   5030 knocked away     <- lines 562-584
+; Kept: the shake -> knocked-back -> recovered flow, driven by HitShakeOver
+; and HitOver. 5030 is cut to "end of hit -> idle" (Ikemen continues to
+; 5040/5050).
+;
+; 5001 additionally holds one marker controller, "[State 5001, SlideEnd]":
+; Ikemen's IkSys_GetHitKnockedBack (lines 479-493) applies a velocity
+; multiplier once Time >= GetHitVar(slidetime). VelMul is not supported by
+; the engine yet, so the marker sets var(5) = 1 under the same trigger
+; instead -- the observable proof that slidetime reaches the get-hit state.
+; (Not in Ikemen's data; it replaces the VelMul it cannot run.)
+;
+; Left out (triggers/controllers the engine does not support yet): the OR
+; trigger forms, yvel/fall branches (stand hit that launches), HitVelSet,
+; ChangeAnim and the animType
+; based animation choice, StateTypeSet, ForceFeedback, VelAdd, DefenceMulSet,
+; Pos Y / Vel Y conditions, and the 5040/5050 recovery states.
+; The animation of each state is set by "anim" in the Statedef instead.
+;
+; [Statedef 11] is a minimal stand-in crouching state so 5011 has its real
+; target; it is not from Ikemen.
+
+[Statedef 5000, Stand get-hit, shaking]
+type     = S
+movetype = H
+physics  = N
+anim     = 5000
+velset   = 0,0
+
+[State 5000, ToKnockedBack]
+type = ChangeState
+trigger1 = HitShakeOver
+value = 5001
+
+[Statedef 5001, Stand get-hit, knocked back]
+type     = S
+movetype = H
+physics  = S
+anim     = 5001
+
+[State 5001, SlideEnd]
+type = VarSet
+trigger1 = Time >= GetHitVar(slidetime)
+v = 5
+value = 1
+
+[State 5001, Recover]
+type = ChangeState
+trigger1 = HitOver
+value = 0
+
+[Statedef 5010, Crouch get-hit, shaking]
+type     = C
+movetype = H
+physics  = N
+anim     = 5010
+velset   = 0,0
+
+[State 5010, ToKnockedBack]
+type = ChangeState
+trigger1 = HitShakeOver
+value = 5011
+
+[Statedef 5011, Crouch get-hit, knocked back]
+type     = C
+movetype = H
+physics  = C
+anim     = 5011
+
+[State 5011, Recover]
+type = ChangeState
+trigger1 = HitOver
+value = 11
+
+[Statedef 5020, Air get-hit, shaking]
+type     = A
+movetype = H
+physics  = N
+anim     = 5020
+velset   = 0,0
+
+[State 5020, ToKnockedAway]
+type = ChangeState
+trigger1 = HitShakeOver
+value = 5030
+
+[Statedef 5030, Air get-hit, knocked away]
+type     = A
+movetype = H
+physics  = N
+anim     = 5030
+ctrl     = 0
+
+[State 5030, Recover]
+type = ChangeState
+trigger1 = HitOver
+value = 0
+
+[Statedef 11, Crouching]
+type     = C
+movetype = I
+physics  = C
+anim     = 11
+ctrl     = 1

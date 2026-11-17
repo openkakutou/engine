@@ -10,3 +10,10 @@ Clsn2Default: 1
 Clsn1Default: 1
  Clsn1[0] = -8,-90,8,0
 0,0, 0,0, 100
+
+[Begin Action 201] ;attack that can also be hit (trade tests)
+Clsn1Default: 1
+ Clsn1[0] = -8,-90,8,0
+Clsn2Default: 1
+ Clsn2[0] = -8,-90,8,0
+0,0, 0,0, 100

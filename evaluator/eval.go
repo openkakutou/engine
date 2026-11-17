@@ -5,7 +5,7 @@
 // comparisons (=, !=, <, >, <=, >=), boolean/arithmetic operators (&&, ||,
 // +, -, *, /, %, unary !), and a growing set of built-in trigger names and
 // functions: var(), sysvar(), IfElse(), Time, StateNo, Anim, AnimTime,
-// Command, and Ctrl. Later engine items are expected to extend the
+// Command, Ctrl, HitShakeOver, HitOver and GetHitVar(). Later engine items are expected to extend the
 // built-in set incrementally as they need more of MUGEN's trigger
 // vocabulary — this package deliberately does not attempt to implement it
 // exhaustively up front.
@@ -130,7 +130,7 @@ func evalNode(n node, ctx Context) (Value, error) {
 }
 
 func evalIdentifier(name string, ctx Context) (Value, error) {
-	switch strings.ToLower(name) {
+	switch name {
 	case "time":
 		return intValue(float64(ctx.Time)), nil
 	case "stateno":
@@ -141,6 +141,10 @@ func evalIdentifier(name string, ctx Context) (Value, error) {
 		return intValue(float64(ctx.AnimTime)), nil
 	case "ctrl":
 		return boolValue(ctx.Ctrl), nil
+	case "hitshakeover":
+		return boolValue(ctx.GetHit.HitShakeTime <= 0), nil
+	case "hitover":
+		return boolValue(!ctx.GetHit.Active || ctx.GetHit.HitTime < 0), nil
 	case "command":
 		return Value{}, fmt.Errorf(`evaluator: Command must be compared to a quoted command name, e.g. Command = "holdback"`)
 	default:
@@ -149,11 +153,13 @@ func evalIdentifier(name string, ctx Context) (Value, error) {
 }
 
 func evalCall(n callNode, ctx Context) (Value, error) {
-	switch strings.ToLower(n.name) {
+	switch n.name {
 	case "var":
 		return evalIndexedVar(n, ctx, "var", ctx.Vars[:])
 	case "sysvar":
 		return evalIndexedVar(n, ctx, "sysvar", ctx.SysVars[:])
+	case "gethitvar":
+		return evalGetHitVar(n, ctx)
 	case "ifelse":
 		if len(n.args) != 3 {
 			return Value{}, fmt.Errorf("evaluator: IfElse() expects 3 arguments, got %d", len(n.args))
@@ -168,6 +174,36 @@ func evalCall(n callNode, ctx Context) (Value, error) {
 		return evalNode(n.args[2], ctx)
 	default:
 		return Value{}, fmt.Errorf("evaluator: unknown trigger function %q", n.name)
+	}
+}
+
+// evalGetHitVar reads GetHitVar(name). Like Command, its argument is a name
+// read as written, never evaluated; an unknown name is an error rather than
+// a silent 0.
+func evalGetHitVar(n callNode, ctx Context) (Value, error) {
+	if len(n.args) != 1 {
+		return Value{}, fmt.Errorf("evaluator: GetHitVar() expects 1 argument, got %d", len(n.args))
+	}
+	id, ok := n.args[0].(identifierNode)
+	if !ok {
+		return Value{}, fmt.Errorf("evaluator: GetHitVar() expects a variable name")
+	}
+	g := ctx.GetHit
+	switch id.name {
+	case "hittime":
+		return intValue(float64(g.HitTime)), nil
+	case "slidetime":
+		return intValue(float64(g.SlideTime)), nil
+	case "hitshaketime":
+		return intValue(float64(g.HitShakeTime)), nil
+	case "animtype":
+		return intValue(float64(g.AnimType)), nil
+	case "groundtype":
+		return intValue(float64(g.GroundType)), nil
+	case "airtype":
+		return intValue(float64(g.AirType)), nil
+	default:
+		return Value{}, fmt.Errorf("evaluator: GetHitVar: unknown variable %q", id.name)
 	}
 }
 

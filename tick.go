@@ -83,6 +83,11 @@ type FighterRuntime struct {
 	Context evaluator.Context
 	Input   input.State
 	Combo   combat.ComboState
+	// HitPause is the attacker's remaining frozen ticks after a landed
+	// hit (HitDef pausetime[0]). It is not trigger-visible, so it lives
+	// here rather than on evaluator.Context; the defender's own freeze is
+	// Context.GetHit.HitShakeTime. See .vibe/decisions/018.
+	HitPause int
 }
 
 // NewFighterRuntime builds a fresh FighterRuntime for a fighter entering
@@ -199,32 +204,40 @@ func Tick(
 
 	if p1Out.HasHitDef {
 		damage := combat.DamageParams{Damage: p1Out.HitDef.Parameters["damage"]}
-		newState, newCombo, _ := combat.ApplyHits(state, events, match.SideP1, damage, runtimesOut[match.SideP1].Combo, cfg.Tick, cfg.ComboWindow)
+		newState, newCombo, hit := combat.ApplyHits(state, events, match.SideP1, damage, runtimesOut[match.SideP1].Combo, cfg.Tick, cfg.ComboWindow)
 		state = newState
 		runtimesOut[match.SideP1].Combo = newCombo
+		applyHitReaction(&programs, &runtimesOut, match.SideP1, p1Out.HitDef.Parameters, hit)
 	}
 	if p2Out.HasHitDef {
 		damage := combat.DamageParams{Damage: p2Out.HitDef.Parameters["damage"]}
-		newState, newCombo, _ := combat.ApplyHits(state, events, match.SideP2, damage, runtimesOut[match.SideP2].Combo, cfg.Tick, cfg.ComboWindow)
+		newState, newCombo, hit := combat.ApplyHits(state, events, match.SideP2, damage, runtimesOut[match.SideP2].Combo, cfg.Tick, cfg.ComboWindow)
 		state = newState
 		runtimesOut[match.SideP2].Combo = newCombo
+		applyHitReaction(&programs, &runtimesOut, match.SideP2, p2Out.HitDef.Parameters, hit)
 	}
 
 	p1Fighter := state.Fighter(match.SideP1)
 	p1Fighter.StateNo = runtimesOut[match.SideP1].Context.StateNo
 	p1Fighter.Power = runtimesOut[match.SideP1].Context.Power
-	updatedP1, err := physics.Step(p1Fighter, cfg.Bounds, cfg.Gravity)
-	if err != nil {
-		return TickResult{}, fmt.Errorf("engine: Tick: side %v: physics: %w", match.SideP1, err)
+	updatedP1 := p1Fighter
+	if !p1Out.Frozen {
+		updatedP1, err = physics.Step(p1Fighter, cfg.Bounds, cfg.Gravity)
+		if err != nil {
+			return TickResult{}, fmt.Errorf("engine: Tick: side %v: physics: %w", match.SideP1, err)
+		}
 	}
 	state.Fighters[match.SideP1] = updatedP1
 
 	p2Fighter := state.Fighter(match.SideP2)
 	p2Fighter.StateNo = runtimesOut[match.SideP2].Context.StateNo
 	p2Fighter.Power = runtimesOut[match.SideP2].Context.Power
-	updatedP2, err := physics.Step(p2Fighter, cfg.Bounds, cfg.Gravity)
-	if err != nil {
-		return TickResult{}, fmt.Errorf("engine: Tick: side %v: physics: %w", match.SideP2, err)
+	updatedP2 := p2Fighter
+	if !p2Out.Frozen {
+		updatedP2, err = physics.Step(p2Fighter, cfg.Bounds, cfg.Gravity)
+		if err != nil {
+			return TickResult{}, fmt.Errorf("engine: Tick: side %v: physics: %w", match.SideP2, err)
+		}
 	}
 	state.Fighters[match.SideP2] = updatedP2
 
@@ -264,6 +277,10 @@ type fighterTickOutput struct {
 	HasHitDef bool
 	HitDef    cns.Controller
 	Sounds    []evaluator.SoundEvent
+	// Frozen reports the fighter was in hit pause (attacker freeze or
+	// defender shake) this tick: no controllers ran, Time/AnimTime were
+	// held, and Tick skips its physics.
+	Frozen bool
 }
 
 // tickFighter advances one fighter's own per-tick simulation -- input
@@ -290,6 +307,21 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		return fighterTickOutput{}, fmt.Errorf("current state %d not found in loaded character", ctx.StateNo)
 	}
 
+	// A fighter in hit pause (attacker freeze or defender shake) runs no
+	// controllers, advances no Time/AnimTime and moves no physics; only
+	// input recognition above keeps running. See .vibe/decisions/018.
+	if runtime.HitPause > 0 || ctx.GetHit.HitShakeTime > 0 {
+		frozenRuntime := FighterRuntime{Context: ctx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause}
+		if frozenRuntime.HitPause > 0 {
+			frozenRuntime.HitPause--
+		}
+		if frozenRuntime.Context.GetHit.HitShakeTime > 0 {
+			frozenRuntime.Context.GetHit.HitShakeTime--
+		}
+		frozenRuntime.Context.Sounds = nil
+		return fighterTickOutput{Runtime: frozenRuntime, Frame: frame, Frozen: true}, nil
+	}
+
 	result, err := statemachine.Step(ctx, prog.States)
 	if err != nil {
 		return fighterTickOutput{}, err
@@ -299,19 +331,18 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	if newCtx.StateNo != ctx.StateNo {
 		// statemachine's own ChangeState handling already reset Time to 0
 		// (character/cmd data plays no part in that); Anim/AnimTime/Ctrl
-		// are this function's own responsibility, since statemachine has
-		// no character-loadout knowledge of the target state's declared
+		// are enterState's responsibility, since statemachine has no
+		// character-loadout knowledge of the target state's declared
 		// values.
-		entered := prog.States[newCtx.StateNo]
-		newCtx.Anim = entered.Anim
-		if newCtx.Anim == 0 {
-			newCtx.Anim = newCtx.StateNo
-		}
-		newCtx.AnimTime = 0
-		newCtx.Ctrl = entered.Ctrl
+		enterState(&newCtx, prog.States[newCtx.StateNo])
 	} else {
 		newCtx.Time++
 		newCtx.AnimTime++
+	}
+	// Once the shake is over the get-hit time counts down on every
+	// unfrozen tick, stopping at -1 (HitOver).
+	if newCtx.GetHit.Active && newCtx.GetHit.HitTime >= 0 {
+		newCtx.GetHit.HitTime--
 	}
 
 	var hasHitDef bool
@@ -331,6 +362,80 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		HitDef:    hitDef,
 		Sounds:    result.Sounds,
 	}, nil
+}
+
+// enterState applies the bookkeeping of entering the state def to ctx,
+// whose StateNo is already the new state's: Time and AnimTime restart at 0,
+// Anim takes the StateDef's own value (defaulting to the state number,
+// cns.StateDef.Anim's "0 means not set" convention) and Ctrl the StateDef's.
+// Shared by tickFighter's ChangeState path and the get-hit entry below.
+func enterState(ctx *evaluator.Context, def cns.StateDef) {
+	ctx.Time = 0
+	ctx.Anim = def.Anim
+	if ctx.Anim == 0 {
+		ctx.Anim = ctx.StateNo
+	}
+	ctx.AnimTime = 0
+	ctx.Ctrl = def.Ctrl
+}
+
+// applyHitReaction applies a landed hit's HitDef to both fighters on the
+// tick it lands (a no-op for a miss): the attacker is frozen for
+// pausetime[0] ticks; the defender records its get-hit variables, is
+// frozen for pausetime[1] ticks, and enters the get-hit state matching its
+// current StateDef type (first letter, case-insensitive; omitted = S) --
+// S 5000, C 5010, A 5020 -- in the same tick.
+// A defender whose stance is L/U, or whose character has no such state,
+// keeps its current state (the freeze and variables still apply), no
+// error. See .vibe/decisions/018.
+func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, attacker match.Side, hitDefParams map[string]string, hit combat.HitResult) {
+	if !hit.Hit {
+		return
+	}
+	params := combat.ParseHitDef(hitDefParams)
+	runtimes[attacker].HitPause = params.PauseTime[0]
+
+	ctx := &runtimes[hit.Defender].Context
+	states := programs[hit.Defender].States
+
+	hitTime := params.GroundHitTime
+	target := 0
+	switch stanceLetter(states[ctx.StateNo].Type) {
+	case 'S':
+		target = 5000
+	case 'C':
+		target = 5010
+	case 'A':
+		target = 5020
+		hitTime = params.AirHitTime
+	}
+	ctx.GetHit = evaluator.GetHit{
+		Active:       true,
+		HitShakeTime: params.PauseTime[1],
+		HitTime:      hitTime,
+		SlideTime:    params.GroundSlideTime,
+		AnimType:     params.AnimType,
+		GroundType:   params.GroundType,
+		AirType:      params.AirType,
+	}
+	if def, ok := states[target]; ok && target != 0 {
+		ctx.StateNo = target
+		enterState(ctx, def)
+	}
+}
+
+// stanceLetter is a StateDef's type as an upper-case letter: its first
+// character, case-insensitive, and 'S' when the type line was omitted (the
+// MUGEN 1.1 cns doc: "If this line is omitted, it assumes the type is S").
+func stanceLetter(t cns.StateType) byte {
+	if t == "" {
+		return 'S'
+	}
+	c := t[0]
+	if c >= 'a' && c <= 'z' {
+		c -= 'a' - 'A'
+	}
+	return c
 }
 
 // findAnimation returns the Animation in prog whose Number matches number,

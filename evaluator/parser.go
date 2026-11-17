@@ -205,17 +205,19 @@ func (p *parser) parsePrimary() (node, error) {
 
 // parseIdentifierOrCall resolves an already-consumed identifier token
 // (name) into either a plain identifierNode, or -- if immediately followed
-// by '(' -- a callNode wrapping its parsed argument list.
+// by '(' -- a callNode wrapping its parsed argument list. The node's name is
+// lower-cased here, once, so evaluation never has to (MUGEN trigger names
+// are case-insensitive).
 func (p *parser) parseIdentifierOrCall(name string) (node, error) {
 	if p.peek().kind != tokLParen {
-		return identifierNode{name: name}, nil
+		return identifierNode{name: strings.ToLower(name)}, nil
 	}
 
 	args, err := p.parseCallArgs(name)
 	if err != nil {
 		return nil, err
 	}
-	return callNode{name: name, args: args}, nil
+	return callNode{name: strings.ToLower(name), args: args}, nil
 }
 
 // parseCallArgs parses a parenthesized, comma-separated argument list for a

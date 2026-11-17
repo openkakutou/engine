@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- A landed hit now freezes both fighters for the hit's declared pause, and the fighter who was hit enters its standing, crouching or airborne "get hit" state, so a character's own hit-reaction states play out (shake, knock-back, recovery) using the hit's stun and slide times; missing values use MUGEN's documented defaults.
+
 ## [2.5.1] - 2026-10-06
 
 ### Fixed

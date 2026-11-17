@@ -168,3 +168,143 @@ func advanceCombo(combo ComboState, tick, comboWindow int) ComboState {
 	}
 	return ComboState{Count: combo.Count + 1, LastHitTick: tick, Active: true}
 }
+
+// Defaults for the HitDef parameters ParseHitDef reads, from the MUGEN 1.1
+// state-controller documentation: pausetime 0,0; ground.hittime 0;
+// ground.slidetime 0; air.hittime 20; animtype Light; ground.type High;
+// air.type = ground.type.
+const (
+	defaultAirHitTime = 20
+	defaultGroundType = 1
+)
+
+// HitDefParams is the subset of a HitDef controller's parameters that drive
+// hit pause and the defender's get-hit variables. AnimType and the two
+// types carry MUGEN's numeric codes (animtype Light=0, Medium=1, Hard=2,
+// Back=3, Up=4, DiagUp=5; type None=0, High=1, Low=2, Trip=3), the values
+// GetHitVar reports. combat does not import evaluator: the root package
+// maps this to evaluator.GetHit.
+type HitDefParams struct {
+	// PauseTime is {attacker freeze, defender shake} in ticks.
+	PauseTime       [2]int
+	GroundHitTime   int
+	GroundSlideTime int
+	AirHitTime      int
+	AnimType        int
+	GroundType      int
+	AirType         int
+}
+
+// ParseHitDef reads a HitDef controller's raw, lower-cased parameter map
+// (as character/cns stores it). Every value must be a plain integer or a
+// known enum name; anything else -- a missing parameter, or an expression
+// such as "var(0)" -- falls back to that parameter's default, the same
+// stance parseDamage takes (documented divergence: MUGEN evaluates
+// expressions here, see .vibe/decisions/018). Allocation-free: it runs on
+// the hit path of the per-tick hot loop.
+func ParseHitDef(params map[string]string) HitDefParams {
+	p := HitDefParams{
+		AirHitTime: defaultAirHitTime,
+		GroundType: defaultGroundType,
+	}
+	if raw, ok := params["pausetime"]; ok {
+		first, second := raw, ""
+		if i := strings.IndexByte(raw, ','); i >= 0 {
+			first, second = raw[:i], raw[i+1:]
+		}
+		// A negative pause time is meaningless (and would leave a
+		// defender shaking forever): clamp to 0.
+		p.PauseTime[0] = max(parseIntOr(first, 0), 0)
+		p.PauseTime[1] = max(parseIntOr(second, 0), 0)
+	}
+	p.GroundHitTime = parseIntOr(params["ground.hittime"], 0)
+	p.GroundSlideTime = parseIntOr(params["ground.slidetime"], 0)
+	p.AirHitTime = parseIntOr(params["air.hittime"], defaultAirHitTime)
+	p.AnimType = animTypeCode(params["animtype"])
+	p.GroundType = hitTypeCode(params["ground.type"], defaultGroundType)
+	p.AirType = hitTypeCode(params["air.type"], p.GroundType)
+	return p
+}
+
+// parseIntOr parses s as a decimal integer (optional sign, surrounding
+// space allowed), returning def when s is empty or not one -- an
+// expression, for instance. Hand-rolled rather than strconv.Atoi, whose
+// error path allocates a *NumError on every missing or non-literal value.
+func parseIntOr(s string, def int) int {
+	s = strings.TrimSpace(s)
+	neg := false
+	if s != "" && (s[0] == '-' || s[0] == '+') {
+		neg = s[0] == '-'
+		s = s[1:]
+	}
+	// Up to 9 digits cannot overflow an int on any target (WASM is 32-bit
+	// ints in some toolchains); a longer value is not a sane tick count.
+	if s == "" || len(s) > 9 {
+		return def
+	}
+	n := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return def
+		}
+		n = n*10 + int(s[i]-'0')
+	}
+	if neg {
+		return -n
+	}
+	return n
+}
+
+// firstLetter returns the upper-cased first non-space ASCII letter of s, or
+// 0 when there is none. The enum parameters are decided from that letter
+// alone (see .vibe/decisions/018: unverified against Ikemen GO's source).
+func firstLetter(s string) byte {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == ' ' || c == '\t' {
+			continue
+		}
+		if c >= 'a' && c <= 'z' {
+			c -= 'a' - 'A'
+		}
+		return c
+	}
+	return 0
+}
+
+// animTypeCode maps an animtype to MUGEN's code from its first letter,
+// case-insensitive (L 0, M 1, H 2, B 3, U 4, D 5), Light (0) when missing
+// or unknown. "Heavy", as real characters (kfm.cns) write it, is H = Hard.
+func animTypeCode(s string) int {
+	switch firstLetter(s) {
+	case 'M':
+		return 1
+	case 'H':
+		return 2
+	case 'B':
+		return 3
+	case 'U':
+		return 4
+	case 'D':
+		return 5
+	default:
+		return 0
+	}
+}
+
+// hitTypeCode maps a ground.type/air.type to MUGEN's code from its first
+// letter, case-insensitive (N 0, H 1, L 2, T 3), def when missing or unknown.
+func hitTypeCode(s string, def int) int {
+	switch firstLetter(s) {
+	case 'N':
+		return 0
+	case 'H':
+		return 1
+	case 'L':
+		return 2
+	case 'T':
+		return 3
+	default:
+		return def
+	}
+}

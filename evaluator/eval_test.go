@@ -1,6 +1,7 @@
 package evaluator
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/openkakutou/engine/match"
@@ -339,5 +340,101 @@ func TestEvaluate_ConvenienceFunction_CachedParseStillEvaluatesEachCallAgainstIt
 func TestEvaluate_ConvenienceFunction_PropagatesParseError(t *testing.T) {
 	if _, err := Evaluate("1 +", Context{}); err == nil {
 		t.Error("expected Evaluate to propagate a parse error, got nil")
+	}
+}
+
+func TestEval_HitShakeOver_IsTrueOnlyWhenTheShakeTimeIsZero(t *testing.T) {
+	shaking := Context{GetHit: GetHit{Active: true, HitShakeTime: 3}}
+	if mustEval(t, "HitShakeOver", shaking).Bool() {
+		t.Errorf("HitShakeOver with hitshaketime 3 = true, want false")
+	}
+	done := Context{GetHit: GetHit{Active: true, HitShakeTime: 0}}
+	if !mustEval(t, "HitShakeOver", done).Bool() {
+		t.Errorf("HitShakeOver with hitshaketime 0 = false, want true")
+	}
+}
+
+func TestEval_HitOver_IsTrueOnlyWhenTheHitTimeIsNegativeOrNoHitWasTaken(t *testing.T) {
+	cases := []struct {
+		name string
+		ctx  Context
+		want bool
+	}{
+		{"hittime 0 is not over", Context{GetHit: GetHit{Active: true, HitTime: 0}}, false},
+		{"hittime 5 is not over", Context{GetHit: GetHit{Active: true, HitTime: 5}}, false},
+		{"hittime -1 is over", Context{GetHit: GetHit{Active: true, HitTime: -1}}, true},
+		{"a fighter that never took a hit is over", Context{}, true},
+	}
+	for _, c := range cases {
+		if got := mustEval(t, "HitOver", c.ctx).Bool(); got != c.want {
+			t.Errorf("%s: HitOver = %v, want %v", c.name, got, c.want)
+		}
+	}
+}
+
+func TestEval_GetHitVar_ReadsTheNamedFieldWithoutEvaluatingTheName(t *testing.T) {
+	ctx := Context{
+		// "hittime" etc. are also not trigger names: the argument is a
+		// name, never an expression (like Command's).
+		GetHit: GetHit{Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, AnimType: 2, GroundType: 1, AirType: 3},
+	}
+	cases := []struct {
+		expr string
+		want int
+	}{
+		{"GetHitVar(hitshaketime)", 8},
+		{"GetHitVar(hittime)", 11},
+		{"GetHitVar(slidetime)", 5},
+		{"GetHitVar(animtype)", 2},
+		{"GetHitVar(groundtype)", 1},
+		{"GetHitVar(airtype)", 3},
+		{"getHitVar(AnimType)", 2},
+	}
+	for _, c := range cases {
+		if got := mustEval(t, c.expr, ctx).Int(); got != c.want {
+			t.Errorf("%s = %d, want %d", c.expr, got, c.want)
+		}
+	}
+}
+
+func TestEval_HitShakeOver_IsTrueForANegativeShakeTime(t *testing.T) {
+	if !mustEval(t, "HitShakeOver", Context{GetHit: GetHit{Active: true, HitShakeTime: -1}}).Bool() {
+		t.Errorf("HitShakeOver with hitshaketime -1 = false, want true (never stuck shaking)")
+	}
+}
+
+func TestEval_GetHitVar_RejectsAnUnknownNameOrAWrongArgumentShape(t *testing.T) {
+	cases := []struct {
+		expr    string
+		wantErr string
+	}{
+		{"GetHitVar(bogus)", `GetHitVar: unknown variable "bogus"`},
+		{"GetHitVar(1)", "GetHitVar() expects a variable name"},
+		{"GetHitVar()", "GetHitVar() expects 1 argument, got 0"},
+		{"GetHitVar(hittime, slidetime)", "GetHitVar() expects 1 argument, got 2"},
+		{"GetHitVar(Time)+GetHitVar(nope)", `GetHitVar: unknown variable "time"`},
+	}
+	for _, c := range cases {
+		e, err := Parse(c.expr)
+		if err != nil {
+			t.Fatalf("Parse(%q): %v", c.expr, err)
+		}
+		_, err = e.Eval(Context{})
+		if err == nil || !strings.Contains(err.Error(), c.wantErr) {
+			t.Errorf("Eval(%q) error = %v, want one containing %q", c.expr, err, c.wantErr)
+		}
+	}
+}
+
+func TestEvaluate_CapitalizedGetHitTriggers_AllocateNothingOnTheCachedPath(t *testing.T) {
+	ctx := Context{GetHit: GetHit{Active: true, HitTime: 3}}
+	for _, expr := range []string{"HitShakeOver", "HitOver", "GetHitVar(HitTime)", "Time = 0 && Ctrl"} {
+		if _, err := Evaluate(expr, ctx); err != nil { // warm the parse cache
+			t.Fatalf("Evaluate(%q): %v", expr, err)
+		}
+		allocs := testing.AllocsPerRun(100, func() { _, _ = Evaluate(expr, ctx) })
+		if allocs != 0 {
+			t.Errorf("Evaluate(%q) allocated %v times per call, want 0", expr, allocs)
+		}
 	}
 }

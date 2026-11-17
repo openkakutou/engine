@@ -1,0 +1,36 @@
+; Real HitDef values for the hit-pause / hit-reaction tests (backlog item 022).
+;
+; Provenance: the [State 200, 1] HitDef parameter lines below are copied
+; verbatim from Ikemen GO's bundled Kung Fu Man,
+;   Ikemen_GO/chars/kfm/kfm.cns, lines 269-292 (its [State 200, 1] HitDef).
+; Ikemen GO license: MIT (Ikemen_GO/License.txt, "MIT License, Copyright (c)
+; 2016 Suehiro, 2018 K4thos, ... "), which covers the bundled kfm data.
+; Only Ikemen GO sources are copied into this repo, never MUGEN's own files.
+;
+; Deliberate changes from the source, so the engine's current trigger set can
+; run it: the StateDef header is reduced to what this engine reads, and the
+; trigger "AnimElem = 3" (unsupported, backlog 028) is replaced by "Time = 0".
+; Parameters irrelevant to this item (sparkno, sparkxy, hitsound, guardsound,
+; guardflag, hitflag, priority, *.velocity, airguard.velocity) are omitted.
+; "damage = 23, 0" is kept as in the source: the two-value form is not parsed
+; yet (backlog 033), so the engine applies its default damage today.
+
+[Statedef 200, Attack]
+type            = S
+movetype        = A
+physics         = S
+anim            = 200
+ctrl            = 0
+
+[State 200, 1]
+type = HitDef
+trigger1 = Time = 0
+attr = S, NA                     ;Attribute: Standing, Normal Attack
+damage = 23, 0                   ;Damage that move inflicts, guard damage
+animtype = Light                 ;Animation type: Light, Medium, Heavy, Back (def: Light)
+pausetime = 8, 8                 ;Time attacker pauses, time opponent shakes
+ground.type = High               ;Type: High, Low, Trip (def: Normal)
+ground.slidetime = 5             ;Time that the opponent slides back
+ground.hittime  = 11             ;Time opponent is in hit state
+air.type = High                  ;Type: High, Low, Trip (def: same as ground.type)
+air.hittime = 15                 ;Time before opponent regains control in air

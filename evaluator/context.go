@@ -62,6 +62,31 @@ type Context struct {
 	// statemachine.Result alone, because ApplyController's only mutable
 	// output channel is *Context.
 	Sounds []SoundEvent
+	// GetHit is the hit the fighter most recently took, as the engine
+	// recorded it when the hit landed (see .vibe/decisions/018). Its zero
+	// value is "no hit taken yet".
+	GetHit GetHit
+}
+
+// GetHit is a fighter's get-hit variables (MUGEN's GetHitVar set), read by
+// the HitShakeOver/HitOver triggers and GetHitVar(). A plain value struct,
+// no pointers, so Context stays cheap to copy on the per-tick hot path.
+// AnimType and GroundType/AirType carry MUGEN's numeric codes (animtype
+// Light=0, Medium=1, Hard=2, Back=3, Up=4, DiagUp=5; type None=0, High=1,
+// Low=2, Trip=3).
+type GetHit struct {
+	// Active reports that a hit has been taken: false on the zero value,
+	// where HitOver reads true (MUGEN initializes hittime to -1).
+	Active bool
+	// HitShakeTime is the remaining frozen ticks of the defender's shake.
+	HitShakeTime int
+	// HitTime counts down on each unfrozen tick after the shake, stopping
+	// at -1; HitOver reads true once it is negative.
+	HitTime    int
+	SlideTime  int
+	AnimType   int
+	GroundType int
+	AirType    int
 }
 
 // SoundEvent is one PlaySnd controller execution recorded onto a fighter's

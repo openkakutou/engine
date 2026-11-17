@@ -14,3 +14,5 @@ The evaluator knows nine triggers (Time, StateNo, Anim, AnimTime, Ctrl, Command,
 
 ## Notes
 Grouped as one item because they share evaluator plumbing; split by family if the diff gets too large. Prerequisite for a meaningful result in item 030. Compat is a MUST: MUGEN 1.0/1.1 and Ikemen GO, validated against real community files.
+
+Added while framing item 022 (hit pause and hit reaction): real `common1` get-hit states (5000-series) also need `trigger1`/`trigger2` combined as OR (today AND, decision 003), `GetHitVar` beyond hittime/slidetime/hitshaketime/animtype/groundtype/airtype (e.g. `yvel`, `fall`), `HitFall`, `CanRecover`, `SelfAnimExist`, `StateType`/`MoveType`, `Pos Y`, `Vel Y`. Item 022's fixture is a trimmed copy limited to what the evaluator supports; once these exist, an unmodified real common1 should run.

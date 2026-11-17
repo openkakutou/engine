@@ -25,13 +25,15 @@ type stringNode struct {
 
 // identifierNode is a bare trigger name, e.g. Time, Ctrl, StateNo,
 // Command, or an unrecognized name — unknown names are resolved to a
-// descriptive error at evaluation time, not at parse time.
+// descriptive error at evaluation time, not at parse time. name is
+// lower-cased by the parser.
 type identifierNode struct {
 	name string
 }
 
 // callNode is a function-style trigger, e.g. var(0), sysvar(1),
-// IfElse(cond, a, b), or an unrecognized function name.
+// IfElse(cond, a, b), or an unrecognized function name (name is
+// lower-cased by the parser).
 type callNode struct {
 	name string
 	args []node

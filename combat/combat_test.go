@@ -285,3 +285,152 @@ func TestApplyHits_AllocatesNothing_WhenAHitLands(t *testing.T) {
 		t.Errorf("expected 0 allocations when a hit lands, got %v", allocs)
 	}
 }
+
+func TestParseHitDef_ReadsTheRealKfmHitDefValues(t *testing.T) {
+	// Values of kfm.cns [State 200, 1] (Ikemen GO), keys lower-cased as
+	// character/cns stores them.
+	got := ParseHitDef(map[string]string{
+		"pausetime":        "8, 8",
+		"ground.hittime":   "11",
+		"ground.slidetime": "5",
+		"air.hittime":      "15",
+		"animtype":         "Light",
+		"ground.type":      "High",
+		"air.type":         "High",
+	})
+	want := HitDefParams{PauseTime: [2]int{8, 8}, GroundHitTime: 11, GroundSlideTime: 5, AirHitTime: 15, AnimType: 0, GroundType: 1, AirType: 1}
+	if got != want {
+		t.Errorf("ParseHitDef = %+v, want %+v", got, want)
+	}
+}
+
+func TestParseHitDef_FallsBackToTheDocumentedDefaults_WhenParametersAreMissing(t *testing.T) {
+	got := ParseHitDef(nil)
+	want := HitDefParams{PauseTime: [2]int{0, 0}, GroundHitTime: 0, GroundSlideTime: 0, AirHitTime: 20, AnimType: 0, GroundType: 1, AirType: 1}
+	if got != want {
+		t.Errorf("ParseHitDef(nil) = %+v, want %+v", got, want)
+	}
+}
+
+func TestParseHitDef_AirTypeDefaultsToTheGroundType(t *testing.T) {
+	got := ParseHitDef(map[string]string{"ground.type": "Low"})
+	if got.GroundType != 2 || got.AirType != 2 {
+		t.Errorf("ground.type Low: GroundType=%d AirType=%d, want 2 and 2", got.GroundType, got.AirType)
+	}
+	got = ParseHitDef(map[string]string{"ground.type": "Low", "air.type": "Trip"})
+	if got.GroundType != 2 || got.AirType != 3 {
+		t.Errorf("ground.type Low, air.type Trip: GroundType=%d AirType=%d, want 2 and 3", got.GroundType, got.AirType)
+	}
+}
+
+func TestParseHitDef_MapsEveryAnimTypeAndGroundTypeName(t *testing.T) {
+	anim := map[string]int{"light": 0, "Medium": 1, "HARD": 2, "Heavy": 2, "back": 3, "Up": 4, "DiagUp": 5}
+	for name, want := range anim {
+		if got := ParseHitDef(map[string]string{"animtype": name}).AnimType; got != want {
+			t.Errorf("animtype %q = %d, want %d", name, got, want)
+		}
+	}
+	ground := map[string]int{"None": 0, "high": 1, "LOW": 2, "Trip": 3}
+	for name, want := range ground {
+		if got := ParseHitDef(map[string]string{"ground.type": name}).GroundType; got != want {
+			t.Errorf("ground.type %q = %d, want %d", name, got, want)
+		}
+	}
+}
+
+func TestParseHitDef_ExpressionValuesFallBackToTheirDefault(t *testing.T) {
+	got := ParseHitDef(map[string]string{
+		"pausetime":      "var(0), 3",
+		"ground.hittime": "5 + 6",
+		"air.hittime":    "Time",
+		"animtype":       "Zzz",
+	})
+	// The literal second pausetime value survives; each non-literal one is
+	// replaced by its own default, independently.
+	want := HitDefParams{PauseTime: [2]int{0, 3}, GroundHitTime: 0, AirHitTime: 20, AnimType: 0, GroundType: 1, AirType: 1}
+	if got != want {
+		t.Errorf("ParseHitDef = %+v, want %+v", got, want)
+	}
+}
+
+func TestParseHitDef_ASinglePauseTimeValueLeavesTheDefenderShakeAtItsDefault(t *testing.T) {
+	got := ParseHitDef(map[string]string{"pausetime": "7"})
+	if got.PauseTime != [2]int{7, 0} {
+		t.Errorf("pausetime = 7: PauseTime = %v, want [7 0]", got.PauseTime)
+	}
+}
+
+func TestParseHitDef_DoesNotAllocate(t *testing.T) {
+	params := map[string]string{"pausetime": "8, 8", "ground.hittime": "11", "animtype": "Light", "ground.type": "High"}
+	allocs := testing.AllocsPerRun(100, func() { _ = ParseHitDef(params) })
+	if allocs != 0 {
+		t.Errorf("ParseHitDef allocated %v times per call, want 0", allocs)
+	}
+}
+
+func TestParseHitDef_DecidesAnimTypeAndTypesFromTheFirstNonSpaceLetter_CaseInsensitive(t *testing.T) {
+	anim := map[string]int{
+		"L": 0, "Med": 1, "H": 2, "Heavy": 2, "  hard": 2, "b": 3, "Up": 4, "U": 4, "D": 5, "DiagUp": 5, "diagup": 5,
+	}
+	for name, want := range anim {
+		if got := ParseHitDef(map[string]string{"animtype": name}).AnimType; got != want {
+			t.Errorf("animtype %q = %d, want %d", name, got, want)
+		}
+	}
+	if got := ParseHitDef(map[string]string{"animtype": "lo"}).AnimType; got != 0 {
+		t.Errorf("animtype lo = %d, want 0 (Light)", got)
+	}
+	for _, name := range []string{"", "  "} {
+		if got := ParseHitDef(map[string]string{"animtype": name}).AnimType; got != 0 {
+			t.Errorf("animtype %q = %d, want 0 (default Light)", name, got)
+		}
+	}
+	if got := ParseHitDef(map[string]string{"animtype": "xyz"}).AnimType; got != 0 {
+		t.Errorf("animtype xyz = %d, want 0 (unknown letter -> default Light)", got)
+	}
+	ground := map[string]int{"N": 0, "h": 1, "lo": 2, " T": 3, "trip": 3}
+	for name, want := range ground {
+		if got := ParseHitDef(map[string]string{"ground.type": name}).GroundType; got != want {
+			t.Errorf("ground.type %q = %d, want %d", name, got, want)
+		}
+	}
+	if got := ParseHitDef(map[string]string{"ground.type": "xyz", "air.type": "q"}); got.GroundType != 1 || got.AirType != 1 {
+		t.Errorf("unknown letters: GroundType=%d AirType=%d, want defaults 1 and 1", got.GroundType, got.AirType)
+	}
+}
+
+func TestParseHitDef_ClampsNegativePauseTimesToZero(t *testing.T) {
+	cases := map[string][2]int{
+		"0, -1":  {0, 0},
+		"-3, 5":  {0, 5},
+		"-2, -9": {0, 0},
+		"4, 6":   {4, 6},
+	}
+	for raw, want := range cases {
+		if got := ParseHitDef(map[string]string{"pausetime": raw}).PauseTime; got != want {
+			t.Errorf("pausetime %q = %v, want %v", raw, got, want)
+		}
+	}
+}
+
+func TestParseHitDef_ReadsIntegerValuesTheWayTheTableSays(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want int
+	}{
+		{"-1", -1},
+		{"+5", 5},
+		{" 7 ", 7},
+		{"123456789", 123456789},
+		{"1234567890", 20}, // 10 digits: not a sane tick count -> default (air.hittime 20)
+		{"", 20},
+		{"+", 20},
+		{"1x", 20},
+	}
+	for _, c := range cases {
+		got := ParseHitDef(map[string]string{"air.hittime": c.raw}).AirHitTime
+		if got != c.want {
+			t.Errorf("air.hittime %q = %d, want %d", c.raw, got, c.want)
+		}
+	}
+}
