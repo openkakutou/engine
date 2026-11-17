@@ -2,7 +2,7 @@
 
 // Command wasm is the WASM entrypoint for the engine library: thin
 // syscall/js glue exposing enough of engine's simulation loop for a
-// mode-* game app to drive a match, without a Go toolchain of its own —
+// `game` app to drive a match, without a Go toolchain of its own —
 // following character's cmd/wasm precedent (build-tag-gated, a
 // JS-callable global, verified by a Node.js smoke harness since
 // syscall/js code cannot run under the plain Go toolchain, see smoke.mjs).

@@ -4,7 +4,7 @@
 ; this repo's own kfm_idle.cns/kfm_idle.zss testdata already are (see
 ; statemachine/testdata, zssexec/testdata), not a literal downloaded file.
 ; Both fighters in the integration test load this same file (a supported
-; mirror match, per mode-quick-versus's own glossary) -- only P1's input
+; mirror match, per game's own glossary) -- only P1's input
 ; ever holds the attack button, so P2 never leaves Standing.
 
 [Statedef 0, Standing]

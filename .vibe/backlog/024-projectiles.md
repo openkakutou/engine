@@ -14,4 +14,4 @@ Support the Projectile controller: a state spawns a projectile with its own anim
 - [ ] Fixture test with a real character's fireball
 
 ## Notes
-Cross-repo: mode-quick-versus must render the new projectile data (tracked in that repo once this lands).
+Cross-repo: game must render the new projectile data (tracked in that repo once this lands).

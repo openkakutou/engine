@@ -13,4 +13,4 @@ Support the Helper controller (spawned sub-entities with their own state machine
 - [ ] A cap on live helpers and explods prevents unbounded growth, with a clear error beyond it
 
 ## Notes
-Interacts with projectiles (024) and mode-quick-versus 024; keep the per-tick report format consistent with how projectiles are exposed. Match state must remain JSON-serializable across the WASM boundary. Compat is a MUST: MUGEN 1.0/1.1 and Ikemen GO, validated against real community files.
+Interacts with projectiles (024) and game 024; keep the per-tick report format consistent with how projectiles are exposed. Match state must remain JSON-serializable across the WASM boundary. Compat is a MUST: MUGEN 1.0/1.1 and Ikemen GO, validated against real community files.

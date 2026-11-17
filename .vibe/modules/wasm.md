@@ -1,6 +1,6 @@
 # Module: wasm
 
-**Role:** `cmd/wasm` is the library's WebAssembly entrypoint: thin `syscall/js` glue exposing enough of `engine.Tick`'s simulation loop (see `modules/root.md`) and `round`'s match-flow bookkeeping (see `modules/round.md`) for a mode-* game app to drive a match, without a Go toolchain of its own. It carries no simulation logic of its own — every real behavior lives in the root `engine` package and `engine/round`, unit-tested independently; this file is JSON (de)serialization, a per-match session registry, and the JS-facing call surface.
+**Role:** `cmd/wasm` is the library's WebAssembly entrypoint: thin `syscall/js` glue exposing enough of `engine.Tick`'s simulation loop (see `modules/root.md`) and `round`'s match-flow bookkeeping (see `modules/round.md`) for the `game` app to drive a match, without a Go toolchain of its own. It carries no simulation logic of its own — every real behavior lives in the root `engine` package and `engine/round`, unit-tested independently; this file is JSON (de)serialization, a per-match session registry, and the JS-facing call surface.
 **Files:** `cmd/wasm/main.go`, `cmd/wasm/smoke.mjs`
 **Exports (JS, not Go):**
 - `globalThis.OpenKakutouEngine.newMatch(requestJSON)` — `requestJSON` a JSON string with `programs`/`starting` (indexed `[P1, P2]`), `roundTimer`, `bestOf`, `bounds`, `gravity`, `comboWindow`; returns `{ data: '{"matchId","state","progress","animations"}'|null, error: string|null }`

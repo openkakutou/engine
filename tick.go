@@ -165,7 +165,7 @@ type TickConfig struct {
 // detection; then, per fighter whose state's HitDef triggered this tick,
 // damage/combo resolution; then, per fighter, physics; then a round-outcome
 // check. This is the function the WASM entrypoint (cmd/wasm) exposes for a
-// mode-* game app to drive a match one tick at a time -- see this item's
+// `game` app to drive a match one tick at a time -- see this item's
 // own ADR for the scope this function deliberately does and does not cover.
 //
 // programs is read-only character data, loaded once per fighter outside

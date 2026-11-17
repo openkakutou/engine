@@ -5,7 +5,7 @@
 // best-of-N match. This is the last piece tying engine's per-tick
 // packages into a usable match loop -- see the root engine package's Tick
 // for how CheckOutcome fits into a full simulation tick, and cmd/wasm for
-// how a mode-* game app drives all of it.
+// how the `game` app drives all of it.
 //
 // Match-level bookkeeping (rounds won per side, best-of-N) is not carried
 // on match.MatchState itself -- that item is already closed, and this

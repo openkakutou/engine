@@ -88,8 +88,8 @@ func loadStageBounds(t *testing.T) *stage.StageBoundaries {
 // outcome -- not just individual subsystem behavior. P1 holds its attack
 // command every tick; P2 never presses anything -- a deterministic,
 // one-sided script exercising the state transition -> HitDef -> damage ->
-// KO -> round reset -> best-of-N progression loop exactly the way a mode-*
-// game app's own per-frame loop would drive it via the WASM entrypoint.
+// KO -> round reset -> best-of-N progression loop exactly the way the `game` app's
+// own per-frame loop would drive it via the WASM entrypoint.
 func TestIntegration_FullScriptedMatch_TwoRealCharactersRunsToACorrectWinCondition(t *testing.T) {
 	prog := loadFighterProgram(t)
 	bounds := loadStageBounds(t)
