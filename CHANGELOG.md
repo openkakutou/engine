@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-17
+
 ### Added
 
 - A landed hit now freezes both fighters for the hit's declared pause, and the fighter who was hit enters its standing, crouching or airborne "get hit" state, so a character's own hit-reaction states play out (shake, knock-back, recovery) using the hit's stun and slide times; missing values use MUGEN's documented defaults.
@@ -143,7 +145,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.5.1...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.6.0...HEAD
+[2.6.0]: https://github.com/openkakutou/engine/compare/v2.5.1...v2.6.0
 [2.5.1]: https://github.com/openkakutou/engine/compare/v2.5.0...v2.5.1
 [2.5.0]: https://github.com/openkakutou/engine/compare/v2.4.1...v2.5.0
 [2.4.1]: https://github.com/openkakutou/engine/compare/v2.4.0...v2.4.1
