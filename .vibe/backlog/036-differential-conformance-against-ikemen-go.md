@@ -9,7 +9,7 @@ Roadmap decision `036`: fidelity during a fight is the first goal. The conforman
 
 First establish feasibility (driving Ikemen GO with recorded inputs and dumping its state, e.g. through its debug or Lua hooks); if it is not feasible, record why in an ADR and fall back to hand-checked reference traces.
 
-🔒 MUST: MUGEN 1.0/1.1 and Ikemen GO; MUGEN's closed source cannot be traced, so MUGEN-specific divergences are checked by hand and recorded.
+🔒 MUST: MUGEN 1.0/1.1 and Ikemen GO compatibility, verified through Ikemen GO as the reference (roadmap decision `038`): no separate MUGEN check. Only characters that work in Ikemen GO are compared.
 
 ## Acceptance Criteria
 - [ ] A reference trace exists for each acceptance character's scripted sequence

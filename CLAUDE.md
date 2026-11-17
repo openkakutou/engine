@@ -18,6 +18,8 @@ English — all documentation, backlog items, code comments, and other generated
 
 Every feature and fix touching MUGEN/Ikemen GO formats or behavior must be compatible with **both MUGEN 1.0/1.1 and Ikemen GO**, extensions included, and validated against real community files — never MUGEN-only, never from memory. Where the two engines diverge, record the divergence and the chosen behavior in an ADR, and ground engine-behavior claims in a source (fixture, doc, engine source), marking anything unverified. This is an org-wide rule (`roadmap/repos.md`), already settled: do not ask the user whether it applies, and carry it as a 🔒 MUST in every need framing, implementer prompt and review.
 
+**Reference for verification:** Ikemen GO, which itself targets MUGEN compatibility. Behavior is checked against Ikemen GO (its source, and end-to-end differential tests running the same content in both, roadmap decision `038`), never by a separate MUGEN check. This applies to content that works in Ikemen GO (characters, stages, lifebars); OpenKakutou-only extensions (e.g. 3D characters, decision `028`) have no reference and are exempt.
+
 ## Scope of this repo <!-- keep -->
 
 `engine` is combat simulation only — the simulation that runs while two characters fight:
