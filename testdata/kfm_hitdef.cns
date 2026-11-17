@@ -12,8 +12,7 @@
 ; trigger "AnimElem = 3" (unsupported, backlog 028) is replaced by "Time = 0".
 ; Parameters irrelevant to this item (sparkno, sparkxy, hitsound, guardsound,
 ; guardflag, hitflag, priority, *.velocity, airguard.velocity) are omitted.
-; "damage = 23, 0" is kept as in the source: the two-value form is not parsed
-; yet (backlog 033), so the engine applies its default damage today.
+; "damage = 23, 0" is kept as in the source (hit damage, guard damage).
 
 [Statedef 200, Attack]
 type            = S

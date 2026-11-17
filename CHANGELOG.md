@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- A hit whose damage is written with two values (hit damage and guard damage, the usual form in real characters such as Kung Fu Man) now deals its hit damage instead of none; the guard damage is kept for blocking.
+
 ## [2.6.0] - 2026-11-17
 
 ### Added

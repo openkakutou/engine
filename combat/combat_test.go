@@ -434,3 +434,34 @@ func TestParseHitDef_ReadsIntegerValuesTheWayTheTableSays(t *testing.T) {
 		}
 	}
 }
+
+func TestApplyHits_TwoValueDamage_AppliesHitDamageAndKeepsGuardDamage(t *testing.T) {
+	cases := []struct {
+		raw        string
+		wantDamage int
+		wantGuard  int
+	}{
+		{"23, 0", 23, 0},
+		{"23,5", 23, 5},
+		{" 40 , 12 ", 40, 12},
+		{"15", 15, 0},
+		{"15,", 15, 0},
+		{"", 0, 0},
+		{"x, 7", 0, 7},
+	}
+	for _, c := range cases {
+		state := newTestState(t, 1000, 1000)
+		events := []hitdetect.HitEvent{{Attacker: match.SideP1, Defender: match.SideP2}}
+
+		newState, _, result := ApplyHits(
+			state, events, match.SideP1, hitDefWithDamage(c.raw), ComboState{}, 1, 60,
+		)
+
+		if result.Damage != c.wantDamage || result.GuardDamage != c.wantGuard {
+			t.Errorf("damage %q: Damage/GuardDamage = %d/%d, want %d/%d", c.raw, result.Damage, result.GuardDamage, c.wantDamage, c.wantGuard)
+		}
+		if got := newState.Fighter(match.SideP2).Health; got != 1000-c.wantDamage {
+			t.Errorf("damage %q: defender health = %d, want %d", c.raw, got, 1000-c.wantDamage)
+		}
+	}
+}

@@ -571,3 +571,13 @@ func TestTick_Trade_EachFighterGetsItsOwnPauseTimeAndGetHitState(t *testing.T) {
 		t.Errorf("P2 HitPause/HitShakeTime/StateNo = %d/%d/%d, want 7/6/5000", p2.HitPause, p2.Context.GetHit.HitShakeTime, p2.Context.StateNo)
 	}
 }
+
+func TestTick_LandedHit_WithKfmTwoValueDamage_TakesTheHitDamageOffTheDefender(t *testing.T) {
+	s := newHitScenario(t, nil) // kfm_hitdef.cns: "damage = 23, 0"
+
+	res := s.step()
+
+	if got := res.State.Fighter(match.SideP2).Health; got != 1000-23 {
+		t.Fatalf("defender health = %d, want %d (kfm HitDef damage = 23, 0)", got, 1000-23)
+	}
+}

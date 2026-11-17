@@ -66,9 +66,11 @@ type ComboState struct {
 // other field its zero value, when no event in that call matched the
 // attacking side.
 type HitResult struct {
-	Hit          bool
-	Defender     match.Side
-	Damage       int
+	Hit      bool
+	Defender match.Side
+	Damage   int
+	// GuardDamage is the HitDef's second damage value, kept for guarding.
+	GuardDamage  int
 	HealthBefore int
 	HealthAfter  int
 	ComboCount   int
@@ -104,7 +106,7 @@ func ApplyHits(
 		return state, combo, HitResult{}
 	}
 
-	damage := parseDamage(hitDef)
+	damage, guardDamage := parseDamage(hitDef)
 
 	defenderState := state.Fighter(defender)
 	healthBefore := defenderState.Health
@@ -121,6 +123,7 @@ func ApplyHits(
 		Hit:          true,
 		Defender:     defender,
 		Damage:       damage,
+		GuardDamage:  guardDamage,
 		HealthBefore: healthBefore,
 		HealthAfter:  healthAfter,
 		ComboCount:   newCombo.Count,
@@ -148,11 +151,24 @@ func findLandedHit(events []hitdetect.HitEvent, attacker match.Side) (match.Side
 	return 0, false
 }
 
-// parseDamage reads hitDef's Damage field as an integer, falling back to
-// DefaultDamage when it's empty (the parameter was missing) or not a valid
-// integer.
-func parseDamage(hitDef DamageParams) int {
-	value, err := strconv.Atoi(strings.TrimSpace(hitDef.Damage))
+// parseDamage reads hitDef's Damage field as "hit[, guard]" (MUGEN 1.1 and
+// Ikemen GO). Each value that is missing or not a valid integer falls back
+// to DefaultDamage independently, so "15" and "15," give guard damage 0.
+func parseDamage(hitDef DamageParams) (hit, guard int) {
+	first, second := hitDef.Damage, ""
+	if i := strings.IndexByte(first, ','); i >= 0 {
+		first, second = first[:i], first[i+1:]
+	}
+	return atoiOrDefaultDamage(first), atoiOrDefaultDamage(second)
+}
+
+func atoiOrDefaultDamage(raw string) int {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		// Atoi allocates its error: keep the hit path allocation-free.
+		return DefaultDamage
+	}
+	value, err := strconv.Atoi(raw)
 	if err != nil {
 		return DefaultDamage
 	}
