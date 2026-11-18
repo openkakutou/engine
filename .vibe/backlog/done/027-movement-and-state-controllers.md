@@ -1,11 +1,11 @@
 ---
-status: todo
+status: done
 depends_on: [030, 037]
 ---
 # Movement And State Controllers
 
 ## Description
-Implement the controllers every character relies on to move and change state: VelSet, VelAdd, VelMul, PosSet, PosAdd, ChangeAnim, CtrlSet, StateTypeSet, MoveTypeSet, Turn, LifeAdd, LifeSet, Gravity-related physics flags, Null. Unsupported types must still fail loudly, not silently do nothing.
+Implement the controllers every character relies on to move and change state: VelSet, VelAdd, VelMul, PosSet, PosAdd, ChangeAnim, CtrlSet, StateTypeSet, Turn, LifeAdd, LifeSet, Gravity-related physics flags, Null. Unsupported types must still fail loudly, not silently do nothing.
 
 ## Acceptance Criteria
 - [ ] A state with VelSet or PosAdd changes the fighter's velocity/position on the tick its triggers hold
@@ -17,3 +17,6 @@ Implement the controllers every character relies on to move and change state: Ve
 ## Notes
 Engine currently implements only ChangeState, VarSet, PowerAdd and PlaySnd (docs/architecture.md), so real characters cannot yet play out. Item 012 (registry dispatch) is blocked: prefer building on its registry, or extend the existing RegisterController map. Feeds roadmap 013 (combat-completeness milestone). Compat is a MUST: MUGEN 1.0/1.1 and Ikemen GO, validated against real community files.
 Combat-completeness milestone, step order in roadmap decision `036`.
+
+
+MoveTypeSet was listed here originally but does not exist in Ikemen GO (`src/compiler.go` has no such controller); StateTypeSet sets the move type (ADR 020).
