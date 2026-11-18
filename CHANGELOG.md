@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-11-18
+
 ### Added
 - Characters written in `.zss`, or mixing `.cns` and `.zss` states, now play in a match: a single state table as in Ikemen GO, `ignoreHitPause` blocks running during a hit pause, and calls that do nothing reported each tick (also in the WebAssembly response). The conformance harness now runs `.zss` characters too.
 
@@ -199,7 +201,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.12.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.13.0...HEAD
+[2.13.0]: https://github.com/openkakutou/engine/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/openkakutou/engine/compare/v2.11.1...v2.12.0
 [2.11.1]: https://github.com/openkakutou/engine/compare/v2.11.0...v2.11.1
 [2.11.0]: https://github.com/openkakutou/engine/compare/v2.10.0...v2.11.0
