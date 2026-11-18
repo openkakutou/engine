@@ -88,6 +88,32 @@ func Evaluate(expr string, ctx Context) (Value, error) {
 	return e.Eval(ctx)
 }
 
+// EvaluateMut is Evaluate through EvalMut: it may advance ctx.RandSeed.
+func EvaluateMut(expr string, ctx *Context) (Value, error) {
+	e, err := cachedParse(expr)
+	if err != nil {
+		return Value{}, err
+	}
+	return e.EvalMut(ctx)
+}
+
+// shortCircuitParseCache is parseCache for ParseShortCircuit.
+var shortCircuitParseCache = make(map[string]*Expression)
+
+// EvaluateMutShortCircuit is EvaluateMut for a .zss expression, parsed by
+// ParseShortCircuit.
+func EvaluateMutShortCircuit(expr string, ctx *Context) (Value, error) {
+	e, ok := shortCircuitParseCache[expr]
+	if !ok {
+		var err error
+		if e, err = ParseShortCircuit(expr); err != nil {
+			return Value{}, err
+		}
+		shortCircuitParseCache[expr] = e
+	}
+	return e.EvalMut(ctx)
+}
+
 // cachedParse is Parse behind parseCache.
 func cachedParse(expr string) (*Expression, error) {
 	e, ok := parseCache[expr]
@@ -166,7 +192,13 @@ func collectTriggerNames(n node, names *[]TriggerName, seen map[TriggerName]bool
 		}
 	case unaryNode:
 		collectTriggerNames(tn.operand, names, seen)
+	case componentNode:
+		add(TriggerName{Name: tn.name})
 	case binaryNode:
+		if trigger, _, ok := typeComparison(tn); ok {
+			add(TriggerName{Name: trigger})
+			return
+		}
 		collectTriggerNames(tn.left, names, seen)
 		collectTriggerNames(tn.right, names, seen)
 	}
@@ -180,16 +212,17 @@ func collectTriggerNames(n node, names *[]TriggerName, seen map[TriggerName]bool
 // through evalGetHitVar: known when it handles the variable.
 func IsKnownTrigger(name string, call bool) bool {
 	var err error
+	probe := &Context{}
 	if variable, ok := strings.CutPrefix(name, "gethitvar("); ok && !call {
 		variable = strings.TrimSuffix(variable, ")")
-		_, err = evalGetHitVar(callNode{name: "gethitvar", args: []node{identifierNode{name: variable}}}, Context{})
+		_, err = evalGetHitVar(callNode{name: "gethitvar", args: []node{identifierNode{name: variable}}}, probe)
 		var unknown *unknownGetHitVarError
 		return !errors.As(err, &unknown)
 	}
 	if call {
-		_, err = evalCall(callNode{name: name}, Context{})
+		_, err = evalCall(callNode{name: name}, probe)
 	} else {
-		_, err = evalIdentifier(name, Context{})
+		_, err = evalIdentifier(name, probe)
 	}
 	var ute *UnknownTriggerError
 	return !errors.As(err, &ute)
@@ -201,10 +234,18 @@ func IsKnownTrigger(name string, call bool) bool {
 // function, uses a value in an unsupported way (e.g. a bare string
 // literal), or hits a runtime error such as an out-of-range var() index.
 func (e *Expression) Eval(ctx Context) (Value, error) {
+	return evalNode(e.root, &ctx)
+}
+
+// EvalMut is Eval for a caller that keeps ctx: evaluating Random advances
+// ctx.RandSeed, as Ikemen GO's shared generator advances on every draw, so
+// the caller threads the seed on by passing the same ctx to the next call.
+// Eval works on a copy and leaves the caller's seed untouched.
+func (e *Expression) EvalMut(ctx *Context) (Value, error) {
 	return evalNode(e.root, ctx)
 }
 
-func evalNode(n node, ctx Context) (Value, error) {
+func evalNode(n node, ctx *Context) (Value, error) {
 	switch tn := n.(type) {
 	case numberNode:
 		if tn.isFloat {
@@ -221,6 +262,9 @@ func evalNode(n node, ctx Context) (Value, error) {
 	case callNode:
 		return evalCall(tn, ctx)
 
+	case componentNode:
+		return evalComponent(tn, ctx)
+
 	case unaryNode:
 		return evalUnary(tn, ctx)
 
@@ -232,7 +276,7 @@ func evalNode(n node, ctx Context) (Value, error) {
 	}
 }
 
-func evalIdentifier(name string, ctx Context) (Value, error) {
+func evalIdentifier(name string, ctx *Context) (Value, error) {
 	switch name {
 	case "time":
 		return intValue(float64(ctx.Time)), nil
@@ -250,12 +294,19 @@ func evalIdentifier(name string, ctx Context) (Value, error) {
 		return boolValue(!ctx.GetHit.Active || ctx.GetHit.HitTime < 0), nil
 	case "command":
 		return Value{}, fmt.Errorf(`evaluator: Command must be compared to a quoted command name, e.g. Command = "holdback"`)
+	case "statetype", "movetype":
+		return Value{}, fmt.Errorf("evaluator: %s must be compared to a state letter, e.g. StateType = S", name)
+	case "pos", "vel":
+		return Value{}, fmt.Errorf("evaluator: %s needs an axis, e.g. %s X", name, name)
 	default:
+		if v, ok, err := evalFighterTrigger(name, ctx); ok {
+			return v, err
+		}
 		return Value{}, &UnknownTriggerError{Name: name}
 	}
 }
 
-func evalCall(n callNode, ctx Context) (Value, error) {
+func evalCall(n callNode, ctx *Context) (Value, error) {
 	switch n.name {
 	case "var":
 		return evalIndexedVar(n, ctx, "var", ctx.Vars[:])
@@ -267,15 +318,29 @@ func evalCall(n callNode, ctx Context) (Value, error) {
 		if len(n.args) != 3 {
 			return Value{}, fmt.Errorf("evaluator: IfElse() expects 3 arguments, got %d", len(n.args))
 		}
+		// All three arguments are evaluated, in order, before one is chosen,
+		// as Ikemen GO compiles IfElse (compiler.go:1852-1886): a Random in
+		// the branch not taken still draws.
 		cond, err := evalNode(n.args[0], ctx)
 		if err != nil {
 			return Value{}, err
 		}
-		if cond.Bool() {
-			return evalNode(n.args[1], ctx)
+		then, err := evalNode(n.args[1], ctx)
+		if err != nil {
+			return Value{}, err
 		}
-		return evalNode(n.args[2], ctx)
+		otherwise, err := evalNode(n.args[2], ctx)
+		if err != nil {
+			return Value{}, err
+		}
+		if cond.Bool() {
+			return then, nil
+		}
+		return otherwise, nil
 	default:
+		if v, ok, err := evalFighterCall(n, ctx); ok {
+			return v, err
+		}
 		return Value{}, &UnknownTriggerError{Name: n.name, Call: true}
 	}
 }
@@ -291,7 +356,7 @@ func (e *unknownGetHitVarError) Error() string {
 	return fmt.Sprintf("evaluator: GetHitVar: unknown variable %q", e.name)
 }
 
-func evalGetHitVar(n callNode, ctx Context) (Value, error) {
+func evalGetHitVar(n callNode, ctx *Context) (Value, error) {
 	if len(n.args) != 1 {
 		return Value{}, fmt.Errorf("evaluator: GetHitVar() expects 1 argument, got %d", len(n.args))
 	}
@@ -318,7 +383,7 @@ func evalGetHitVar(n callNode, ctx Context) (Value, error) {
 	}
 }
 
-func evalIndexedVar(n callNode, ctx Context, fnName string, slot []int) (Value, error) {
+func evalIndexedVar(n callNode, ctx *Context, fnName string, slot []int) (Value, error) {
 	if len(n.args) != 1 {
 		return Value{}, fmt.Errorf("evaluator: %s() expects 1 argument, got %d", fnName, len(n.args))
 	}
@@ -333,7 +398,7 @@ func evalIndexedVar(n callNode, ctx Context, fnName string, slot []int) (Value, 
 	return intValue(float64(slot[idx])), nil
 }
 
-func evalUnary(n unaryNode, ctx Context) (Value, error) {
+func evalUnary(n unaryNode, ctx *Context) (Value, error) {
 	operand, err := evalNode(n.operand, ctx)
 	if err != nil {
 		return Value{}, err
@@ -351,8 +416,11 @@ func evalUnary(n unaryNode, ctx Context) (Value, error) {
 	}
 }
 
-func evalBinary(n binaryNode, ctx Context) (Value, error) {
+func evalBinary(n binaryNode, ctx *Context) (Value, error) {
 	if n.op == "=" || n.op == "!=" {
+		if v, ok, err := evalTypeComparison(n, ctx); ok {
+			return v, err
+		}
 		if cmdName, ok := commandComparisonTarget(n); ok {
 			active := ctx.ActiveCommands[cmdName]
 			if n.op == "!=" {
@@ -365,6 +433,16 @@ func evalBinary(n binaryNode, ctx Context) (Value, error) {
 	left, err := evalNode(n.left, ctx)
 	if err != nil {
 		return Value{}, err
+	}
+	// A CNS trigger evaluates both operands of && and || (Ikemen GO
+	// compiles them as OC_bland/OC_blor inside a state controller,
+	// compiler.go:6042-6045, 6086-6090), so a Random on the right draws
+	// even when the left decides; a .zss expression stops early.
+	if n.shortCircuit && n.op == "&&" && !left.Bool() {
+		return boolValue(false), nil
+	}
+	if n.shortCircuit && n.op == "||" && left.Bool() {
+		return boolValue(true), nil
 	}
 	right, err := evalNode(n.right, ctx)
 	if err != nil {

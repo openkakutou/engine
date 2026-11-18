@@ -1,0 +1,225 @@
+package evaluator
+
+import (
+	"fmt"
+	"math"
+	"strings"
+
+	"github.com/openkakutou/engine/match"
+)
+
+// axisTriggers are the triggers written with an axis letter ("Pos Y").
+var axisTriggers = map[string]bool{"pos": true, "vel": true}
+
+// randomMax is Ikemen GO's IMax (common.go), the generator's modulus.
+const randomMax = 2147483647
+
+// evalFighterTrigger evaluates the argument-free triggers that read only the
+// fighter itself and the match it is in. ok is false when name is not one of
+// them. Grounded in Ikemen GO's bytecode.go (commit 54d4148a) at the
+// OC_life, OC_power, OC_alive, OC_facing, OC_prevstateno, OC_roundstate,
+// OC_ex_roundno and OC_random cases.
+func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error) {
+	switch name {
+	case "life":
+		return intValue(float64(ctx.Health)), true, nil
+	case "power":
+		return intValue(float64(ctx.Power)), true, nil
+	case "alive":
+		// shortcut: Ikemen GO reads its KO flag, set when life reaches 0;
+		// health > 0 is the same until KO handling (item 026 area) exists.
+		return boolValue(ctx.Health > 0), true, nil
+	case "facing":
+		if ctx.Facing == match.FacingRight {
+			return intValue(1), true, nil
+		}
+		return intValue(-1), true, nil
+	case "prevstateno":
+		return intValue(float64(ctx.PrevStateNo)), true, nil
+	case "roundno":
+		return intValue(float64(ctx.Round)), true, nil
+	case "roundstate":
+		// shortcut: Tick only runs while the round is being fought, which is
+		// Ikemen GO's roundstate 2; pre-intro, over and post states return
+		// when the round flow models them.
+		return intValue(2), true, nil
+	case "ishelper":
+		// The engine has no helpers yet, so every fighter is a player.
+		return boolValue(false), true, nil
+	case "random":
+		return intValue(float64(drawRandom(ctx))), true, nil
+	}
+	return Value{}, false, nil
+}
+
+// drawRandom advances ctx.RandSeed one step of Ikemen GO's generator
+// (common.go Random: Park-Miller with Schrage's method) and returns
+// Rand(0, 999).
+func drawRandom(ctx *Context) int32 {
+	seed := ctx.RandSeed
+	w := seed / 127773
+	seed = (seed-w*127773)*16807 - w*2836
+	if seed <= 0 {
+		seed += randomMax
+		if seed == randomMax { // the seed was 0
+			seed--
+		}
+	}
+	ctx.RandSeed = seed
+	return seed / (randomMax/1000 + 1)
+}
+
+// evalComponent evaluates "Pos X/Y/Z" and "Vel X/Y/Z".
+func evalComponent(n componentNode, ctx *Context) (Value, error) {
+	var x, y float64
+	switch n.name {
+	case "pos":
+		x, y = ctx.Position.X, ctx.Position.Y
+	case "vel":
+		// Vel X is relative to facing: positive is forward. The engine's
+		// Velocity.X is in world space; Ikemen GO moves by vel[0]*facing
+		// (char.go:10109), so Vel X is the world value times the facing sign.
+		x, y = ctx.Velocity.X, ctx.Velocity.Y
+		if ctx.Facing == match.FacingLeft {
+			x = -x
+		}
+	default:
+		return Value{}, &UnknownTriggerError{Name: n.name}
+	}
+	switch n.axis {
+	case 'x':
+		return floatValue(x), nil
+	case 'y':
+		// MUGEN's Y axis points down, the engine's up (match.Position): a
+		// fighter above the ground has a negative Pos Y.
+		return floatValue(-y), nil
+	default:
+		return Value{}, fmt.Errorf("evaluator: %s Z is not supported: fighters have no depth", n.name)
+	}
+}
+
+// evalFighterCall evaluates the function-style triggers: the math functions
+// and IsHelper(...). ok is false when n.name is not one of them.
+func evalFighterCall(n callNode, ctx *Context) (v Value, ok bool, err error) {
+	switch n.name {
+	case "ishelper":
+		return boolValue(false), true, nil
+	case "abs":
+		return evalUnaryMath(n, ctx, func(a Value) (Value, error) {
+			if a.Kind == KindFloat {
+				return floatValue(math.Abs(a.Number)), nil
+			}
+			return intValue(math.Abs(a.Number)), nil
+		})
+	case "floor":
+		return evalUnaryMath(n, ctx, func(a Value) (Value, error) { return roundedInt(a, math.Floor), nil })
+	case "ceil":
+		return evalUnaryMath(n, ctx, func(a Value) (Value, error) { return roundedInt(a, math.Ceil), nil })
+	case "sin":
+		return evalUnaryMath(n, ctx, floatFn(math.Sin))
+	case "cos":
+		return evalUnaryMath(n, ctx, floatFn(math.Cos))
+	case "tan":
+		return evalUnaryMath(n, ctx, floatFn(math.Tan))
+	case "asin":
+		return evalUnaryMath(n, ctx, floatFn(math.Asin))
+	case "acos":
+		return evalUnaryMath(n, ctx, floatFn(math.Acos))
+	case "atan":
+		return evalUnaryMath(n, ctx, floatFn(math.Atan))
+	case "exp":
+		return evalUnaryMath(n, ctx, floatFn(math.Exp))
+	case "ln":
+		return evalUnaryMath(n, ctx, func(a Value) (Value, error) {
+			if a.Number <= 0 {
+				return Value{}, fmt.Errorf("evaluator: Ln(%v): invalid logarithm", a.Number)
+			}
+			return floatValue(float64(float32(math.Log(a.Number)))), nil
+		})
+	case "log":
+		return evalLog(n, ctx)
+	}
+	return Value{}, false, nil
+}
+
+// floatFn lifts a float64 function to a Value function with Ikemen GO's
+// float32 result (BytecodeExp.sin and friends call SetF(float32(...))).
+func floatFn(f func(float64) float64) func(Value) (Value, error) {
+	return func(a Value) (Value, error) { return floatValue(float64(float32(f(a.Number)))), nil }
+}
+
+// roundedInt is Floor/Ceil: a float rounds to an int, an int stays.
+func roundedInt(a Value, round func(float64) float64) Value {
+	if a.Kind == KindFloat {
+		return intValue(round(a.Number))
+	}
+	return a
+}
+
+func evalUnaryMath(n callNode, ctx *Context, f func(Value) (Value, error)) (Value, bool, error) {
+	if len(n.args) != 1 {
+		return Value{}, true, fmt.Errorf("evaluator: %s() expects 1 argument, got %d", n.name, len(n.args))
+	}
+	a, err := evalNode(n.args[0], ctx)
+	if err != nil {
+		return Value{}, true, err
+	}
+	v, err := f(a)
+	return v, true, err
+}
+
+// evalLog is Log(a, b): the logarithm of b in base a (BytecodeExp.log).
+func evalLog(n callNode, ctx *Context) (Value, bool, error) {
+	if len(n.args) != 2 {
+		return Value{}, true, fmt.Errorf("evaluator: Log() expects 2 arguments, got %d", len(n.args))
+	}
+	base, err := evalNode(n.args[0], ctx)
+	if err != nil {
+		return Value{}, true, err
+	}
+	arg, err := evalNode(n.args[1], ctx)
+	if err != nil {
+		return Value{}, true, err
+	}
+	if base.Number <= 0 || arg.Number <= 0 {
+		return Value{}, true, fmt.Errorf("evaluator: Log(%v, %v): invalid logarithm", base.Number, arg.Number)
+	}
+	return floatValue(float64(float32(math.Log(arg.Number) / math.Log(base.Number)))), true, nil
+}
+
+// typeComparison recognizes "StateType = S" and "MoveType != H": a state or
+// move type trigger compared to a bare letter. It returns the trigger name,
+// the letter upper-cased, and true only for exactly that form.
+func typeComparison(n binaryNode) (trigger string, letter string, ok bool) {
+	if n.op != "=" && n.op != "!=" {
+		return "", "", false
+	}
+	id, ok := n.left.(identifierNode)
+	if !ok || (id.name != "statetype" && id.name != "movetype") {
+		return "", "", false
+	}
+	l, ok := n.right.(identifierNode)
+	if !ok || len(l.name) != 1 {
+		return "", "", false
+	}
+	return id.name, strings.ToUpper(l.name), true
+}
+
+func evalTypeComparison(n binaryNode, ctx *Context) (Value, bool, error) {
+	trigger, letter, ok := typeComparison(n)
+	if !ok {
+		return Value{}, false, nil
+	}
+	valid, current := "SCAL", ctx.StateType
+	if trigger == "movetype" {
+		valid, current = "IAH", ctx.MoveType
+	}
+	if !strings.Contains(valid, letter) {
+		return Value{}, true, fmt.Errorf("evaluator: %s cannot be compared to %q (expected one of %s)", trigger, letter, valid)
+	}
+	same := current == letter[0]
+	if n.op == "!=" {
+		same = !same
+	}
+	return boolValue(same), true, nil
+}

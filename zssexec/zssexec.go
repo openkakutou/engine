@@ -194,7 +194,7 @@ func execStmts(stmts []stmt, ctx *evaluator.Context, prog CompiledScript, exists
 func execStmt(s stmt, ctx *evaluator.Context, prog CompiledScript, exists func(int) bool, depth int) (bool, error) {
 	switch st := s.(type) {
 	case ifStmt:
-		v, err := evaluator.Evaluate(st.cond, *ctx)
+		v, err := evaluator.EvaluateMutShortCircuit(st.cond, ctx)
 		if err != nil {
 			return false, fmt.Errorf("evaluating if condition %q: %w", st.cond, err)
 		}

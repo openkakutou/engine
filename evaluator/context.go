@@ -62,6 +62,22 @@ type Context struct {
 	// statemachine.Result alone, because ApplyController's only mutable
 	// output channel is *Context.
 	Sounds []SoundEvent
+	// StateType and MoveType are the fighter's current state type (S, C, A
+	// or L) and move type (I, A or H) as upper-case letters, read by the
+	// StateType and MoveType triggers. Zero until the fighter has entered a
+	// state that declares one; a state that declares none leaves the
+	// previous value (MUGEN's "unchanged").
+	StateType, MoveType byte
+	// PrevStateNo is the number of the state the fighter was in before its
+	// current one (0 before any change).
+	PrevStateNo int
+	// Round is the number of the round being fought, read by RoundNo.
+	Round int
+	// RandSeed is the state of the match's random generator, which both
+	// fighters share: Ikemen GO draws Random from one global seed. The
+	// caller loads it from match state before evaluating a fighter and
+	// stores it back afterwards; EvalMut advances it.
+	RandSeed int32
 	// GetHit is the hit the fighter most recently took, as the engine
 	// recorded it when the hit landed (see .vibe/decisions/018). Its zero
 	// value is "no hit taken yet".

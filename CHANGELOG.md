@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Characters' conditions can now read the fighter's own life, power, facing, position, velocity, state type, move type, previous state, round number and whether it is alive or a helper, draw `Random` numbers, and use the usual math functions; `Random` follows Ikemen GO's generator from a seed kept in the match, so the same seed and inputs replay the same match.
+
 ## [2.8.0] - 2026-11-18
 
 ### Added

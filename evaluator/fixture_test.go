@@ -58,6 +58,7 @@ func TestEval_RealTriggerStringsFromCNSFixture_EvaluateToExpectedValues(t *testi
 		AnimTime:       0,
 		Ctrl:           true,
 		ActiveCommands: map[string]bool{"holdback": true},
+		StateType:      'S',
 	}
 
 	wantTrue := map[string]bool{
@@ -70,13 +71,14 @@ func TestEval_RealTriggerStringsFromCNSFixture_EvaluateToExpectedValues(t *testi
 		`var(0) = 0`:             true,
 		`sysvar(0) != 1`:         true,
 		`IfElse(Ctrl, 1, 0) = 1`: true,
+		`StateType != A`:         true,
 	}
 
 	evaluated := 0
 	for _, trig := range triggers {
 		want, known := wantTrue[trig]
 		if !known {
-			continue // StateType != A is asserted separately below
+			continue
 		}
 		got, err := Evaluate(trig, ctx)
 		if err != nil {
@@ -90,23 +92,5 @@ func TestEval_RealTriggerStringsFromCNSFixture_EvaluateToExpectedValues(t *testi
 	}
 	if evaluated != len(wantTrue) {
 		t.Fatalf("evaluated %d of the %d expected fixture triggers -- fixture extraction likely missed a line", evaluated, len(wantTrue))
-	}
-}
-
-func TestEval_RealUnsupportedTriggerFromCNSFixture_ReturnsDescriptiveError(t *testing.T) {
-	triggers := extractTriggerStrings(t, "testdata/kfm_triggers.cns")
-
-	found := false
-	for _, trig := range triggers {
-		if trig != "StateType != A" {
-			continue
-		}
-		found = true
-		if _, err := Evaluate(trig, Context{}); err == nil {
-			t.Errorf("Evaluate(%q) expected a descriptive error for an unsupported real trigger name, got nil", trig)
-		}
-	}
-	if !found {
-		t.Fatal(`fixture is expected to contain the real, unsupported trigger "StateType != A"`)
 	}
 }

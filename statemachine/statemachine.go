@@ -124,7 +124,7 @@ func StepState(ctx evaluator.Context, number int, states map[int]cns.StateDef) (
 	var applied []int
 
 	for i, ctrl := range def.Controllers {
-		pass, err := triggersPass(ctrl.Triggers, working)
+		pass, err := triggersPass(ctrl.Triggers, &working)
 		if err != nil {
 			return Result{}, fmt.Errorf("statemachine: state %d controller %d (%s): evaluating triggers: %w", number, i, ctrl.Type, err)
 		}
@@ -151,9 +151,9 @@ func StepState(ctx evaluator.Context, number int, states map[int]cns.StateDef) (
 // evaluates true against ctx (logical AND across the flat list -- see the
 // package doc comment). A nil or empty triggers list is unconditional and
 // always passes.
-func triggersPass(triggers []string, ctx evaluator.Context) (bool, error) {
+func triggersPass(triggers []string, ctx *evaluator.Context) (bool, error) {
 	for _, trig := range triggers {
-		v, err := evaluator.Evaluate(trig, ctx)
+		v, err := evaluator.EvaluateMut(trig, ctx)
 		if err != nil {
 			return false, err
 		}
@@ -261,7 +261,7 @@ func applyChangeState(ctrl cns.Controller, ctx *evaluator.Context, exists func(i
 	if !ok {
 		return fmt.Errorf(`ChangeState is missing its required "value" parameter`)
 	}
-	v, err := evaluator.Evaluate(raw, *ctx)
+	v, err := evaluator.EvaluateMut(raw, ctx)
 	if err != nil {
 		return fmt.Errorf("ChangeState value %q: %w", raw, err)
 	}
@@ -270,6 +270,7 @@ func applyChangeState(ctrl cns.Controller, ctx *evaluator.Context, exists func(i
 		return fmt.Errorf("ChangeState targets state %d, which does not exist in the loaded character", target)
 	}
 
+	ctx.PrevStateNo = ctx.StateNo
 	ctx.StateNo = target
 	ctx.Time = 0
 	return nil
@@ -280,7 +281,7 @@ func applyVarSet(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 	if !ok {
 		return evaluator.Context{}, fmt.Errorf(`VarSet is missing its required "v" parameter`)
 	}
-	idxVal, err := evaluator.Evaluate(idxRaw, ctx)
+	idxVal, err := evaluator.EvaluateMut(idxRaw, &ctx)
 	if err != nil {
 		return evaluator.Context{}, fmt.Errorf("VarSet v %q: %w", idxRaw, err)
 	}
@@ -290,7 +291,7 @@ func applyVarSet(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 	if !ok {
 		return evaluator.Context{}, fmt.Errorf(`VarSet is missing its required "value" parameter`)
 	}
-	val, err := evaluator.Evaluate(valRaw, ctx)
+	val, err := evaluator.EvaluateMut(valRaw, &ctx)
 	if err != nil {
 		return evaluator.Context{}, fmt.Errorf("VarSet value %q: %w", valRaw, err)
 	}
@@ -313,7 +314,7 @@ func applyPowerAdd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Contex
 	if !ok {
 		return evaluator.Context{}, fmt.Errorf(`PowerAdd is missing its required "value" parameter`)
 	}
-	v, err := evaluator.Evaluate(raw, ctx)
+	v, err := evaluator.EvaluateMut(raw, &ctx)
 	if err != nil {
 		return evaluator.Context{}, fmt.Errorf("PowerAdd value %q: %w", raw, err)
 	}
@@ -379,11 +380,11 @@ func applyPlaySnd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context
 		return evaluator.Context{}, err
 	}
 
-	groupVal, err := evaluator.Evaluate(parts[0], ctx)
+	groupVal, err := evaluator.EvaluateMut(parts[0], &ctx)
 	if err != nil {
 		return evaluator.Context{}, fmt.Errorf("PlaySnd value group %q: %w", parts[0], err)
 	}
-	sampleVal, err := evaluator.Evaluate(parts[1], ctx)
+	sampleVal, err := evaluator.EvaluateMut(parts[1], &ctx)
 	if err != nil {
 		return evaluator.Context{}, fmt.Errorf("PlaySnd value sample %q: %w", parts[1], err)
 	}

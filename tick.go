@@ -107,18 +107,9 @@ func NewFighterRuntime(fighter match.FighterState, states map[int]cns.StateDef) 
 		return FighterRuntime{}, fmt.Errorf("engine: NewFighterRuntime: state %d not found in loaded character", fighter.StateNo)
 	}
 
-	anim := def.Anim
-	if anim == 0 {
-		anim = fighter.StateNo
-	}
-
-	return FighterRuntime{
-		Context: evaluator.Context{
-			FighterState: fighter,
-			Anim:         anim,
-			Ctrl:         def.Ctrl,
-		},
-	}, nil
+	ctx := evaluator.Context{FighterState: fighter}
+	enterState(&ctx, def)
+	return FighterRuntime{Context: ctx}, nil
 }
 
 // TickResult is the outcome of one Tick call: the updated MatchState, both
@@ -184,14 +175,19 @@ func Tick(
 	inputs [2]input.TickInput,
 	cfg TickConfig,
 ) (TickResult, error) {
-	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), inputs[match.SideP1], cfg.Tick)
+	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), inputs[match.SideP1], cfg.Tick, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
 	}
-	p2Out, err := tickFighter(programs[match.SideP2], runtimes[match.SideP2], state.Fighter(match.SideP2), inputs[match.SideP2], cfg.Tick)
+	// Both fighters draw Random from one sequence, P1 first, as Ikemen GO's
+	// single seed is advanced in player order; the seed rides in match state.
+	state.RandSeed = p1Out.Runtime.Context.RandSeed
+	p2Out, err := tickFighter(programs[match.SideP2], runtimes[match.SideP2], state.Fighter(match.SideP2), inputs[match.SideP2], cfg.Tick, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
 	}
+
+	state.RandSeed = p2Out.Runtime.Context.RandSeed
 
 	var frames [2]air.Frame
 	frames[match.SideP1] = p1Out.Frame
@@ -293,9 +289,11 @@ var specialStates = [...]int{-3, -2, -1}
 // of this tick (position/facing/health, sourced from match.MatchState, the
 // single source of truth Tick reconciles runtime.Context against every
 // call).
-func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.FighterState, in input.TickInput, tick int) (fighterTickOutput, error) {
+func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.FighterState, in input.TickInput, tick, round int, seed int32) (fighterTickOutput, error) {
 	ctx := runtime.Context
 	ctx.FighterState = fighter
+	ctx.Round = round
+	ctx.RandSeed = seed
 
 	newInputState, active := input.Step(runtime.Input, tick, fighter.Facing, in, prog.Commands)
 	ctx.ActiveCommands = active
@@ -408,6 +406,15 @@ func enterState(ctx *evaluator.Context, def cns.StateDef) {
 	}
 	ctx.AnimTime = 0
 	ctx.Ctrl = def.Ctrl
+	// A state type or move type of U, or one that is not a known letter,
+	// leaves the previous one in place (Ikemen GO bytecode.go
+	// StateBytecode.init); an omitted one is S and I (newStateBytecode).
+	if l := stanceLetter(def.Type); strings.IndexByte("SCAL", l) >= 0 {
+		ctx.StateType = l
+	}
+	if l := moveLetter(def.MoveType); strings.IndexByte("IAH", l) >= 0 {
+		ctx.MoveType = l
+	}
 }
 
 // applyHitReaction applies a landed hit's HitDef to both fighters on the
@@ -450,9 +457,23 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 		AirType:      params.AirType,
 	}
 	if def, ok := states[target]; ok && target != 0 {
+		ctx.PrevStateNo = ctx.StateNo
 		ctx.StateNo = target
 		enterState(ctx, def)
 	}
+}
+
+// moveLetter is a StateDef's move type as an upper-case letter: its first
+// character, case-insensitive, and 'I' when the line was omitted.
+func moveLetter(t cns.MoveType) byte {
+	if t == "" {
+		return 'I'
+	}
+	c := t[0]
+	if c >= 'a' && c <= 'z' {
+		c -= 'a' - 'A'
+	}
+	return c
 }
 
 // stanceLetter is a StateDef's type as an upper-case letter: its first

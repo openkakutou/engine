@@ -80,14 +80,14 @@ func TestInspectController_UnsupportedGetHitVarVariable_IsUnknownTrigger(t *test
 }
 
 func TestInspectController_PlaySndHalves_AreInspectedSeparately(t *testing.T) {
-	ctrl := cns.Controller{Type: "PlaySnd", Triggers: []string{"1"}, Parameters: map[string]string{"value": "0, Random % 3"}}
+	ctrl := cns.Controller{Type: "PlaySnd", Triggers: []string{"1"}, Parameters: map[string]string{"value": "0, P2StateNo % 3"}}
 	unknown, _ := inspectController(ctrl)
-	if !reflect.DeepEqual(unknown, []string{"random"}) {
-		t.Errorf("unknown = %v, want [random]", unknown)
+	if !reflect.DeepEqual(unknown, []string{"p2stateno"}) {
+		t.Errorf("unknown = %v, want [p2stateno]", unknown)
 	}
-	ctrl.Parameters["value"] = "Alive, 1"
+	ctrl.Parameters["value"] = "MoveContact, 1"
 	unknown, _ = inspectController(ctrl)
-	if !reflect.DeepEqual(unknown, []string{"alive"}) {
-		t.Errorf("unknown = %v, want [alive]", unknown)
+	if !reflect.DeepEqual(unknown, []string{"movecontact"}) {
+		t.Errorf("unknown = %v, want [movecontact]", unknown)
 	}
 }

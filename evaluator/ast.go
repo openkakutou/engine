@@ -51,8 +51,20 @@ type unaryNode struct {
 type binaryNode struct {
 	op          string
 	left, right node
+	// shortCircuit, set only on && and || parsed by ParseShortCircuit,
+	// skips the right operand when the left decides the result.
+	shortCircuit bool
 }
 
+// componentNode is an axis-qualified trigger such as "Pos Y" or "Vel X":
+// the trigger name (lower-cased) followed by a bare axis letter. The parser
+// builds it only for the names in axisTriggers.
+type componentNode struct {
+	name string
+	axis byte // 'x', 'y' or 'z'
+}
+
+func (componentNode) isNode()  {}
 func (numberNode) isNode()     {}
 func (stringNode) isNode()     {}
 func (identifierNode) isNode() {}

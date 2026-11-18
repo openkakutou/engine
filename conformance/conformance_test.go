@@ -240,7 +240,7 @@ ctrl = 1
 [State 0, Snd]
 type = PlaySnd
 trigger1 = 1
-value = 0, Random % 3
+value = 0, P2StateNo % 3
 
 [State 0, Hit]
 type = ChangeState
@@ -259,7 +259,7 @@ func TestRun_UnknownTriggersInPlaySndHalfAndGetHitVarVariable_AreNeutralizedAndC
 	if c.Status != StatusRan {
 		t.Fatalf("status = %q error = %q, want ran", c.Status, c.Error)
 	}
-	want := []Count{{Name: "gethitvar(yvel)", Count: 10}, {Name: "random", Count: 10}}
+	want := []Count{{Name: "gethitvar(yvel)", Count: 10}, {Name: "p2stateno", Count: 10}}
 	if !reflect.DeepEqual(c.UnknownTriggers, want) {
 		t.Errorf("UnknownTriggers = %+v, want %+v", c.UnknownTriggers, want)
 	}

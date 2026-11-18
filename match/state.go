@@ -101,6 +101,11 @@ type MatchState struct {
 	// Fighters[SideP2]) — use Fighter for side-keyed access instead of
 	// indexing directly.
 	Fighters [numSides]FighterState `json:"fighters"`
+	// RandSeed is the state of the match's random generator, shared by both
+	// fighters and read by the Random trigger (Ikemen GO draws from one
+	// global seed). Two matches started from the same seed and fed the same
+	// inputs play out identically. Zero is a valid seed.
+	RandSeed int32 `json:"randSeed"`
 }
 
 // NewMatchState builds a MatchState for the given round and round timer

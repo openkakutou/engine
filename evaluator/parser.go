@@ -21,12 +21,24 @@ type Expression struct {
 // never a panic — for an empty, unbalanced, or otherwise malformed
 // expression.
 func Parse(expr string) (*Expression, error) {
+	return parse(expr, false)
+}
+
+// ParseShortCircuit is Parse for a .zss expression: its && and || stop at
+// the left operand when it decides the result, as Ikemen GO compiles them
+// outside a CNS controller (compiler.go expBoolAnd/expBoolOr with no state
+// block: OC_jz/OC_jnz jumps). A CNS trigger evaluates both operands.
+func ParseShortCircuit(expr string) (*Expression, error) {
+	return parse(expr, true)
+}
+
+func parse(expr string, shortCircuit bool) (*Expression, error) {
 	toks, err := lex(expr)
 	if err != nil {
 		return nil, err
 	}
 
-	p := &parser{toks: toks}
+	p := &parser{toks: toks, shortCircuit: shortCircuit}
 	if p.peek().kind == tokEOF {
 		return nil, fmt.Errorf("evaluator: empty expression")
 	}
@@ -45,6 +57,9 @@ func Parse(expr string) (*Expression, error) {
 type parser struct {
 	toks []token
 	pos  int
+	// shortCircuit marks the && and || nodes it builds as short-circuiting
+	// (see binaryNode.shortCircuit).
+	shortCircuit bool
 }
 
 func (p *parser) peek() token {
@@ -83,7 +98,7 @@ func (p *parser) parseOr() (node, error) {
 		if err != nil {
 			return nil, err
 		}
-		left = binaryNode{op: op, left: left, right: right}
+		left = binaryNode{op: op, left: left, right: right, shortCircuit: p.shortCircuit}
 	}
 	return left, nil
 }
@@ -99,7 +114,7 @@ func (p *parser) parseAnd() (node, error) {
 		if err != nil {
 			return nil, err
 		}
-		left = binaryNode{op: op, left: left, right: right}
+		left = binaryNode{op: op, left: left, right: right, shortCircuit: p.shortCircuit}
 	}
 	return left, nil
 }
@@ -209,6 +224,13 @@ func (p *parser) parsePrimary() (node, error) {
 // lower-cased here, once, so evaluation never has to (MUGEN trigger names
 // are case-insensitive).
 func (p *parser) parseIdentifierOrCall(name string) (node, error) {
+	if axisTriggers[strings.ToLower(name)] && p.peek().kind == tokIdent {
+		axis := strings.ToLower(p.peek().text)
+		if axis == "x" || axis == "y" || axis == "z" {
+			p.next()
+			return componentNode{name: strings.ToLower(name), axis: axis[0]}, nil
+		}
+	}
 	if p.peek().kind != tokLParen {
 		return identifierNode{name: strings.ToLower(name)}, nil
 	}

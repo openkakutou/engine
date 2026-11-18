@@ -255,12 +255,12 @@ func TestEval_LooseTyping_ComparesIntAndFloatByNumericValue(t *testing.T) {
 }
 
 func TestEval_ReturnsError_OnUnknownTriggerName(t *testing.T) {
-	e, err := Parse("StateType != A")
+	e, err := Parse("P2StateNo = 100")
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 	if _, err := e.Eval(Context{}); err == nil {
-		t.Error("expected error for unsupported trigger name StateType, got nil")
+		t.Error("expected error for unsupported trigger name P2StateNo, got nil")
 	}
 }
 

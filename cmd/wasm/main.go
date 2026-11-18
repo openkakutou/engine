@@ -121,6 +121,9 @@ type newMatchRequest struct {
 	Bounds      stage.StageBoundaries    `json:"bounds"`
 	Gravity     float64                  `json:"gravity"`
 	ComboWindow int                      `json:"comboWindow"`
+	// RandSeed seeds the match's Random sequence (match.MatchState.RandSeed);
+	// omitted, it is 0.
+	RandSeed int32 `json:"randSeed"`
 }
 
 // FighterAnimState is one fighter's currently resolved animation number and
@@ -181,6 +184,7 @@ func newMatch(args []js.Value) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	state.RandSeed = req.RandSeed
 
 	p1Runtime, err := engine.NewFighterRuntime(req.Starting[match.SideP1], req.Programs[match.SideP1].States)
 	if err != nil {
