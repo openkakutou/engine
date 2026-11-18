@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Run the special states -3, -2 and -1 every tick
 
