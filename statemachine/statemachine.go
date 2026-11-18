@@ -335,6 +335,9 @@ func applyChangeState(ctrl cns.Controller, ctx *evaluator.Context, exists func(i
 	ctx.PrevStateNo = ctx.StateNo
 	ctx.StateNo = target
 	ctx.Time = 0
+	// Ikemen GO zeroes the persistent(N) counters on every state entry
+	// (char.go:6896-6903).
+	ctx.Persistent = [evaluator.MaxPersistent]int32{}
 	return nil
 }
 

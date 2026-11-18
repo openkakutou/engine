@@ -192,26 +192,6 @@ func TestLocals_InvalidNames_AreParseErrors(t *testing.T) {
 	}
 }
 
-func TestLocalNames_ListsReferencedLocals_InOrderWithoutDuplicates(t *testing.T) {
-	got, err := LocalNames("$b + $a * $b > var($c) && IfElse($a, $d, 1)")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if want := []string{"b", "a", "c", "d"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("LocalNames = %v, want %v", got, want)
-	}
-	got, err = LocalNames("var(1) := $z")
-	if err != nil || !reflect.DeepEqual(got, []string{"z"}) {
-		t.Errorf("LocalNames over an assignment = %v, %v, want [z]", got, err)
-	}
-	if got, _ := LocalNames("Time + 1"); len(got) != 0 {
-		t.Errorf("LocalNames without locals = %v, want empty", got)
-	}
-	if _, err := LocalNames("$x := 1"); err == nil {
-		t.Error("LocalNames on a parse error returned no error")
-	}
-}
-
 func TestTriggerNames_AssignmentAndLocals_ListInnerTriggersOnly(t *testing.T) {
 	got, err := TriggerNames("var(Time) := $x + Life")
 	if err != nil {

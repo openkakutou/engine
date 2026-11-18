@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"math"
 	"reflect"
 	"testing"
 
@@ -544,5 +545,14 @@ func TestTick_DefenderDeclaredAirButStateTypeSetToStanding_GetsTheGroundReaction
 	got := result.Fighters[match.SideP2].Context
 	if got.StateNo != 5000 || got.GetHit.HitTime != 9 {
 		t.Errorf("StateNo, HitTime = %d, %d, want 5000, 9 (ground reaction)", got.StateNo, got.GetHit.HitTime)
+	}
+}
+
+func TestEnterState_PersistentCounters_AreZeroed(t *testing.T) {
+	ctx := evaluator.Context{}
+	ctx.Persistent[0], ctx.Persistent[3] = 7, math.MaxInt32
+	enterState(&ctx, cns.StateDef{})
+	if ctx.Persistent != [evaluator.MaxPersistent]int32{} {
+		t.Errorf("Persistent = %v, want all zero (Ikemen GO char.go:6896-6903)", ctx.Persistent)
 	}
 }

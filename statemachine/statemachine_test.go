@@ -955,3 +955,28 @@ func TestStepStateDuringHitPause_InvalidIgnoreHitPauseExpression_ReturnsErrorNam
 		}
 	}
 }
+
+func TestApplyController_ChangeState_ZeroesPersistentCounters(t *testing.T) {
+	ctx := evaluator.Context{}
+	ctx.Persistent[2] = 5
+	_, err := ApplyController(changeStateController("1", 30), &ctx, func(int) bool { return true })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ctx.Persistent != [evaluator.MaxPersistent]int32{} {
+		t.Errorf("Persistent = %v, want all zero after a state change", ctx.Persistent)
+	}
+}
+
+// A .cns controller evaluates its parameters without short-circuit (Ikemen
+// GO's CNS compiler), so the right side of && still draws Random.
+func TestApplyController_CNSParameters_DoNotShortCircuit(t *testing.T) {
+	ctx := evaluator.Context{RandSeed: 1}
+	ctrl := cns.Controller{Type: "VelSet", Parameters: map[string]string{"x": "ifElse(time > 0 && random < 500, 1, 2)"}}
+	if _, err := ApplyController(ctrl, &ctx, func(int) bool { return true }); err != nil {
+		t.Fatal(err)
+	}
+	if ctx.RandSeed == 1 {
+		t.Error("RandSeed unchanged: the && right side was skipped in a .cns parameter")
+	}
+}

@@ -88,8 +88,12 @@ func Evaluate(expr string, ctx Context) (Value, error) {
 	return e.Eval(ctx)
 }
 
-// EvaluateMut is Evaluate through EvalMut: it may advance ctx.RandSeed.
+// EvaluateMut is Evaluate through EvalMut: it may advance ctx.RandSeed. A
+// ctx with ZSS set evaluates as EvaluateMutShortCircuit does.
 func EvaluateMut(expr string, ctx *Context) (Value, error) {
+	if ctx.ZSS {
+		return EvaluateMutShortCircuit(expr, ctx)
+	}
 	e, err := cachedParse(expr)
 	if err != nil {
 		return Value{}, err
@@ -204,43 +208,6 @@ func collectTriggerNames(n node, names *[]TriggerName, seen map[TriggerName]bool
 		}
 		collectTriggerNames(tn.left, names, seen)
 		collectTriggerNames(tn.right, names, seen)
-	}
-}
-
-// LocalNames returns the local variables ($name, without the "$", lower-
-// cased) expr reads, in first-appearance order without duplicates. A parse
-// error is returned as is.
-func LocalNames(expr string) ([]string, error) {
-	e, err := cachedParse(expr)
-	if err != nil {
-		return nil, err
-	}
-	var names []string
-	collectLocalNames(e.root, &names)
-	return names, nil
-}
-
-func collectLocalNames(n node, names *[]string) {
-	switch tn := n.(type) {
-	case localNode:
-		for _, seen := range *names {
-			if seen == tn.name {
-				return
-			}
-		}
-		*names = append(*names, tn.name)
-	case callNode:
-		for _, arg := range tn.args {
-			collectLocalNames(arg, names)
-		}
-	case unaryNode:
-		collectLocalNames(tn.operand, names)
-	case assignNode:
-		collectLocalNames(tn.index, names)
-		collectLocalNames(tn.value, names)
-	case binaryNode:
-		collectLocalNames(tn.left, names)
-		collectLocalNames(tn.right, names)
 	}
 }
 

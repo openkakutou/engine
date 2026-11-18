@@ -480,6 +480,7 @@ func resolveAnimElem(ctx *evaluator.Context, anim air.Animation) {
 // Shared by tickFighter's ChangeState path and the get-hit entry below.
 func enterState(ctx *evaluator.Context, def cns.StateDef) {
 	ctx.Time = 0
+	ctx.Persistent = [evaluator.MaxPersistent]int32{} // Ikemen GO char.go:6896-6903
 	ctx.Anim = def.Anim
 	if ctx.Anim == 0 {
 		ctx.Anim = ctx.StateNo

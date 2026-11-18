@@ -119,6 +119,13 @@ type Context struct {
 	// keeps them in c.ss.ps (char.go:6891-6903). zssexec runs them and
 	// zeroes them on a state change; see .vibe/decisions/022.
 	Persistent [MaxPersistent]int32
+	// ZSS reports that the expressions being evaluated come from a .zss
+	// script: EvaluateMut then short-circuits && and || as Ikemen GO's .zss
+	// compiler does (compiler.go:8410, 6042-6072), where a .cns controller
+	// does not. zssexec sets it for the length of a Step, so the
+	// statemachine handlers it calls through ApplyController follow; it is
+	// false in every Context Step returns.
+	ZSS bool
 }
 
 // LocalFrame is the local variables an expression can read as $name: the

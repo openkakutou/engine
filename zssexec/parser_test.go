@@ -66,6 +66,9 @@ func TestCompile_Common1Reference_EveryBlockParses(t *testing.T) {
 	}
 }
 
+// Mirrors Ikemen GO (commit 54d4148a) subBlock, src/compiler.go:7850, and the
+// else handling of stateBlock/subBlock (7911-7925): `else if` is an else
+// block that is itself an if block.
 func TestStep_ElseIfChain_RunsTheMatchingBranchOnly(t *testing.T) {
 	script := mustParseScript(t, "[Statedef 0]\n"+
 		"if var(0) = 1 {\n varSet{v: 1; value: 11;}\n} else if var(0) = 2 {\n varSet{v: 1; value: 22;}\n"+
@@ -83,6 +86,8 @@ func TestStep_ElseIfChain_RunsTheMatchingBranchOnly(t *testing.T) {
 	}
 }
 
+// Mirrors Ikemen GO (commit 54d4148a) readSentence, src/compiler.go:7598-7660:
+// a sentence is read across lines until a ';', '{' or '}' token.
 func TestStep_ConditionAndControllerSpanningLines_Apply(t *testing.T) {
 	script := mustParseScript(t, "[Statedef 0]\n"+
 		"if var(0) = 1 &&\n   var(1) >= ifElse(var(0) = 1,\n      2, 9) {\n"+
@@ -341,10 +346,6 @@ func TestStep_BlockWithParseError_ReturnsItsError(t *testing.T) {
 	}
 }
 
-func TestStep_CallWithWrongArgumentCount_ReturnsError(t *testing.T) {
-	stepErr(t, evaluator.Context{}, "[Statedef 0]\ncall F(1, 2);", "[Function F(a)]\n")
-}
-
 func TestParse_IgnoreHitPause_FollowsIkemenInheritance(t *testing.T) {
 	flags := func(t *testing.T, header, body string) []bool {
 		t.Helper()
@@ -421,5 +422,83 @@ func TestStep_WarmBlockWithLetCallAndPersistent_DoesNotAllocate(t *testing.T) {
 	}
 	if ctx.SysVars[0] != 4 {
 		t.Errorf("sysvar(0) = %d, want 4 (the block must really have run)", ctx.SysVars[0])
+	}
+}
+
+func TestStep_UnderscoreParameter_TakesASlotSoLaterArgumentsDoNotShift(t *testing.T) {
+	// Ikemen GO gives `_` its own slot (compiler.go:8509-8519).
+	script := mustParseScript(t,
+		"[Statedef 0]\nlet r = call f(1, 2);\nvarSet{v: 0; value: $r}",
+		"[Function f(_, x) y]\nlet y = $x;",
+	)
+	localStack = nil
+	r, err := Step(evaluator.Context{}, script)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Context.Vars[0] != 2 {
+		t.Errorf("var(0) = %d, want 2", r.Context.Vars[0])
+	}
+}
+
+func TestStep_CallOfFunctionWithOnlyUnderscoreParameter_DoesNotPanic(t *testing.T) {
+	script := mustParseScript(t, "[Statedef 0]\ncall f(5);", "[Function f(_)]\n")
+	localStack = nil
+	if _, err := Step(evaluator.Context{}, script); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestParse_UnderscoreParameter_IsNotReadable(t *testing.T) {
+	errs := mustParseScript(t, "[Function f(_)]\nlet a = $_;").Errors()
+	if len(errs) != 1 {
+		t.Fatalf("Errors() = %v, want 1", errs)
+	}
+}
+
+// Ikemen GO evaluates .zss controller parameters with short-circuit
+// (compiler.go:8410, expBoolAnd OC_jz 6042-6072): at Time 0 the right side of
+// && is not evaluated, so Random is not drawn.
+func TestStep_ZSSControllerParameters_ShortCircuit(t *testing.T) {
+	ctx := evaluator.Context{RandSeed: 1}
+	r := stepBody(t, ctx, "velSet{x: ifElse(time > 0 && random < 500, 1, 2)}")
+	if r.Context.RandSeed != 1 {
+		t.Errorf("RandSeed = %d, want 1 (right side of && skipped)", r.Context.RandSeed)
+	}
+	if r.Context.Velocity.X != 2 {
+		t.Errorf("Velocity.X = %v, want 2", r.Context.Velocity.X)
+	}
+}
+
+func TestStep_AfterStep_ContextIsNotLeftInZSSMode(t *testing.T) {
+	r := stepBody(t, evaluator.Context{}, "velSet{x: 1}")
+	if r.Context.ZSS {
+		t.Error("Result.Context.ZSS = true: a later .cns evaluation would short-circuit")
+	}
+}
+
+// Ikemen GO logs a call to an undefined function or with the wrong number of
+// arguments or returns and does nothing (bytecode.go:5050-5069): the rest of
+// the state keeps running.
+func TestStep_WrongCalls_AreSkippedReportedAndTheStateKeepsRunning(t *testing.T) {
+	for _, tc := range []struct{ name, call, fn string }{
+		{"undefined", "call Nope();", "[Function Other()]\n"},
+		{"too many arguments", "call F(1, 2);", "[Function F(a)]\n"},
+		{"too few arguments", "call F();", "[Function F(a)]\n"},
+		{"wrong return count", "let a, b = call F(1);", "[Function F(a) r]\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			script := mustParseScript(t, "[Statedef 0]\n"+tc.call+"\nchangeState{value: 5}", tc.fn, "[Statedef 5]")
+			r, err := Step(evaluator.Context{}, script)
+			if err != nil {
+				t.Fatalf("Step returned %v, want the call skipped", err)
+			}
+			if r.Context.StateNo != 5 {
+				t.Errorf("StateNo = %d, want 5 (ChangeState after the bad call must run)", r.Context.StateNo)
+			}
+			if len(r.SkippedCalls) != 1 || !strings.Contains(strings.ToLower(r.SkippedCalls[0]), "f") {
+				t.Errorf("SkippedCalls = %v, want one entry naming the call", r.SkippedCalls)
+			}
+		})
 	}
 }

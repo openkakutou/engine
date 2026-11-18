@@ -39,6 +39,11 @@ type Result struct {
 	// the script applied that the engine does not implement -- fresh per
 	// call, nil when there were none (see statemachine.Result.Unsupported).
 	Unsupported []string
+	// SkippedCalls describes, in order, each `call` that did nothing because
+	// the function is undefined or the argument or return count is wrong --
+	// Ikemen GO logs it and runs on (bytecode.go:5050-5069). Fresh per call,
+	// nil when there were none.
+	SkippedCalls []string
 }
 
 // CompiledScript is a character's full parsed .zss Script (zss.Script):
@@ -115,8 +120,8 @@ func (prog CompiledScript) blocksParsed() int {
 // statemachine.Step follows: once a ChangeState-shaped statement applies,
 // no further statement in the body -- at any nesting level, including
 // ones after the enclosing if block -- runs for this call. A state change
-// also zeroes the persistent(N) counters (Ikemen GO resets them when the
-// state is entered, char.go:6891-6903). ctx itself is never mutated; Step
+// also zeroes the persistent(N) counters (statemachine.ApplyController does
+// it, as Ikemen GO resets them on every state entry, char.go:6896-6903). ctx itself is never mutated; Step
 // returns an independent, updated copy, whose Locals are empty again.
 //
 // Step returns a descriptive error, never a panic, when ctx.StateNo has no
@@ -140,20 +145,24 @@ func Step(ctx evaluator.Context, prog CompiledScript) (Result, error) {
 		return ok
 	}
 	r := runner{ctx: &working, prog: prog, exists: exists}
+	working.ZSS = true
 	localTop = 0
+	skippedCalls = skippedCalls[:0]
 	root := frame{base: pushFrame(len(block.names)), names: block.names}
 	working.Locals = root.locals()
-	changed, err := r.stmts(block.stmts, root, 0)
+	_, err := r.stmts(block.stmts, root, 0)
 	if err != nil {
 		return Result{}, fmt.Errorf("zssexec: state %d: %w", ctx.StateNo, err)
 	}
 	working.Locals = evaluator.LocalFrame{}
-	if changed {
-		working.Persistent = [evaluator.MaxPersistent]int32{}
-	}
+	working.ZSS = false
 
+	var skipped []string
+	if len(skippedCalls) > 0 {
+		skipped = append(skipped, skippedCalls...)
+	}
 	unsupported := statemachine.TakeUnsupported(&working)
-	return Result{Context: working, Unsupported: unsupported}, nil
+	return Result{Context: working, Unsupported: unsupported, SkippedCalls: skipped}, nil
 }
 
 // maxCallDepth bounds how many nested "call F(...);" statements run will
@@ -211,6 +220,11 @@ type runner struct {
 	prog   CompiledScript
 	exists func(int) bool
 }
+
+// skippedCalls collects Result.SkippedCalls during a Step. It is a
+// package-level variable, not a runner field: appending through the runner
+// pointer makes the Context behind it escape to the heap on every Step.
+var skippedCalls []string
 
 // stmts runs stmts in order in frame fr (ctx.Locals is fr.locals() on entry
 // and on exit), and reports whether a state change happened -- the caller
@@ -309,24 +323,28 @@ func (r *runner) block(b *blockStmt, fr frame, depth int) (bool, error) {
 // call runs a Function in a fresh zeroed frame (arguments, then return
 // values, then lets) and, unless it changed state, copies its return values
 // to the caller's slots (BytecodeFunction.run, bytecode.go:4998-5030). A
-// call with the wrong number of arguments or returns is an error here where
-// Ikemen GO logs it and does nothing.
+// call to an undefined function, or with the wrong number of arguments or
+// returns, is skipped and reported in Result.SkippedCalls, as Ikemen GO
+// logs it and does nothing (bytecode.go:5050-5069).
 func (r *runner) call(st callStmt, fr frame, depth int) (bool, error) {
 	if depth >= maxCallDepth {
 		return false, fmt.Errorf("call to %q exceeds maximum call depth %d (likely infinite recursion)", st.name, maxCallDepth)
 	}
 	fn, ok := r.prog.functions[st.name]
 	if !ok {
-		return false, fmt.Errorf("call to undefined function %q", st.name)
+		skippedCalls = append(skippedCalls, fmt.Sprintf("call to undefined function %q", st.name))
+		return false, nil
 	}
 	if fn.err != nil {
 		return false, fn.err
 	}
 	if len(st.args) != fn.nArgs {
-		return false, fmt.Errorf("call to %q: %s expects %d arguments, got %d", st.name, fn.desc, fn.nArgs, len(st.args))
+		skippedCalls = append(skippedCalls, fmt.Sprintf("call to %q: %s expects %d arguments, got %d", st.name, fn.desc, fn.nArgs, len(st.args)))
+		return false, nil
 	}
 	if len(st.rets) > 0 && len(st.rets) != fn.nRets {
-		return false, fmt.Errorf("call to %q: %s returns %d values, %d expected", st.name, fn.desc, fn.nRets, len(st.rets))
+		skippedCalls = append(skippedCalls, fmt.Sprintf("call to %q: %s returns %d values, %d expected", st.name, fn.desc, fn.nRets, len(st.rets)))
+		return false, nil
 	}
 
 	callee := frame{base: pushFrame(len(fn.names)), names: fn.names}

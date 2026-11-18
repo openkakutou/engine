@@ -119,42 +119,6 @@ func TestStep_CallFunction_ExecutesFunctionBody(t *testing.T) {
 	}
 }
 
-func TestStep_CallUndefinedFunction_ReturnsDescriptiveError(t *testing.T) {
-	script := mustParseScript(t, "[Statedef 0]\ncall DoesNotExist();")
-	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
-
-	_, err := Step(ctx, script)
-	if err == nil {
-		t.Fatal("expected an error for a call to an undefined function, got nil")
-	}
-}
-
-func TestStep_CallFunctionWithParameters_ReturnsDescriptiveError(t *testing.T) {
-	script := mustParseScript(t,
-		"[Statedef 0]\ncall Helper();",
-		"[Function Helper(x)]\nvarSet{v: 0; value: 1;}",
-	)
-	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
-
-	_, err := Step(ctx, script)
-	if err == nil {
-		t.Fatal("expected an error for a call to a function declaring parameters (not supported yet), got nil")
-	}
-}
-
-func TestStep_CallFunctionWithArguments_ReturnsDescriptiveError(t *testing.T) {
-	script := mustParseScript(t,
-		"[Statedef 0]\ncall Helper(1, 2);",
-		"[Function Helper()]\nvarSet{v: 0; value: 1;}",
-	)
-	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
-
-	_, err := Step(ctx, script)
-	if err == nil {
-		t.Fatal("expected an error for a call site passing arguments (not supported yet), got nil")
-	}
-}
-
 func TestStep_MutuallyRecursiveFunctionCalls_ReturnsDescriptiveErrorInsteadOfCrashing(t *testing.T) {
 	// A .zss script is untrusted, mod-authored content: two functions that
 	// call each other (or a function that calls itself) must not be able

@@ -158,6 +158,12 @@ func (p *parser) declareHeader(b zss.Block) error {
 		if a != "_" && p.slot(a) >= 0 {
 			return fmt.Errorf("duplicate name %q in the parameters", a)
 		}
+		if a == "_" {
+			// `_` has a slot like any argument (compiler.go:8509-8519) but
+			// no name to read.
+			p.cb.names = append(p.cb.names, a)
+			continue
+		}
 		if _, err := p.declare(a); err != nil {
 			return err
 		}
@@ -222,7 +228,7 @@ func (p *parser) declare(name string) (int, error) {
 }
 
 // checkLocals requires every $name in expr to be declared so far. It scans
-// the text for "$name" rather than calling evaluator.LocalNames, because the
+// the text for "$name" because the
 // parser must accept expressions the evaluator cannot parse yet (ranges,
 // "p2Dist x", ... -- backlog items 041-043); those fail only if evaluated.
 func (p *parser) checkLocals(expr string) error {
@@ -236,7 +242,7 @@ func (p *parser) checkLocals(expr string) error {
 				j++
 			}
 			name := strings.ToLower(expr[i+1 : j])
-			if p.slot(name) < 0 {
+			if name == "_" || p.slot(name) < 0 {
 				return fmt.Errorf("unknown local variable $%s in %q", name, snip(expr))
 			}
 			i = j - 1

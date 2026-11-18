@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- `.zss` state scripts now accept Ikemen GO's full grammar used by its common states: `else if`, statements over several lines, local variables, functions with arguments and return values, `persistent`, and the `:=` assignment, including inside conditions. Ikemen GO's `common1.cns.zss` now reads with no error.
+
 ## [2.11.1] - 2026-11-18
 
 ### Fixed
