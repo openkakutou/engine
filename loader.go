@@ -9,6 +9,7 @@ import (
 	"github.com/openkakutou/character"
 	"github.com/openkakutou/character/cns"
 	"github.com/openkakutou/character/zss"
+	"github.com/openkakutou/engine/evaluator"
 )
 
 // LoadFighterProgram assembles the state table of a loaded character the way
@@ -73,7 +74,40 @@ func LoadFighterProgram(ch *character.Character, defPath string, searchDirs ...s
 		files = append(files, file)
 	}
 	files = append(files, StateFile{States: ch.StateDefs})
-	return NewFighterProgramFromFiles(files, ch.Animations, ch.Commands), missing, nil
+	prog = NewFighterProgramFromFiles(files, ch.Animations, ch.Commands)
+	prog.Constants, err = loadConstants(dirs, ch.ConstantsFile)
+	if err != nil {
+		return FighterProgram{}, nil, err
+	}
+	if prog.Constants == nil && ch.ConstantsFile != "" {
+		missing = append(missing, ch.ConstantsFile)
+	}
+	return prog, missing, nil
+}
+
+// loadConstants reads the character's constants file, the .def's "cns"
+// entry, searched in the same folders as a state file (Ikemen GO
+// src/char.go:4403 LoadFile dirs {def, "", "data/"}). It returns nil when the
+// entry is empty or found in no folder, and the character keeps Ikemen GO's
+// defaults.
+func loadConstants(dirs []string, entry string) (*evaluator.Constants, error) {
+	if entry == "" {
+		return nil, nil
+	}
+	path, ok := searchFile(dirs, strings.ReplaceAll(entry, "\\", "/"))
+	if !ok {
+		return nil, nil
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("opening constants file %q: %w", entry, err)
+	}
+	defer f.Close()
+	constants, err := evaluator.ParseConstants(f)
+	if err != nil {
+		return nil, fmt.Errorf("constants file %q: %w", path, err)
+	}
+	return constants, nil
 }
 
 // loadStateFile finds entry in dirs, falling back to "<entry>.zss", and

@@ -1,7 +1,6 @@
 package statemachine
 
 import (
-	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -113,11 +112,30 @@ func TestApplyController_VarSetInvalidForms_ReturnClearErrors(t *testing.T) {
 	}
 }
 
-func TestApplyController_VarSetFloatForms_ReturnFloatVarUnsupported(t *testing.T) {
-	for _, key := range []string{"fvar(1)", "sysfvar(0)"} {
+// Ikemen GO cnsVarSet varType 1 and 3 (char.go:8271-8299) set cnsfvar and
+// cnssysfvar as float32.
+func TestApplyController_VarSetFloatForms_SetFloatVariables(t *testing.T) {
+	ctx, err := applyVarSetParams(t, evaluator.Context{}, map[string]string{"fvar(1)": "1.5"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ctx.FVars[1] != 1.5 || ctx.Vars[1] != 0 {
+		t.Errorf("FVars[1] = %v, Vars[1] = %d, want 1.5 and 0", ctx.FVars[1], ctx.Vars[1])
+	}
+	ctx, err = applyVarSetParams(t, evaluator.Context{}, map[string]string{"sysfvar(4)": "0.1 + 2"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ctx.SysFVars[4] != float32(2.1) {
+		t.Errorf("SysFVars[4] = %v, want float32(2.1)", ctx.SysFVars[4])
+	}
+}
+
+func TestApplyController_VarSetFloatIndexOutOfRange_ReturnsAnError(t *testing.T) {
+	for _, key := range []string{"fvar(40)", "fvar(-1)", "sysfvar(5)"} {
 		_, err := applyVarSetParams(t, evaluator.Context{}, map[string]string{key: "1"})
-		if !errors.Is(err, ErrFloatVarUnsupported) {
-			t.Errorf("%s: error = %v, want ErrFloatVarUnsupported", key, err)
+		if err == nil || !strings.Contains(err.Error(), "out of range") {
+			t.Errorf("%s: error = %v, want one containing %q", key, err, "out of range")
 		}
 	}
 }
@@ -170,12 +188,20 @@ func TestApplyController_VarSetSysvOldForm_SetsSysVar(t *testing.T) {
 	}
 }
 
-func TestApplyController_VarSetOldFloatForms_ReturnFloatVarUnsupported(t *testing.T) {
-	for _, key := range []string{"fv", "sysfv"} {
-		_, err := applyVarSetParams(t, evaluator.Context{}, map[string]string{key: "1", "value": "1"})
-		if !errors.Is(err, ErrFloatVarUnsupported) {
-			t.Errorf("%s: error = %v, want ErrFloatVarUnsupported", key, err)
-		}
+func TestApplyController_VarSetOldFloatForms_SetFloatVariables(t *testing.T) {
+	ctx, err := applyVarSetParams(t, evaluator.Context{}, map[string]string{"fv": "3", "value": "0.25"})
+	if err != nil {
+		t.Fatalf("fv: unexpected error: %v", err)
+	}
+	if ctx.FVars[3] != 0.25 {
+		t.Errorf("fv: FVars[3] = %v, want 0.25", ctx.FVars[3])
+	}
+	ctx, err = applyVarSetParams(t, evaluator.Context{}, map[string]string{"sysfv": "0", "value": "7"})
+	if err != nil {
+		t.Fatalf("sysfv: unexpected error: %v", err)
+	}
+	if ctx.SysFVars[0] != 7 {
+		t.Errorf("sysfv: SysFVars[0] = %v, want 7", ctx.SysFVars[0])
 	}
 }
 

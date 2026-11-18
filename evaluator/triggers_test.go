@@ -302,3 +302,57 @@ func TestTriggerNames_PosAndVelComponents_AreReportedAsTheirTrigger(t *testing.T
 		t.Errorf("trigger names = %v, want pos and vel, not the axis letters", got)
 	}
 }
+
+// bytecode.go:2510-2515 (OC_ailevel) and :3654-3659 (OC_ex_ailevelf) read
+// sys.aiLevel[playerNo], which is 0 for a human player; every engine fighter
+// is human-driven.
+func TestEval_AILevelAndAILevelF_AreZeroForAHumanDrivenFighter(t *testing.T) {
+	if got := mustEval(t, "AILevel", fighterCtx()); got.Number != 0 || got.Kind != KindInt {
+		t.Errorf("AILevel = %v kind %v, want int 0", got.Number, got.Kind)
+	}
+	if got := mustEval(t, "AILevelF", fighterCtx()); got.Number != 0 || got.Kind != KindFloat {
+		t.Errorf("AILevelF = %v kind %v, want float 0", got.Number, got.Kind)
+	}
+	// kfm_zss command.zss state -1 opens with `roundState = 2 && !aiLevelF`.
+	if !mustEval(t, "roundState = 2 && !aiLevelF", fighterCtx()).Bool() {
+		t.Error("roundState = 2 && !aiLevelF is false for a human fighter")
+	}
+}
+
+// bytecode.go:2671-2672 reads gi().palno; char.go:4888-4913 keeps it at 1 or
+// above, 1 when no palette was chosen.
+func TestEval_PalNo_DefaultsToOneAndFollowsTheContext(t *testing.T) {
+	if got := mustEval(t, "PalNo", Context{}); got.Number != 1 {
+		t.Errorf("PalNo = %v, want 1 when the game sets none", got.Number)
+	}
+	if got := mustEval(t, "PalNo", Context{PalNo: 4}); got.Number != 4 {
+		t.Errorf("PalNo = %v, want 4", got.Number)
+	}
+}
+
+// bytecode.go:2657-2660: NumExplod/NumHelper take an optional id (compiler.go
+// :3415-3425, default -1) and count the player's explods/helpers, none of
+// which the engine has yet (backlog items 029 and 052).
+func TestEval_NumHelperAndNumExplod_AreZeroWithOrWithoutAnId(t *testing.T) {
+	for _, expr := range []string{"NumHelper", "NumHelper(1000)", "NumExplod", "NumExplod(0)", "NumHelper(1+2)"} {
+		if got := mustEval(t, expr, Context{}); got.Number != 0 || got.Kind != KindInt {
+			t.Errorf("%s = %v kind %v, want int 0", expr, got.Number, got.Kind)
+		}
+	}
+	if _, err := Evaluate("NumHelper(1, 2)", Context{}); err == nil {
+		t.Error("NumHelper with two arguments returned no error")
+	}
+}
+
+func TestIsKnownTrigger_OtherFamily_IsKnown(t *testing.T) {
+	for _, name := range []string{"ailevel", "ailevelf", "palno", "numhelper", "numexplod"} {
+		if !IsKnownTrigger(name, false) {
+			t.Errorf("IsKnownTrigger(%q, false) = false", name)
+		}
+	}
+	for _, name := range []string{"const", "const240p", "const480p", "const720p", "const1080p", "fvar", "sysfvar", "numhelper", "numexplod"} {
+		if !IsKnownTrigger(name, true) {
+			t.Errorf("IsKnownTrigger(%q, true) = false", name)
+		}
+	}
+}

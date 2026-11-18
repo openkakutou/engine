@@ -2,13 +2,17 @@ package evaluator
 
 import "github.com/openkakutou/engine/match"
 
-// maxVars and maxSysVars mirror MUGEN's fixed variable slot counts
-// (var(0)..var(59), sysvar(0)..sysvar(4)) — an out-of-range index is a
-// genuine authoring mistake, not a value the evaluator should invent a
-// meaning for.
+// maxVars, maxSysVars, maxFVars and maxSysFVars mirror MUGEN's fixed variable
+// slot counts (var(0)..var(59), sysvar(0)..sysvar(4), fvar(0)..fvar(39),
+// sysfvar(0)..sysfvar(4)) — an out-of-range index is a genuine authoring
+// mistake, not a value the evaluator should invent a meaning for. (Ikemen GO
+// keeps its variables in unbounded sparse maps, char.go cnsvar/cnsfvar; the
+// fixed arrays keep Context allocation-free and MUGEN's limits.)
 const (
-	maxVars    = 60
-	maxSysVars = 5
+	maxVars     = 60
+	maxSysVars  = 5
+	maxFVars    = 40
+	maxSysFVars = 5
 	// MaxPersistent is the number of persistent(N) counters a Statedef can
 	// hold; zssexec rejects a Statedef with more at parse time.
 	MaxPersistent = 16
@@ -63,6 +67,18 @@ type Context struct {
 	// SysVars holds MUGEN's system integer variables, indexed by
 	// sysvar(N). An index never written reads as 0.
 	SysVars [maxSysVars]int
+	// FVars and SysFVars are MUGEN's float variables, indexed by fvar(N) and
+	// sysfvar(N), stored as float32 like Ikemen GO's (char.go cnsfvar).
+	FVars    [maxFVars]float32
+	SysFVars [maxSysFVars]float32
+	// Consts is the character's constants table, read by Const(name). Set
+	// once per fighter by FighterProgram.NewRuntime, never written after, so
+	// copying a Context copies one pointer. Nil reads Ikemen GO's defaults.
+	Consts *Constants
+	// PalNo is the palette number the game chose for the fighter, read by the
+	// PalNo trigger (Ikemen GO gi().palno, bytecode.go:2671). Zero, the
+	// choice not made, reads as 1.
+	PalNo int
 	// ActiveCommands is the set of command names currently recognized as
 	// held/triggered this tick, checked by the Command trigger. A nil map
 	// reads every command as not active.

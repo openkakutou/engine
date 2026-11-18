@@ -181,6 +181,9 @@ func collectTriggerNames(n node, names *[]TriggerName, seen map[TriggerName]bool
 		add(TriggerName{Name: tn.name})
 	case callNode:
 		add(TriggerName{Name: tn.name, Call: true})
+		if tn.name == "const" {
+			return // its argument is a constant name, not a trigger
+		}
 		if tn.name == "gethitvar" {
 			// One entry per variable, named "gethitvar(<var>)", so a variable
 			// evalGetHitVar does not handle can be reported by IsKnownTrigger.
@@ -328,6 +331,12 @@ func evalCall(n callNode, ctx *Context) (Value, error) {
 		return evalIndexedVar(n, ctx, "var", ctx.Vars[:])
 	case "sysvar":
 		return evalIndexedVar(n, ctx, "sysvar", ctx.SysVars[:])
+	case "fvar":
+		return evalIndexedFloatVar(n, ctx, "fvar", ctx.FVars[:])
+	case "sysfvar":
+		return evalIndexedFloatVar(n, ctx, "sysfvar", ctx.SysFVars[:])
+	case "const":
+		return evalConst(n, ctx)
 	case "gethitvar":
 		return evalGetHitVar(n, ctx)
 	case "ifelse":
@@ -399,41 +408,85 @@ func evalGetHitVar(n callNode, ctx *Context) (Value, error) {
 	}
 }
 
-func evalIndexedVar(n callNode, ctx *Context, fnName string, slot []int) (Value, error) {
+// evalVarIndex evaluates the single index argument of var(N), fvar(N) and
+// their system forms and checks it against the slot count.
+func evalVarIndex(n callNode, ctx *Context, fnName string, size int) (int, error) {
 	if len(n.args) != 1 {
-		return Value{}, fmt.Errorf("evaluator: %s() expects 1 argument, got %d", fnName, len(n.args))
+		return 0, fmt.Errorf("evaluator: %s() expects 1 argument, got %d", fnName, len(n.args))
 	}
 	idxVal, err := evalNode(n.args[0], ctx)
 	if err != nil {
-		return Value{}, err
+		return 0, err
 	}
 	idx := idxVal.Int()
-	if idx < 0 || idx >= len(slot) {
-		return Value{}, fmt.Errorf("evaluator: %s index %d out of range 0-%d", fnName, idx, len(slot)-1)
+	return idx, checkSlot(fnName, idx, size)
+}
+
+// checkSlot reports an index outside the size slots of variable function name.
+func checkSlot(name string, idx, size int) error {
+	if idx < 0 || idx >= size {
+		return fmt.Errorf("evaluator: %s index %d out of range 0-%d", name, idx, size-1)
+	}
+	return nil
+}
+
+func evalIndexedVar(n callNode, ctx *Context, fnName string, slot []int) (Value, error) {
+	idx, err := evalVarIndex(n, ctx, fnName, len(slot))
+	if err != nil {
+		return Value{}, err
 	}
 	return intValue(float64(slot[idx])), nil
 }
 
-// ErrFloatVarUnsupported is returned by the fvar(N)/sysfvar(N) forms of
-// VarSet and of ":=": the engine has no float variable storage yet (backlog
-// item 042).
-var ErrFloatVarUnsupported = errors.New("float variables are not supported yet")
+func evalIndexedFloatVar(n callNode, ctx *Context, fnName string, slot []float32) (Value, error) {
+	idx, err := evalVarIndex(n, ctx, fnName, len(slot))
+	if err != nil {
+		return Value{}, err
+	}
+	return floatValue(float64(slot[idx])), nil
+}
 
 var errAssignNeedsMut = errors.New("evaluator: an expression with := needs EvalMut/EvaluateMut: Eval works on a copy and would drop the write")
+
+// AssignVar stores v in var(idx), sysvar(idx), fvar(idx) or sysfvar(idx) (target
+// names the function, lower-case) and returns the stored value, as Ikemen
+// GO's varSet family does (char.go:8325-8404): an int variable keeps v
+// truncated, a float one keeps it as float32. An index outside the slots is
+// an error.
+func (c *Context) AssignVar(target string, idx int, v Value) (Value, error) {
+	switch target {
+	case "var":
+		if err := checkSlot(target, idx, len(c.Vars)); err != nil {
+			return Value{}, err
+		}
+		c.Vars[idx] = v.Int()
+		return intValue(float64(c.Vars[idx])), nil
+	case "sysvar":
+		if err := checkSlot(target, idx, len(c.SysVars)); err != nil {
+			return Value{}, err
+		}
+		c.SysVars[idx] = v.Int()
+		return intValue(float64(c.SysVars[idx])), nil
+	case "fvar":
+		if err := checkSlot(target, idx, len(c.FVars)); err != nil {
+			return Value{}, err
+		}
+		c.FVars[idx] = float32(v.Number)
+		return floatValue(float64(c.FVars[idx])), nil
+	case "sysfvar":
+		if err := checkSlot(target, idx, len(c.SysFVars)); err != nil {
+			return Value{}, err
+		}
+		c.SysFVars[idx] = float32(v.Number)
+		return floatValue(float64(c.SysFVars[idx])), nil
+	}
+	return Value{}, fmt.Errorf("evaluator: %q is not a variable", target)
+}
 
 // evalAssign runs "var(i) := v" and friends, in Ikemen GO's order (index
 // pushed first, then the value; compiler.go:1331-1345) and returns the
 // stored value as char.go:8333 varSet does.
 func evalAssign(n assignNode, ctx *Context) (Value, error) {
-	var slot []int
-	switch n.target {
-	case "var":
-		slot = ctx.Vars[:]
-	case "sysvar":
-		slot = ctx.SysVars[:]
-	default:
-		return Value{}, fmt.Errorf("evaluator: %s(...) := : %w", n.target, ErrFloatVarUnsupported)
-	}
 	idxVal, err := evalNode(n.index, ctx)
 	if err != nil {
 		return Value{}, err
@@ -442,12 +495,21 @@ func evalAssign(n assignNode, ctx *Context) (Value, error) {
 	if err != nil {
 		return Value{}, err
 	}
-	idx := idxVal.Int()
-	if idx < 0 || idx >= len(slot) {
-		return Value{}, fmt.Errorf("evaluator: %s index %d out of range 0-%d", n.target, idx, len(slot)-1)
+	return ctx.AssignVar(n.target, idxVal.Int(), value)
+}
+
+// evalConst reads Const(name). Like GetHitVar, its argument is a name read as
+// written (a dotted identifier), never evaluated. An unknown name reads int 0
+// rather than failing, as Ikemen GO's does (compiler.go:2518-2521).
+func evalConst(n callNode, ctx *Context) (Value, error) {
+	if len(n.args) != 1 {
+		return Value{}, fmt.Errorf("evaluator: Const() expects 1 argument, got %d", len(n.args))
 	}
-	slot[idx] = value.Int()
-	return intValue(float64(slot[idx])), nil
+	id, ok := n.args[0].(identifierNode)
+	if !ok {
+		return Value{}, fmt.Errorf("evaluator: Const() expects a constant name, e.g. Const(movement.yaccel)")
+	}
+	return ctx.Consts.Lookup(id.name), nil
 }
 
 func evalLocal(name string, ctx *Context) (Value, error) {

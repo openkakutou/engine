@@ -356,10 +356,6 @@ func applyChangeState(ctrl cns.Controller, ctx *evaluator.Context, exists func(i
 	return nil
 }
 
-// ErrFloatVarUnsupported is returned by VarSet's fvar(N)/sysfvar(N) forms:
-// the engine has no float variable storage yet (backlog item 042).
-var ErrFloatVarUnsupported = evaluator.ErrFloatVarUnsupported
-
 // varSetForm is one "var(N) = expr"-style VarSet parameter.
 type varSetForm struct {
 	prefix   string // "var", "sysvar", "fvar" or "sysfvar"
@@ -447,9 +443,6 @@ func applyVarSet(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 	if strings.TrimSpace(form.indexRaw) == "" {
 		return evaluator.Context{}, fmt.Errorf("VarSet: Missing variable index")
 	}
-	if form.prefix == "fvar" || form.prefix == "sysfvar" {
-		return evaluator.Context{}, fmt.Errorf("VarSet %s: %w", form.prefix, ErrFloatVarUnsupported)
-	}
 	idxVal, err := evaluator.EvaluateMut(form.indexRaw, &ctx)
 	if err != nil {
 		return evaluator.Context{}, fmt.Errorf("VarSet %s index %q: %w", form.prefix, form.indexRaw, err)
@@ -458,18 +451,9 @@ func applyVarSet(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 	if err != nil {
 		return evaluator.Context{}, fmt.Errorf("VarSet %s value %q: %w", form.prefix, form.valueRaw, err)
 	}
-	idx := idxVal.Int()
-	if form.prefix == "sysvar" {
-		if idx < 0 || idx >= len(ctx.SysVars) {
-			return evaluator.Context{}, fmt.Errorf("VarSet sysvar index %d out of range 0-%d", idx, len(ctx.SysVars)-1)
-		}
-		ctx.SysVars[idx] = val.Int()
-		return ctx, nil
+	if _, err := ctx.AssignVar(form.prefix, idxVal.Int(), val); err != nil {
+		return evaluator.Context{}, fmt.Errorf("VarSet: %w", err)
 	}
-	if idx < 0 || idx >= len(ctx.Vars) {
-		return evaluator.Context{}, fmt.Errorf("VarSet index %d out of range 0-%d", idx, len(ctx.Vars)-1)
-	}
-	ctx.Vars[idx] = val.Int()
 	return ctx, nil
 }
 

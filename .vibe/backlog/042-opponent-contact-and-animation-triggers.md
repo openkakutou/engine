@@ -1,5 +1,5 @@
 ---
-status: todo
+status: in_progress
 ---
 # Triggers that read the opponent, hit contacts and animation elements
 

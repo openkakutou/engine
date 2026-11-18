@@ -224,15 +224,14 @@ func scenarioJump(t *testing.T, prog FighterProgram) error {
 }
 
 // What stops the scenarios today, first cause met on the way in (each is a
-// trigger Ikemen GO has and the engine does not; checked by running):
-//   - kfm_zss's state -1 (command.zss) opens with `roundState = 2 && !aiLevelF`:
-//     the aiLevelF trigger is in no backlog item yet, item 042 ("Other"
-//     triggers) is where it belongs (Ikemen GO compiler.go:4704).
-//   - its Function Combo and kfm's state -1 use an interval, `stateNo =
-//     [200, 299]`: item 041 (expression grammar), then `moveContact`: item 042.
+// trigger or grammar Ikemen GO has and the engine does not; checked by
+// running): both characters' state -1 reach an interval first, `stateNo =
+// [200, 299]` (kfm_zss's Function Combo, kfm's state -1 controller 3): item
+// 041 (expression grammar). Past it comes `moveContact`: item 042. kfm_zss's
+// first trigger, `roundState = 2 && !aiLevelF`, evaluates since item 042's
+// "Other" family (AILevel, Const, FVar, PalNo, NumHelper) landed.
 var (
 	zssCauses = []knownCause{
-		{"042 (aiLevelF is not in its list yet)", `unknown trigger "ailevelf"`},
 		{"041 (intervals)", "unexpected character '['"},
 		{"042 (moveContact)", `unknown trigger "movecontact"`},
 	}

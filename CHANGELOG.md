@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- Characters can read their own constants with `Const(name)` (`data.*`, `size.*`, `velocity.*`, `movement.*` and the `[Constants]` section, read from the `.def` "cns" file over Ikemen GO's defaults) and use `Const240p`/`Const480p`/`Const720p`/`Const1080p`.
+- Float variables: `FVar(n)`, `SysFVar(n)`, and the `fvar`/`sysfvar`/`fv`/`sysfv` forms of `VarSet` and `:=`.
+- The triggers `AILevel`, `AILevelF`, `PalNo`, `NumHelper` and `NumExplod`.
+
 ## [2.14.0] - 2026-11-18
 
 ### Added

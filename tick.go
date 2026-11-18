@@ -48,6 +48,12 @@ type FighterProgram struct {
 	// existing construction paths needs to change.
 	animIndex map[int]air.Animation
 
+	// Constants is the character's constants table (Const(name), and the
+	// physics of backlog item 043), read from the .def's "cns" file by
+	// LoadFighterProgram. Nil reads Ikemen GO's defaults. Not part of the
+	// JSON request shape.
+	Constants *evaluator.Constants `json:"-"`
+
 	// script is the compiled .zss of the character, set by WithScripts; the
 	// zero value defines no state. Unexported like animIndex: a program
 	// decoded from JSON has none until the caller runs WithScripts.
@@ -258,7 +264,7 @@ func (p FighterProgram) NewRuntime(fighter match.FighterState) (FighterRuntime, 
 	if !ok {
 		return FighterRuntime{}, fmt.Errorf("engine: NewRuntime: state %d not found in loaded character", fighter.StateNo)
 	}
-	ctx := evaluator.Context{FighterState: fighter}
+	ctx := evaluator.Context{FighterState: fighter, Consts: p.Constants}
 	enterState(&ctx, def)
 	return FighterRuntime{Context: ctx}, nil
 }

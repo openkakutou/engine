@@ -1,7 +1,6 @@
 package evaluator
 
 import (
-	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -139,12 +138,85 @@ func TestEvaluateMut_AssignErrors_AreReported(t *testing.T) {
 	}
 }
 
-func TestEvaluateMut_FloatVarAssign_ReturnsErrFloatVarUnsupported(t *testing.T) {
-	for _, expr := range []string{"fvar(1) := 1.5", "SysFVar(0) := 1"} {
-		_, err := EvaluateMut(expr, &Context{})
-		if !errors.Is(err, ErrFloatVarUnsupported) {
-			t.Errorf("%q error = %v, want ErrFloatVarUnsupported", expr, err)
+// Ikemen GO stores fvar/sysfvar as float32 (char.go cnsfvar, cnssysfvar) and
+// returns the stored value from the assignment (char.go:8336-8342).
+func TestEvaluateMut_FloatVarAssign_StoresFloat32AndReturnsIt(t *testing.T) {
+	ctx := &Context{}
+	got, err := EvaluateMut("fvar(1) := 0.1", ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := float64(float32(0.1))
+	if got.Kind != KindFloat || got.Number != want || float64(ctx.FVars[1]) != want {
+		t.Errorf("fvar(1) := 0.1 = %v (kind %v), FVars[1] = %v, want float32(0.1) = %v", got.Number, got.Kind, ctx.FVars[1], want)
+	}
+	if _, err := EvaluateMut("SysFVar(4) := 3", ctx); err != nil {
+		t.Fatal(err)
+	}
+	if ctx.SysFVars[4] != 3 || ctx.FVars[4] != 0 {
+		t.Errorf("SysFVars[4] = %v, FVars[4] = %v, want 3 and 0", ctx.SysFVars[4], ctx.FVars[4])
+	}
+}
+
+func TestEval_FVarAndSysFVar_ReadTheirSlotsAsFloats(t *testing.T) {
+	var ctx Context
+	ctx.FVars[39] = 2.5
+	ctx.SysFVars[2] = -0.75
+	cases := []struct {
+		expr string
+		want float64
+	}{
+		{"FVar(39)", 2.5},
+		{"FVar(0)", 0}, // never written reads 0 (char.go:8248-8261)
+		{"SysFVar(2)", -0.75},
+		{"FVar(40 - 1) * 2", 5},
+	}
+	for _, tc := range cases {
+		got := mustEval(t, tc.expr, ctx)
+		if got.Number != tc.want || (tc.want != 0 && got.Kind != KindFloat) {
+			t.Errorf("%s = %v (kind %v), want %v", tc.expr, got.Number, got.Kind, tc.want)
 		}
+	}
+}
+
+func TestEval_FloatVarIndexOutOfRange_IsAnErrorNamingTheRange(t *testing.T) {
+	for expr, want := range map[string]string{
+		"FVar(40)":    "fvar index 40 out of range 0-39",
+		"FVar(0 - 1)": "fvar index -1 out of range 0-39",
+		"SysFVar(5)":  "sysfvar index 5 out of range 0-4",
+	} {
+		if _, err := Evaluate(expr, Context{}); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s error = %v, want one containing %q", expr, err, want)
+		}
+	}
+	if _, err := EvaluateMut("fvar(40) := 1", &Context{}); err == nil || !strings.Contains(err.Error(), "out of range") {
+		t.Errorf("fvar(40) := 1 error = %v, want out of range", err)
+	}
+}
+
+func TestContext_AssignVar_StoresEachKindAndRejectsAnUnknownTarget(t *testing.T) {
+	var ctx Context
+	for _, tc := range []struct {
+		target string
+		idx    int
+		in     Value
+		want   float64
+	}{
+		{"var", 2, floatValue(7.9), 7}, // ints truncate
+		{"sysvar", 1, intValue(4), 4},
+		{"fvar", 3, intValue(2), 2},
+		{"sysfvar", 0, floatValue(1.5), 1.5},
+	} {
+		got, err := ctx.AssignVar(tc.target, tc.idx, tc.in)
+		if err != nil || got.Number != tc.want {
+			t.Errorf("AssignVar(%s, %d, %v) = %v, %v, want %v", tc.target, tc.idx, tc.in.Number, got.Number, err, tc.want)
+		}
+	}
+	if ctx.Vars[2] != 7 || ctx.SysVars[1] != 4 || ctx.FVars[3] != 2 || ctx.SysFVars[0] != 1.5 {
+		t.Errorf("slots = %v %v %v %v", ctx.Vars[2], ctx.SysVars[1], ctx.FVars[3], ctx.SysFVars[0])
+	}
+	if _, err := ctx.AssignVar("nope", 0, intValue(1)); err == nil || !strings.Contains(err.Error(), "nope") {
+		t.Errorf("unknown target error = %v, want one naming it", err)
 	}
 }
 

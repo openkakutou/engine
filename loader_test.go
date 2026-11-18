@@ -8,6 +8,7 @@ import (
 
 	"github.com/openkakutou/character"
 	"github.com/openkakutou/character/cns"
+	"github.com/openkakutou/engine/evaluator"
 	"github.com/openkakutou/engine/match"
 )
 
@@ -141,5 +142,79 @@ func TestLoadFighterProgram_BrokenZssInSearchDir_ReturnsErrorNamingIt(t *testing
 	_, _, err := LoadFighterProgram(loadChar(t, defPath), defPath, search)
 	if err == nil || !strings.Contains(err.Error(), "common1.cns.zss") {
 		t.Errorf("err = %v, want one naming common1.cns.zss", err)
+	}
+}
+
+// kfm.def's "cns" entry (kfm.cns) and kfm_zss.def's (kfm.const) hold the
+// character's constants; the fighter's runtime reads them through Const()
+// (Ikemen GO src/char.go:4411-4631 reads the .def's "cns" file). Values are
+// read off those files: [Movement] yaccel = .44, [Velocity] walk.fwd = 2.4.
+func TestLoadFighterProgram_Kfm_ConstantsReachTheRuntimeContext(t *testing.T) {
+	for _, defPath := range []string{kfmCnsDef, kfmZssDef} {
+		prog := loadReferenceProgram(t, defPath)
+		rt, err := prog.NewRuntime(match.FighterState{StateNo: 0, Health: 1000})
+		if err != nil {
+			t.Fatalf("%s: NewRuntime: %v", defPath, err)
+		}
+		for expr, want := range map[string]float64{
+			"Const(movement.yaccel)":        float64(float32(0.44)),
+			"Const(velocity.walk.fwd.x)":    float64(float32(2.4)),
+			"Const(data.life)":              1000,
+			"Const240p(Const(size.height))": 60,
+		} {
+			got, err := evaluator.Evaluate(expr, rt.Context)
+			if err != nil || got.Number != want {
+				t.Errorf("%s: %s = %v, %v, want %v", defPath, expr, got.Number, err, want)
+			}
+		}
+	}
+}
+
+// A "cns" entry found in no folder (character.LoadBytes does not read files)
+// is reported like a missing state file, and the character keeps Ikemen GO's
+// defaults.
+func TestLoadFighterProgram_ConstantsFileMissing_IsReportedAndDefaultsApply(t *testing.T) {
+	path := filepath.Join(referenceDir, kfmCnsDef)
+	ch := loadChar(t, path)
+	ch.ConstantsFile = "absent.cns"
+	prog, missing, err := LoadFighterProgram(ch, path, referenceDir)
+	if err != nil {
+		t.Fatalf("LoadFighterProgram: %v", err)
+	}
+	found := false
+	for _, m := range missing {
+		found = found || m == "absent.cns"
+	}
+	if !found {
+		t.Errorf("missing = %v, want it to list absent.cns", missing)
+	}
+	if prog.Constants != nil {
+		t.Error("Constants is set although the file is missing; want nil (defaults)")
+	}
+}
+
+func TestLoadFighterProgram_BrokenConstantsFile_ReturnsErrorNamingIt(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "bad.const"), []byte("[Constants]\nbad.one = abc\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(referenceDir, kfmCnsDef)
+	ch := loadChar(t, path)
+	ch.ConstantsFile = "bad.const"
+	_, _, err := LoadFighterProgram(ch, path, dir)
+	if err == nil || !strings.Contains(err.Error(), "bad.const") || !strings.Contains(err.Error(), "bad.one") {
+		t.Errorf("error = %v, want one naming bad.const and bad.one", err)
+	}
+}
+
+func TestFighterProgram_WithoutConstants_RuntimeReadsIkemenDefaults(t *testing.T) {
+	prog := FighterProgram{States: idleStates()}
+	rt, err := prog.NewRuntime(match.FighterState{StateNo: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := evaluator.Evaluate("Const(movement.yaccel)", rt.Context)
+	if err != nil || got.Number != float64(float32(0.44)) {
+		t.Errorf("Const(movement.yaccel) = %v, %v, want Ikemen GO's default 0.44 (char.go:539)", got.Number, err)
 	}
 }

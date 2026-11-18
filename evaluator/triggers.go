@@ -48,6 +48,24 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		return boolValue(false), true, nil
 	case "random":
 		return intValue(float64(drawRandom(ctx))), true, nil
+	case "ailevel":
+		// Ikemen GO reads sys.aiLevel[playerNo] (bytecode.go:2510-2515,
+		// char.go:5529-5537), 0 for a human player; every fighter here is
+		// human-driven.
+		return intValue(0), true, nil
+	case "ailevelf":
+		return floatValue(0), true, nil // bytecode.go:3654-3659
+	case "palno":
+		// bytecode.go:2671: the palette the game chose; 1 until it sets one
+		// (char.go:4888-4913).
+		if ctx.PalNo < 1 {
+			return intValue(1), true, nil
+		}
+		return intValue(float64(ctx.PalNo)), true, nil
+	case "numhelper", "numexplod":
+		// bytecode.go:2657-2660. shortcut: the engine has no helpers or
+		// explods yet (backlog items 029 and 052), so there is none to count.
+		return intValue(0), true, nil
 	}
 	return Value{}, false, nil
 }
@@ -104,6 +122,26 @@ func evalFighterCall(n callNode, ctx *Context) (v Value, ok bool, err error) {
 	switch n.name {
 	case "ishelper":
 		return boolValue(false), true, nil
+	case "numhelper", "numexplod":
+		// The optional id picks which helpers or explods to count
+		// (compiler.go:3415-3425); with none to count it changes nothing.
+		if len(n.args) > 1 {
+			return Value{}, true, fmt.Errorf("evaluator: %s() expects at most 1 argument, got %d", n.name, len(n.args))
+		}
+		for _, arg := range n.args {
+			if _, err := evalNode(arg, ctx); err != nil {
+				return Value{}, true, err
+			}
+		}
+		return intValue(0), true, nil
+	case "const240p":
+		return evalConstScale(n, ctx, 320)
+	case "const480p":
+		return evalConstScale(n, ctx, 640)
+	case "const720p":
+		return evalConstScale(n, ctx, 1280)
+	case "const1080p":
+		return evalConstScale(n, ctx, 1920)
 	case "abs":
 		return evalUnaryMath(n, ctx, func(a Value) (Value, error) {
 			if a.Kind == KindFloat {
@@ -140,6 +178,26 @@ func evalFighterCall(n callNode, ctx *Context) (v Value, ok bool, err error) {
 		return evalLog(n, ctx)
 	}
 	return Value{}, false, nil
+}
+
+// defaultLocalCoordWidth is the character's localcoord width Const240p and its
+// siblings scale from: Ikemen GO's c.stOgi().localcoord[0] (char.go:5746).
+// shortcut: taken as the 320x240 default, the .def's [Info] localcoord is not
+// read yet.
+const defaultLocalCoordWidth = 320
+
+// evalConstScale is Const240p(v) and its siblings: v scaled from a screen of
+// the given width to the character's own coordinates, in float32 as
+// Ikemen GO's constp does (char.go:5746, bytecode.go:3432-3439).
+func evalConstScale(n callNode, ctx *Context, coordinate float32) (Value, bool, error) {
+	if len(n.args) != 1 {
+		return Value{}, true, fmt.Errorf("evaluator: %s() expects 1 argument, got %d", n.name, len(n.args))
+	}
+	a, err := evalNode(n.args[0], ctx)
+	if err != nil {
+		return Value{}, true, err
+	}
+	return floatValue(float64(defaultLocalCoordWidth / coordinate * float32(a.Number))), true, nil
 }
 
 // floatFn lifts a float64 function to a Value function with Ikemen GO's
