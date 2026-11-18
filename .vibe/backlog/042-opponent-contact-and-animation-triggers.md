@@ -8,7 +8,7 @@ Second slice of item 028 (split by family, 2026-11-18). 028 delivered the trigge
 - **Opponent**: `P2Dist X/Y`, `P2BodyDist X/Y`, `P2StateNo`, `P2MoveType`, `P2StateType`, `P2Life`, `NumEnemy`, `NumTarget`. Needs the opponent's fighter state on `evaluator.Context`.
 - **Hit contacts**: `MoveContact`, `MoveHit`, `MoveGuarded`, `HitDefAttr`, `HitFall`, `CanRecover`, plus the rest of `GetHitVar` (`yvel`, `fall`, ...), following MUGEN timing, with a documented Ikemen GO divergence table.
 - **Animation**: `AnimElem` (`AnimElem = n, op t`), `AnimElemTime(n)`, `AnimElemNo`, `AnimExist`, `SelfAnimExist`.
-- **Other**: `Const(name)` (e.g. `Const(movement.stand.friction.threshold)`, reading the character's `[Const]`/`[Data]`/`[Size]`/`[Velocity]`/`[Movement]` values), `FVar(n)`, `SysFVar(n)`, `PalNo`, `NumHelper`, `NumExplod`, `Time` redirections.
+- **Other**: `Const(name)` (e.g. `Const(movement.stand.friction.threshold)`, reading the character's `[Const]`/`[Data]`/`[Size]`/`[Velocity]`/`[Movement]` values), `FVar(n)`, `SysFVar(n)`, `PalNo`, `NumHelper`, `NumExplod`, `Time` redirections, `AILevel`/`AILevelF` (first trigger kfm_zss evaluates, in its command.zss state -1; found by item 054).
 
 Ground each trigger in Ikemen GO's source (commit `54d4148a`), file and line, as 028 did. Compat is a MUST (roadmap decision `038`).
 
