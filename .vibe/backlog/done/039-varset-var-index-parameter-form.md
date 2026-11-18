@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 ---
 # Support VarSet's `var(N) = value` parameter form
 
@@ -9,9 +9,9 @@ Real characters write `VarSet` as `var(3) = 1` (also `fvar(N)`, `sysvar(N)`) ins
 🔒 MUST: MUGEN 1.0/1.1 and Ikemen GO compatibility, verified against Ikemen GO (roadmap decision `038`).
 
 ## Acceptance Criteria
-- [ ] `var(N) = expr` sets the variable, as `v`/`value` does
-- [ ] Same for the other forms Ikemen GO accepts, cited
-- [ ] An invalid index is a clear error
+- [x] `var(N) = expr` sets the variable, as `v`/`value` does
+- [x] Same for the other forms Ikemen GO accepts, cited
+- [x] An invalid index is a clear error
 
 ## Notes
 Found by the conformance harness (item 030, `docs/conformance.md`, 2026-11-17).
