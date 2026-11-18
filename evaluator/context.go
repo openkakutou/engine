@@ -108,6 +108,19 @@ type Context struct {
 	// recorded it when the hit landed (see .vibe/decisions/018). Its zero
 	// value is "no hit taken yet".
 	GetHit GetHit
+	// Locals is the frame of local variables ($name) the expression runs
+	// in; see LocalFrame. The zero value has none.
+	Locals LocalFrame
+}
+
+// LocalFrame is the local variables an expression can read as $name: the
+// caller (zssexec) fixes Names at parse time and passes the window of its
+// value stack holding the current frame, so Values[i] is the value of
+// Names[i]. A slot never assigned holds the zero Value, which reads as 0
+// as Ikemen GO's bvNone (bytecode.go:1417, 1551) does in arithmetic.
+type LocalFrame struct {
+	Names  []string
+	Values []Value
 }
 
 // GetHit is a fighter's get-hit variables (MUGEN's GetHitVar set), read by

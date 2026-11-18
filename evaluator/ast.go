@@ -64,6 +64,22 @@ type componentNode struct {
 	axis byte // 'x', 'y' or 'z'
 }
 
+// localNode is a local variable read, "$name" (name lower-cased).
+type localNode struct {
+	name string
+}
+
+// assignNode is "var(i) := v", "sysvar(i) := v", "fvar(i) := v" or
+// "sysfvar(i) := v": target is the lower-cased variable function name. Its
+// value is the assigned value.
+type assignNode struct {
+	target string
+	index  node
+	value  node
+}
+
+func (localNode) isNode()      {}
+func (assignNode) isNode()     {}
 func (componentNode) isNode()  {}
 func (numberNode) isNode()     {}
 func (stringNode) isNode()     {}

@@ -13,6 +13,9 @@ import (
 // holds no per-fighter state.
 type Expression struct {
 	root node
+	// hasAssign reports a := inside: Eval, which works on a copy of its
+	// Context, refuses such an expression instead of dropping the write.
+	hasAssign bool
 }
 
 // Parse parses a raw MUGEN CNS expression string into an Expression,
@@ -51,7 +54,7 @@ func parse(expr string, shortCircuit bool) (*Expression, error) {
 		return nil, fmt.Errorf("evaluator: unexpected token %q after expression %q", p.peek().text, expr)
 	}
 
-	return &Expression{root: root}, nil
+	return &Expression{root: root, hasAssign: p.hasAssign}, nil
 }
 
 type parser struct {
@@ -60,6 +63,7 @@ type parser struct {
 	// shortCircuit marks the && and || nodes it builds as short-circuiting
 	// (see binaryNode.shortCircuit).
 	shortCircuit bool
+	hasAssign    bool
 }
 
 func (p *parser) peek() token {
@@ -198,6 +202,17 @@ func (p *parser) parsePrimary() (node, error) {
 		p.next()
 		return p.parseIdentifierOrCall(t.text)
 
+	case tokLocal:
+		p.next()
+		name := strings.ToLower(t.text)
+		if !validLocalName(name) || name == "_" {
+			return nil, fmt.Errorf("evaluator: invalid local variable name %q", "$"+t.text)
+		}
+		if p.peekIsOp(":=") {
+			return nil, fmt.Errorf("evaluator: local variable assignment with := is not possible in an expression (%q)", "$"+t.text)
+		}
+		return localNode{name: name}, nil
+
 	case tokLParen:
 		p.next()
 		inner, err := p.parseOr()
@@ -239,7 +254,42 @@ func (p *parser) parseIdentifierOrCall(name string) (node, error) {
 	if err != nil {
 		return nil, err
 	}
-	return callNode{name: strings.ToLower(name), args: args}, nil
+	call := callNode{name: strings.ToLower(name), args: args}
+	if !p.peekIsOp(":=") {
+		return call, nil
+	}
+	switch call.name {
+	case "var", "sysvar", "fvar", "sysfvar":
+	default:
+		return nil, fmt.Errorf("evaluator: %q cannot be assigned with :=; only var, sysvar, fvar and sysfvar can", name)
+	}
+	if len(args) != 1 {
+		return nil, fmt.Errorf("evaluator: %s() expects 1 argument, got %d", call.name, len(args))
+	}
+	p.next() // consume ':='
+	// The right side is Ikemen GO's expEqne (compiler.go:1331-1340): a
+	// comparison or tighter, not && or ||.
+	value, err := p.parseComparison()
+	if err != nil {
+		return nil, err
+	}
+	p.hasAssign = true
+	return assignNode{target: call.name, index: args[0], value: value}, nil
+}
+
+// validLocalName reports whether name matches [a-z_][0-9a-z_]*, Ikemen GO's
+// varNameCheck (compiler.go:7695).
+func validLocalName(name string) bool {
+	if name == "" || (name[0] != '_' && (name[0] < 'a' || name[0] > 'z')) {
+		return false
+	}
+	for i := 1; i < len(name); i++ {
+		c := name[i]
+		if c != '_' && (c < 'a' || c > 'z') && !isDigit(c) {
+			return false
+		}
+	}
+	return true
 }
 
 // parseCallArgs parses a parenthesized, comma-separated argument list for a

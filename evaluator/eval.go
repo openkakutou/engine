@@ -192,6 +192,9 @@ func collectTriggerNames(n node, names *[]TriggerName, seen map[TriggerName]bool
 		}
 	case unaryNode:
 		collectTriggerNames(tn.operand, names, seen)
+	case assignNode:
+		collectTriggerNames(tn.index, names, seen)
+		collectTriggerNames(tn.value, names, seen)
 	case componentNode:
 		add(TriggerName{Name: tn.name})
 	case binaryNode:
@@ -201,6 +204,43 @@ func collectTriggerNames(n node, names *[]TriggerName, seen map[TriggerName]bool
 		}
 		collectTriggerNames(tn.left, names, seen)
 		collectTriggerNames(tn.right, names, seen)
+	}
+}
+
+// LocalNames returns the local variables ($name, without the "$", lower-
+// cased) expr reads, in first-appearance order without duplicates. A parse
+// error is returned as is.
+func LocalNames(expr string) ([]string, error) {
+	e, err := cachedParse(expr)
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	collectLocalNames(e.root, &names)
+	return names, nil
+}
+
+func collectLocalNames(n node, names *[]string) {
+	switch tn := n.(type) {
+	case localNode:
+		for _, seen := range *names {
+			if seen == tn.name {
+				return
+			}
+		}
+		*names = append(*names, tn.name)
+	case callNode:
+		for _, arg := range tn.args {
+			collectLocalNames(arg, names)
+		}
+	case unaryNode:
+		collectLocalNames(tn.operand, names)
+	case assignNode:
+		collectLocalNames(tn.index, names)
+		collectLocalNames(tn.value, names)
+	case binaryNode:
+		collectLocalNames(tn.left, names)
+		collectLocalNames(tn.right, names)
 	}
 }
 
@@ -234,6 +274,9 @@ func IsKnownTrigger(name string, call bool) bool {
 // function, uses a value in an unsupported way (e.g. a bare string
 // literal), or hits a runtime error such as an out-of-range var() index.
 func (e *Expression) Eval(ctx Context) (Value, error) {
+	if e.hasAssign {
+		return Value{}, errAssignNeedsMut
+	}
 	return evalNode(e.root, &ctx)
 }
 
@@ -261,6 +304,12 @@ func evalNode(n node, ctx *Context) (Value, error) {
 
 	case callNode:
 		return evalCall(tn, ctx)
+
+	case assignNode:
+		return evalAssign(tn, ctx)
+
+	case localNode:
+		return evalLocal(tn.name, ctx)
 
 	case componentNode:
 		return evalComponent(tn, ctx)
@@ -396,6 +445,51 @@ func evalIndexedVar(n callNode, ctx *Context, fnName string, slot []int) (Value,
 		return Value{}, fmt.Errorf("evaluator: %s index %d out of range 0-%d", fnName, idx, len(slot)-1)
 	}
 	return intValue(float64(slot[idx])), nil
+}
+
+// ErrFloatVarUnsupported is returned by the fvar(N)/sysfvar(N) forms of
+// VarSet and of ":=": the engine has no float variable storage yet (backlog
+// item 042).
+var ErrFloatVarUnsupported = errors.New("float variables are not supported yet")
+
+var errAssignNeedsMut = errors.New("evaluator: an expression with := needs EvalMut/EvaluateMut: Eval works on a copy and would drop the write")
+
+// evalAssign runs "var(i) := v" and friends, in Ikemen GO's order (index
+// pushed first, then the value; compiler.go:1331-1345) and returns the
+// stored value as char.go:8333 varSet does.
+func evalAssign(n assignNode, ctx *Context) (Value, error) {
+	var slot []int
+	switch n.target {
+	case "var":
+		slot = ctx.Vars[:]
+	case "sysvar":
+		slot = ctx.SysVars[:]
+	default:
+		return Value{}, fmt.Errorf("evaluator: %s(...) := : %w", n.target, ErrFloatVarUnsupported)
+	}
+	idxVal, err := evalNode(n.index, ctx)
+	if err != nil {
+		return Value{}, err
+	}
+	value, err := evalNode(n.value, ctx)
+	if err != nil {
+		return Value{}, err
+	}
+	idx := idxVal.Int()
+	if idx < 0 || idx >= len(slot) {
+		return Value{}, fmt.Errorf("evaluator: %s index %d out of range 0-%d", n.target, idx, len(slot)-1)
+	}
+	slot[idx] = value.Int()
+	return intValue(float64(slot[idx])), nil
+}
+
+func evalLocal(name string, ctx *Context) (Value, error) {
+	for i, n := range ctx.Locals.Names {
+		if n == name && i < len(ctx.Locals.Values) {
+			return ctx.Locals.Values[i], nil
+		}
+	}
+	return Value{}, fmt.Errorf("evaluator: unknown local variable %q", "$"+name)
 }
 
 func evalUnary(n unaryNode, ctx *Context) (Value, error) {

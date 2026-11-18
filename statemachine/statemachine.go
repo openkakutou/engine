@@ -30,7 +30,6 @@
 package statemachine
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -341,7 +340,7 @@ func applyChangeState(ctrl cns.Controller, ctx *evaluator.Context, exists func(i
 
 // ErrFloatVarUnsupported is returned by VarSet's fvar(N)/sysfvar(N) forms:
 // the engine has no float variable storage yet (backlog item 042).
-var ErrFloatVarUnsupported = errors.New("float variables are not supported yet")
+var ErrFloatVarUnsupported = evaluator.ErrFloatVarUnsupported
 
 // varSetForm is one "var(N) = expr"-style VarSet parameter.
 type varSetForm struct {

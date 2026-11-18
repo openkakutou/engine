@@ -17,6 +17,9 @@ const (
 	tokRParen
 	tokComma
 	tokOp
+	// tokLocal is a local variable read, "$name"; text holds the name
+	// without the "$", as written (the parser validates and lower-cases it).
+	tokLocal
 )
 
 // token is one lexical unit of a trigger/expression string. text holds the
@@ -30,7 +33,7 @@ type token struct {
 
 // multiCharOps must be tried before single-character operators so that,
 // e.g., "!=" lexes as one token rather than "!" followed by "=".
-var multiCharOps = []string{"!=", "<=", ">=", "&&", "||"}
+var multiCharOps = []string{"!=", "<=", ">=", "&&", "||", ":="}
 
 const singleCharOps = "=<>!+-*/%"
 
@@ -75,6 +78,14 @@ func lex(input string) ([]token, error) {
 			tok, next := scanNumber(input, i)
 			toks = append(toks, tok)
 			i = next
+
+		case c == '$':
+			j := i + 1
+			for j < n && (isIdentPart(input[j]) && input[j] != '.') {
+				j++
+			}
+			toks = append(toks, token{kind: tokLocal, text: input[i+1 : j]})
+			i = j
 
 		case isIdentStart(c):
 			tok, next := scanIdent(input, i)
