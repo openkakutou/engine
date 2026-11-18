@@ -30,6 +30,7 @@
 package statemachine
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -338,26 +339,116 @@ func applyChangeState(ctrl cns.Controller, ctx *evaluator.Context, exists func(i
 	return nil
 }
 
-func applyVarSet(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
-	idxRaw, ok := ctrl.Parameters["v"]
-	if !ok {
-		return evaluator.Context{}, fmt.Errorf(`VarSet is missing its required "v" parameter`)
+// ErrFloatVarUnsupported is returned by VarSet's fvar(N)/sysfvar(N) forms:
+// the engine has no float variable storage yet (backlog item 042).
+var ErrFloatVarUnsupported = errors.New("float variables are not supported yet")
+
+// varSetForm is one "var(N) = expr"-style VarSet parameter.
+type varSetForm struct {
+	prefix   string // "var", "sysvar", "fvar" or "sysfvar"
+	indexRaw string
+	valueRaw string
+}
+
+// varSetPrefixes is the order Ikemen GO matches a key's prefix in
+// (src/compiler_functions.go:2739-2876 varSetNewerSub/varSetSub): the longer
+// "sys..." names first so "sysvar(" is not read as "var(".
+var varSetPrefixes = []string{"sysfvar", "sysvar", "fvar", "var"}
+
+// parseVarSetKey reports whether key is a "var(N)"-style parameter name and
+// returns its prefix and raw index expression. Matching is case-insensitive,
+// spaces may precede "(", the index runs to the matching ")" and anything
+// after it is ignored, as Ikemen GO does (compiler_functions.go:2814-2876).
+func parseVarSetKey(key string) (prefix, index string, ok bool) {
+	lower := strings.ToLower(strings.TrimSpace(key))
+	for _, p := range varSetPrefixes {
+		rest, found := strings.CutPrefix(lower, p)
+		if !found {
+			continue
+		}
+		rest = strings.TrimLeft(rest, " \t")
+		if !strings.HasPrefix(rest, "(") {
+			continue
+		}
+		depth := 0
+		for i, r := range rest {
+			if r == '(' {
+				depth++
+			}
+			if r == ')' {
+				depth--
+			}
+			if depth == 0 {
+				return p, rest[1:i], true
+			}
+		}
+		return p, "", false
 	}
-	idxVal, err := evaluator.EvaluateMut(idxRaw, &ctx)
+	return "", "", false
+}
+
+// applyVarSet sets one variable, in either form Ikemen GO accepts: a single
+// "var(N) = expr" style parameter, or "v"/"fv"/"sysv"/"sysfv" = N plus
+// "value" = expr (varSetOlderSub, compiler_functions.go:2705-2735). Exactly
+// one variable may be named, else "VarSet can only set one variable at a
+// time". A negative or too-large index is an error (Ikemen GO only warns on
+// a negative one, char.go:8295-8365). It runs on the per-tick hot path, so
+// it tracks the first match and a count instead of building a slice.
+func applyVarSet(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+	var form varSetForm
+	count := 0
+	for key, raw := range ctrl.Parameters {
+		prefix, index, ok := parseVarSetKey(key)
+		if ok {
+			form = varSetForm{prefix: prefix, indexRaw: index, valueRaw: raw}
+			count++
+		}
+	}
+	oldForm := false
+	for _, old := range [...]struct{ key, prefix string }{{"v", "var"}, {"fv", "fvar"}, {"sysv", "sysvar"}, {"sysfv", "sysfvar"}} {
+		raw, ok := ctrl.Parameters[old.key]
+		if ok {
+			form = varSetForm{prefix: old.prefix, indexRaw: raw}
+			oldForm = true
+			count++
+		}
+	}
+	if count > 1 {
+		return evaluator.Context{}, fmt.Errorf("VarSet can only set one variable at a time")
+	}
+	if count == 0 {
+		return evaluator.Context{}, fmt.Errorf("VarSet needs a variable: var(N), sysvar(N), fvar(N), sysfvar(N), or v/sysv/fv/sysfv and value")
+	}
+	if oldForm {
+		raw, ok := ctrl.Parameters["value"]
+		if !ok {
+			return evaluator.Context{}, fmt.Errorf(`VarSet is missing its required "value" parameter`)
+		}
+		form.valueRaw = raw
+	}
+
+	if strings.TrimSpace(form.indexRaw) == "" {
+		return evaluator.Context{}, fmt.Errorf("VarSet: Missing variable index")
+	}
+	if form.prefix == "fvar" || form.prefix == "sysfvar" {
+		return evaluator.Context{}, fmt.Errorf("VarSet %s: %w", form.prefix, ErrFloatVarUnsupported)
+	}
+	idxVal, err := evaluator.EvaluateMut(form.indexRaw, &ctx)
 	if err != nil {
-		return evaluator.Context{}, fmt.Errorf("VarSet v %q: %w", idxRaw, err)
+		return evaluator.Context{}, fmt.Errorf("VarSet %s index %q: %w", form.prefix, form.indexRaw, err)
+	}
+	val, err := evaluator.EvaluateMut(form.valueRaw, &ctx)
+	if err != nil {
+		return evaluator.Context{}, fmt.Errorf("VarSet %s value %q: %w", form.prefix, form.valueRaw, err)
 	}
 	idx := idxVal.Int()
-
-	valRaw, ok := ctrl.Parameters["value"]
-	if !ok {
-		return evaluator.Context{}, fmt.Errorf(`VarSet is missing its required "value" parameter`)
+	if form.prefix == "sysvar" {
+		if idx < 0 || idx >= len(ctx.SysVars) {
+			return evaluator.Context{}, fmt.Errorf("VarSet sysvar index %d out of range 0-%d", idx, len(ctx.SysVars)-1)
+		}
+		ctx.SysVars[idx] = val.Int()
+		return ctx, nil
 	}
-	val, err := evaluator.EvaluateMut(valRaw, &ctx)
-	if err != nil {
-		return evaluator.Context{}, fmt.Errorf("VarSet value %q: %w", valRaw, err)
-	}
-
 	if idx < 0 || idx >= len(ctx.Vars) {
 		return evaluator.Context{}, fmt.Errorf("VarSet index %d out of range 0-%d", idx, len(ctx.Vars)-1)
 	}

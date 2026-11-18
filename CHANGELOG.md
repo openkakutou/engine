@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Characters that set their variables with the `var(N) = value` form, or the `sysvar`/`sysv` forms, no longer stop with an error; float variable forms now report a clear "not supported yet" error.
+
 ## [2.11.0] - 2026-11-18
 
 ### Added

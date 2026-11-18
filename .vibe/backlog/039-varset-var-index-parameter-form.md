@@ -1,5 +1,5 @@
 ---
-status: todo
+status: in_progress
 ---
 # Support VarSet's `var(N) = value` parameter form
 
@@ -15,3 +15,4 @@ Real characters write `VarSet` as `var(3) = 1` (also `fvar(N)`, `sysvar(N)`) ins
 
 ## Notes
 Found by the conformance harness (item 030, `docs/conformance.md`, 2026-11-17).
+fvar(N)/sysfvar(N) forms need float variable storage, not in this engine yet; tracked with FVar triggers in item 042
