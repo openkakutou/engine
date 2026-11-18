@@ -8,6 +8,7 @@ import (
 	"github.com/openkakutou/character/air"
 	"github.com/openkakutou/character/cmd"
 	"github.com/openkakutou/character/cns"
+	"github.com/openkakutou/character/zss"
 	"github.com/openkakutou/engine/combat"
 	"github.com/openkakutou/engine/evaluator"
 	"github.com/openkakutou/engine/hitdetect"
@@ -16,16 +17,22 @@ import (
 	"github.com/openkakutou/engine/physics"
 	"github.com/openkakutou/engine/round"
 	"github.com/openkakutou/engine/statemachine"
+	"github.com/openkakutou/engine/zssexec"
 	"github.com/openkakutou/stage"
 )
 
 // FighterProgram bundles one fighter's loaded character data needed to
-// drive its own simulation each tick: its state definitions (CNS-driven
-// state-machine execution only -- see this item's own ADR for why .zss
-// execution is out of this Tick's scope), its animation frames, and its
-// command file for input recognition. Read-only and unchanged across a
-// whole match -- loaded once, not threaded tick-to-tick (see
-// FighterRuntime for what is).
+// drive its own simulation each tick: its state definitions, its animation
+// frames, and its command file for input recognition. Read-only and
+// unchanged across a whole match -- loaded once, not threaded tick-to-tick
+// (see FighterRuntime for what is).
+//
+// The states come in two formats, as in Ikemen GO where one state table
+// holds both: States (.cns) and a compiled .zss script (see WithScripts and
+// NewFighterProgramFromFiles). A state number defined in both resolves to
+// States -- NewFighterProgramFromFiles drops the .cns definition when a .zss
+// file defined it first, so that the first file in load order wins
+// (decision 024).
 type FighterProgram struct {
 	States     map[int]cns.StateDef `json:"states"`
 	Animations []air.Animation      `json:"animations"`
@@ -40,6 +47,126 @@ type FighterProgram struct {
 	// falls back to scanning Animations in that case, so neither of those
 	// existing construction paths needs to change.
 	animIndex map[int]air.Animation
+
+	// script is the compiled .zss of the character, set by WithScripts; the
+	// zero value defines no state. Unexported like animIndex: a program
+	// decoded from JSON has none until the caller runs WithScripts.
+	script zssexec.CompiledScript
+}
+
+// WithScripts returns p with scripts, the character's .zss files in load
+// order (Ikemen GO: st, stN, then stcommon), compiled once so that Tick does
+// not parse them. Their Statedefs join p's state table, and a Function is
+// shared by every script, the first loaded winning even over the common
+// file's (Ikemen GO src/compiler.go:8500-8503, "the first loaded one
+// overrides others"). A parse error in a block is reported when that block is
+// entered, naming it (zssexec.CompiledScript.Errors lists them all).
+func (p FighterProgram) WithScripts(scripts []zss.Script) FighterProgram {
+	var all zss.Script
+	for _, script := range scripts {
+		all.Blocks = append(all.Blocks, script.Blocks...)
+	}
+	p.script = zssexec.Compile(all)
+	return p
+}
+
+// StateFile is one state file of a character in load order: either .cns
+// states (States) or a .zss script (Script, when not nil).
+type StateFile struct {
+	States []cns.StateDef
+	Script *zss.Script
+}
+
+// NewFighterProgramFromFiles builds a FighterProgram from the character's
+// state files in Ikemen GO's load order -- every "st" and "stN", the .cmd,
+// then "stcommon" (src/compiler.go:8776-8798) -- mixing .cns and .zss. The
+// first definition of a state number wins whatever its format, as Ikemen GO
+// skips a state already declared (:7538-7539, and in stateCompileZSS for a
+// non-negative state: `if _, ok := states[c.stateNo]; !ok || c.stateNo < 0`).
+//
+// shortcut: Ikemen GO appends a negative state defined in several .zss files
+// (:8466-8467); here the first file's negative state wins, as the conformance
+// harness already does for .cns. Upgrade when a real character splits -1 or
+// -3 across files and the later part matters (kfm_zss's AI.zss -1, the AI
+// code, is dropped).
+func NewFighterProgramFromFiles(files []StateFile, animations []air.Animation, commands cmd.CommandFile) FighterProgram {
+	states := map[int]cns.StateDef{}
+	zssNumbers := map[int]bool{}
+	var scripts []zss.Script
+	for _, f := range files {
+		if f.Script != nil {
+			scripts = append(scripts, *f.Script)
+			for _, b := range f.Script.Blocks {
+				if _, inCns := states[b.Number]; b.Kind == zss.BlockKindStatedef && b.NumberRaw == "" && !inCns {
+					zssNumbers[b.Number] = true
+				}
+			}
+			continue
+		}
+		for _, def := range f.States {
+			if _, exists := states[def.Number]; exists || zssNumbers[def.Number] {
+				continue
+			}
+			states[def.Number] = def
+		}
+	}
+	return NewFighterProgram(states, animations, commands).WithScripts(scripts)
+}
+
+// stateHeader returns the header of state number as the cns.StateDef
+// enterState takes -- a .zss Statedef's header converted (zssexec.Header) --
+// and whether the program defines it in either format.
+func (p FighterProgram) stateHeader(number int) (cns.StateDef, bool) {
+	if def, ok := p.States[number]; ok {
+		return def, true
+	}
+	return p.script.Header(number)
+}
+
+// hasState reports whether number is defined in either format: the check of
+// every ChangeState target, as Ikemen GO changes state in one table.
+func (p FighterProgram) hasState(number int) bool {
+	_, ok := p.stateHeader(number)
+	return ok
+}
+
+// stateStep is the outcome of running one state of either format.
+type stateStep struct {
+	Context      evaluator.Context
+	Applied      []int // .cns only: the controllers that applied
+	Sounds       []evaluator.SoundEvent
+	Unsupported  []string
+	SkippedCalls []string // .zss only
+}
+
+// step runs the controllers of state number against ctx -- the .cns
+// StateDef or the .zss Statedef block, whichever the program defines --
+// outside a hit pause, or, when frozen, only what ignorehitpause lets run.
+func (p FighterProgram) step(ctx evaluator.Context, number int, frozen bool) (stateStep, error) {
+	// The four calls are written out, not picked through a function
+	// variable: an indirect call makes p.hasState escape, one allocation per
+	// call (decision 009's discipline).
+	if _, ok := p.States[number]; ok {
+		var r statemachine.Result
+		var err error
+		if frozen {
+			r, err = statemachine.StepStateDuringHitPauseWith(ctx, number, p.States, p.hasState)
+		} else {
+			r, err = statemachine.StepStateWith(ctx, number, p.States, p.hasState)
+		}
+		return stateStep{Context: r.Context, Applied: r.Applied, Sounds: r.Sounds, Unsupported: r.Unsupported}, err
+	}
+	if !p.hasState(number) {
+		return stateStep{}, fmt.Errorf("state %d not found in loaded character", number)
+	}
+	var r zssexec.Result
+	var err error
+	if frozen {
+		r, err = zssexec.StepStateDuringHitPause(ctx, number, p.script, p.hasState)
+	} else {
+		r, err = zssexec.StepState(ctx, number, p.script, p.hasState)
+	}
+	return stateStep{Context: r.Context, Sounds: r.Sounds, Unsupported: r.Unsupported, SkippedCalls: r.SkippedCalls}, err
 }
 
 // NewFighterProgram builds a FighterProgram with its animation lookup
@@ -94,6 +221,10 @@ type FighterRuntime struct {
 	// tick so reporting allocates nothing once it has grown. TickResult
 	// exposes it: read it before the next Tick, which overwrites it.
 	Unsupported []string
+	// SkippedCalls is the .zss calls skipped in the last tick (undefined
+	// function, wrong argument or return count), in a buffer reused like
+	// Unsupported.
+	SkippedCalls []string
 }
 
 // NewFighterRuntime builds a fresh FighterRuntime for a fighter entering
@@ -118,6 +249,20 @@ func NewFighterRuntime(fighter match.FighterState, states map[int]cns.StateDef) 
 	return FighterRuntime{Context: ctx}, nil
 }
 
+// NewRuntime is NewFighterRuntime for a fighter whose first state may be
+// defined in .zss as well as .cns: the fighter enters fighter.StateNo with
+// the Statedef header of whichever format defines it. It returns a
+// descriptive error if neither does.
+func (p FighterProgram) NewRuntime(fighter match.FighterState) (FighterRuntime, error) {
+	def, ok := p.stateHeader(fighter.StateNo)
+	if !ok {
+		return FighterRuntime{}, fmt.Errorf("engine: NewRuntime: state %d not found in loaded character", fighter.StateNo)
+	}
+	ctx := evaluator.Context{FighterState: fighter}
+	enterState(&ctx, def)
+	return FighterRuntime{Context: ctx}, nil
+}
+
 // TickResult is the outcome of one Tick call: the updated MatchState, both
 // fighters' updated FighterRuntime (index by match.Side), and whether/how
 // the round ended this tick.
@@ -136,6 +281,11 @@ type TickResult struct {
 	// special states and the current state -- nil for a side with none. A
 	// fresh per-tick log like Sounds; see .vibe/decisions/020.
 	Unsupported [2][]string
+	// SkippedCalls is each fighter's .zss calls that did nothing this tick
+	// (an undefined function, a wrong argument or return count), as the
+	// Ikemen GO console logs them (bytecode.go:5050-5069) -- nil for a side
+	// with none, a fresh per-tick log like Unsupported.
+	SkippedCalls [2][]string
 }
 
 // TickConfig bundles Tick's simulation-constant parameters (bounds,
@@ -162,7 +312,8 @@ type TickConfig struct {
 
 // Tick advances a full simulation tick for both fighters -- the one
 // function tying every prior engine package into a usable match loop: for
-// each fighter, input recognition, CNS state-machine execution, and
+// each fighter, input recognition, state execution (.cns or .zss, whichever
+// format defines the state), and
 // current-animation-frame resolution; then, once for the pair, hit
 // detection; then, per fighter whose state's HitDef triggered this tick,
 // damage/combo resolution; then, per fighter, physics; then a round-outcome
@@ -262,6 +413,10 @@ func Tick(
 	unsupported[match.SideP1] = nilIfEmpty(p1Out.Runtime.Unsupported)
 	unsupported[match.SideP2] = nilIfEmpty(p2Out.Runtime.Unsupported)
 
+	var skippedCalls [2][]string
+	skippedCalls[match.SideP1] = nilIfEmpty(p1Out.Runtime.SkippedCalls)
+	skippedCalls[match.SideP2] = nilIfEmpty(p2Out.Runtime.SkippedCalls)
+
 	// A RoundTimer of 0 at the start of a tick is an untimed round
 	// (MUGEN/Ikemen's "unlimited time" convention): it neither counts down
 	// nor ends on time. Otherwise the timer counts down one tick, and
@@ -277,11 +432,12 @@ func Tick(
 	}
 
 	return TickResult{
-		State:       state,
-		Fighters:    runtimesOut,
-		Round:       result,
-		Sounds:      sounds,
-		Unsupported: unsupported,
+		State:        state,
+		Fighters:     runtimesOut,
+		Round:        result,
+		Sounds:       sounds,
+		Unsupported:  unsupported,
+		SkippedCalls: skippedCalls,
 	}, nil
 }
 
@@ -327,8 +483,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	// tick, once AnimTime has actually reset -- see this item's own ADR.
 	frame := currentFrame(findAnimation(prog, ctx.Anim), ctx.AnimTime)
 
-	def, ok := prog.States[ctx.StateNo]
-	if !ok {
+	if !prog.hasState(ctx.StateNo) {
 		return fighterTickOutput{}, fmt.Errorf("current state %d not found in loaded character", ctx.StateNo)
 	}
 
@@ -337,10 +492,6 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	// moves no physics; input recognition above keeps running. See
 	// .vibe/decisions/018 and 021.
 	frozen := runtime.HitPause > 0 || ctx.GetHit.HitShakeTime > 0
-	step := statemachine.StepState
-	if frozen {
-		step = statemachine.StepStateDuringHitPause
-	}
 
 	// Ikemen GO's actionRun (char.go): states -3, -2 then -1 run every
 	// tick, each as its own phase, before the current state. A ChangeState
@@ -349,41 +500,45 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	// before the current state -- now the new one -- runs, in this tick.
 	var sounds []evaluator.SoundEvent
 	unsupported := runtime.Unsupported[:0]
+	skippedCalls := runtime.SkippedCalls[:0]
 	for _, number := range specialStates {
-		if _, ok := prog.States[number]; !ok {
+		if !prog.hasState(number) {
 			continue
 		}
-		special, err := step(ctx, number, prog.States)
+		special, err := prog.step(ctx, number, frozen)
 		if err != nil {
 			return fighterTickOutput{}, err
 		}
 		ctx = special.Context
 		sounds = append(sounds, special.Sounds...)
 		unsupported = appendMissing(unsupported, special.Unsupported)
+		skippedCalls = appendMissing(skippedCalls, special.SkippedCalls)
 	}
 	if ctx.StateNo != runtime.Context.StateNo {
-		enterState(&ctx, prog.States[ctx.StateNo])
+		entered, _ := prog.stateHeader(ctx.StateNo)
+		enterState(&ctx, entered)
 		// Ikemen GO applies the new animation in stateChange2, before
 		// collision detection: this tick uses its first frame (char.go:6943,
 		// 13049-13062).
 		frame = currentFrame(findAnimation(prog, ctx.Anim), ctx.AnimTime)
 	}
 
-	def = prog.States[ctx.StateNo]
-	result, err := step(ctx, ctx.StateNo, prog.States)
+	result, err := prog.step(ctx, ctx.StateNo, frozen)
 	if err != nil {
 		return fighterTickOutput{}, err
 	}
 	sounds = append(sounds, result.Sounds...)
 	unsupported = appendMissing(unsupported, result.Unsupported)
+	skippedCalls = appendMissing(skippedCalls, result.SkippedCalls)
 
 	newCtx := result.Context
 	resolveAnimElem(&newCtx, findAnimation(prog, newCtx.Anim))
 	if frozen {
 		if newCtx.StateNo != ctx.StateNo {
-			enterState(&newCtx, prog.States[newCtx.StateNo])
+			entered, _ := prog.stateHeader(newCtx.StateNo)
+			enterState(&newCtx, entered)
 		}
-		frozenRuntime := FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: unsupported}
+		frozenRuntime := FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: unsupported, SkippedCalls: skippedCalls}
 		if frozenRuntime.HitPause > 0 {
 			frozenRuntime.HitPause--
 		}
@@ -398,7 +553,8 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		// are enterState's responsibility, since statemachine has no
 		// character-loadout knowledge of the target state's declared
 		// values.
-		enterState(&newCtx, prog.States[newCtx.StateNo])
+		entered, _ := prog.stateHeader(newCtx.StateNo)
+		enterState(&newCtx, entered)
 	} else {
 		newCtx.Time++
 		newCtx.AnimTime++
@@ -409,6 +565,9 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		newCtx.GetHit.HitTime--
 	}
 
+	// Only a .cns state reports applied controllers; a HitDef inside a .zss
+	// block is not acted on yet (decision 024).
+	def := prog.States[ctx.StateNo]
 	var hasHitDef bool
 	var hitDef cns.Controller
 	for _, i := range result.Applied {
@@ -420,7 +579,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	}
 
 	return fighterTickOutput{
-		Runtime:   FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, Unsupported: unsupported},
+		Runtime:   FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, Unsupported: unsupported, SkippedCalls: skippedCalls},
 		Frame:     frame,
 		HasHitDef: hasHitDef,
 		HitDef:    hitDef,
@@ -521,7 +680,7 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 	runtimes[attacker].HitPause = params.PauseTime[0]
 
 	ctx := &runtimes[hit.Defender].Context
-	states := programs[hit.Defender].States
+	defender := programs[hit.Defender]
 
 	hitTime := params.GroundHitTime
 	target := 0
@@ -543,7 +702,7 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 		GroundType:   params.GroundType,
 		AirType:      params.AirType,
 	}
-	if def, ok := states[target]; ok && target != 0 {
+	if def, ok := defender.stateHeader(target); ok && target != 0 {
 		ctx.PrevStateNo = ctx.StateNo
 		ctx.StateNo = target
 		enterState(ctx, def)

@@ -25,6 +25,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/openkakutou/character/cns"
 	"github.com/openkakutou/character/zss"
 	"github.com/openkakutou/engine/evaluator"
 	"github.com/openkakutou/engine/statemachine"
@@ -35,6 +36,10 @@ type Result struct {
 	// Context is the fighter's Context after running script's Statedef
 	// body for ctx.StateNo.
 	Context evaluator.Context
+	// Sounds lists the sound events the script's PlaySnd controllers
+	// recorded during this call, in order -- fresh per call, nil when there
+	// were none, never left in Context (see statemachine.Result.Sounds).
+	Sounds []evaluator.SoundEvent
 	// Unsupported lists, lower-cased and deduplicated, the controller types
 	// the script applied that the engine does not implement -- fresh per
 	// call, nil when there were none (see statemachine.Result.Unsupported).
@@ -74,7 +79,9 @@ func Compile(script zss.Script) CompiledScript {
 		prog.entries = append(prog.entries, cb)
 		switch b.Kind {
 		case zss.BlockKindStatedef:
-			if _, exists := prog.statedefs[b.Number]; !exists {
+			// A symbolic or relative number (NumberRaw) has no state number
+			// to index under; Number is 0 for it.
+			if _, exists := prog.statedefs[b.Number]; !exists && b.NumberRaw == "" {
 				prog.statedefs[b.Number] = cb
 			}
 		case zss.BlockKindFunction:
@@ -85,6 +92,18 @@ func Compile(script zss.Script) CompiledScript {
 		}
 	}
 	return prog
+}
+
+// Header returns the Statedef header of state number as the cns.StateDef the
+// root package's state entry takes (type, movetype, physics, anim, ctrl,
+// ...), and whether prog defines that state. The state's controllers are not
+// part of it: they live in the Statedef block's body, run by StepState.
+func (prog CompiledScript) Header(number int) (cns.StateDef, bool) {
+	block, ok := prog.statedefs[number]
+	if !ok {
+		return cns.StateDef{}, false
+	}
+	return block.header, true
 }
 
 // Errors returns the parse error of every block that has one, in file
@@ -112,47 +131,76 @@ func (prog CompiledScript) blocksParsed() int {
 
 // Step interprets one simulation tick of ctx's current state (ctx.StateNo)
 // against prog, the character's full parsed .zss Script, precomputed once
-// by Compile.
-//
-// It runs that Statedef block's script body from the top, evaluating each
-// if/else condition and applying each controller-call statement in
-// sequence, the same "stop at the first state change" rule
+// by Compile. It is StepState for the current state, with ChangeState
+// targets checked against prog's own Statedefs.
+func Step(ctx evaluator.Context, prog CompiledScript) (Result, error) {
+	exists := func(n int) bool {
+		_, ok := prog.statedefs[n]
+		return ok
+	}
+	return StepState(ctx, ctx.StateNo, prog, exists)
+}
+
+// StepState runs the body of the Statedef block number from the top,
+// evaluating each if/else condition and applying each controller-call
+// statement in sequence, the same "stop at the first state change" rule
 // statemachine.Step follows: once a ChangeState-shaped statement applies,
 // no further statement in the body -- at any nesting level, including
 // ones after the enclosing if block -- runs for this call. A state change
 // also zeroes the persistent(N) counters (statemachine.ApplyController does
-// it, as Ikemen GO resets them on every state entry, char.go:6896-6903). ctx itself is never mutated; Step
-// returns an independent, updated copy, whose Locals are empty again.
+// it, as Ikemen GO resets them on every state entry, char.go:6896-6903).
+// ctx itself is never mutated; StepState returns an independent, updated
+// copy, whose Locals are empty again.
 //
-// Step returns a descriptive error, never a panic, when ctx.StateNo has no
+// number need not be ctx.StateNo: the special states -3, -2 and -1 run this
+// way before the current state. exists reports whether a state number is
+// defined in whatever the caller executes -- the root package passes its
+// merged .cns and .zss table, as Ikemen GO changes state in one table
+// (char.go changeState) -- and validates ChangeState targets only.
+//
+// StepState returns a descriptive error, never a panic, when number has no
 // matching Statedef block in prog, when the body does not parse (see
 // Errors), or when running it fails the same way statemachine.Step's own
-// errors do (an unknown trigger name, a ChangeState target missing from
-// prog, ...).
-func Step(ctx evaluator.Context, prog CompiledScript) (Result, error) {
-	block, ok := prog.statedefs[ctx.StateNo]
+// errors do (an unknown trigger name, a ChangeState target exists does not
+// report, ...).
+func StepState(ctx evaluator.Context, number int, prog CompiledScript, exists func(int) bool) (Result, error) {
+	return stepState(ctx, number, prog, exists, false)
+}
+
+// StepStateDuringHitPause is StepState for a fighter frozen by a hit pause,
+// as Ikemen GO's StateBlock.Run behaves (src/bytecode.go:5136-5260, commit
+// 54d4148a): a block runs only if it is flagged ignoreHitPause (directly,
+// by inheritance from an enclosing flagged block, or because it belongs to a
+// Function); a skipped block does not even touch its persistent counter or
+// evaluate its condition. The statements directly inside a block (controller
+// calls, let, assignments and call) run only when the block's own
+// ignoreHitPause makes them (ctrlsIgnorehitpause): a Statedef's top level
+// never does, a Function's body always does.
+func StepStateDuringHitPause(ctx evaluator.Context, number int, prog CompiledScript, exists func(int) bool) (Result, error) {
+	return stepState(ctx, number, prog, exists, true)
+}
+
+func stepState(ctx evaluator.Context, number int, prog CompiledScript, exists func(int) bool, hitPause bool) (Result, error) {
+	block, ok := prog.statedefs[number]
 	if !ok {
-		return Result{}, fmt.Errorf("zssexec: current state %d not found in loaded .zss script", ctx.StateNo)
+		return Result{}, fmt.Errorf("zssexec: state %d not found in loaded .zss script", number)
 	}
 	if block.err != nil {
 		return Result{}, fmt.Errorf("zssexec: %w", block.err)
 	}
 
 	working := ctx
+	working.Sounds = nil
 	working.Unsupported = working.Unsupported[:0]
-	exists := func(n int) bool {
-		_, ok := prog.statedefs[n]
-		return ok
-	}
-	r := runner{ctx: &working, prog: prog, exists: exists}
+	r := runner{ctx: &working, prog: prog, exists: exists, hitPause: hitPause}
 	working.ZSS = true
 	localTop = 0
 	skippedCalls = skippedCalls[:0]
 	root := frame{base: pushFrame(len(block.names)), names: block.names}
 	working.Locals = root.locals()
-	_, err := r.stmts(block.stmts, root, 0)
+	_, err := r.stmts(block.stmts, root, 0, !hitPause)
 	if err != nil {
-		return Result{}, fmt.Errorf("zssexec: state %d: %w", ctx.StateNo, err)
+		return Result{}, fmt.Errorf("zssexec: state %d: %w", number, err)
 	}
 	working.Locals = evaluator.LocalFrame{}
 	working.ZSS = false
@@ -161,8 +209,10 @@ func Step(ctx evaluator.Context, prog CompiledScript) (Result, error) {
 	if len(skippedCalls) > 0 {
 		skipped = append(skipped, skippedCalls...)
 	}
+	sounds := working.Sounds
+	working.Sounds = nil
 	unsupported := statemachine.TakeUnsupported(&working)
-	return Result{Context: working, Unsupported: unsupported, SkippedCalls: skipped}, nil
+	return Result{Context: working, Sounds: sounds, Unsupported: unsupported, SkippedCalls: skipped}, nil
 }
 
 // maxCallDepth bounds how many nested "call F(...);" statements run will
@@ -216,9 +266,10 @@ func (f frame) locals() evaluator.LocalFrame {
 
 // runner is the state shared by every statement of one Step.
 type runner struct {
-	ctx    *evaluator.Context
-	prog   CompiledScript
-	exists func(int) bool
+	ctx      *evaluator.Context
+	prog     CompiledScript
+	exists   func(int) bool
+	hitPause bool
 }
 
 // skippedCalls collects Result.SkippedCalls during a Step. It is a
@@ -230,9 +281,14 @@ var skippedCalls []string
 // and on exit), and reports whether a state change happened -- the caller
 // must stop running any further statements at its own level (and every
 // enclosing level) as soon as this is true. depth is the current call
-// nesting level (see maxCallDepth); if/else blocks do not change it.
-func (r *runner) stmts(stmts []stmt, fr frame, depth int) (bool, error) {
+// nesting level (see maxCallDepth); if/else blocks do not change it. Only
+// blocks are run when ctrls is false (a hit pause the list's block does not
+// ignore): Ikemen GO's StateBlock.Run skips every other statement then.
+func (r *runner) stmts(stmts []stmt, fr frame, depth int, ctrls bool) (bool, error) {
 	for _, s := range stmts {
+		if _, isBlock := s.(*blockStmt); !isBlock && !ctrls {
+			continue
+		}
 		stopped, err := r.stmt(s, fr, depth)
 		if err != nil {
 			return false, err
@@ -286,10 +342,13 @@ func (r *runner) stmt(s stmt, fr frame, depth int) (bool, error) {
 // block runs a block as Ikemen GO's StateBlock.Run does (bytecode.go:5136):
 // a persistent counter is decremented first (unless it holds the
 // "once" value MaxInt32) and the block is skipped while it is above 0; the
-// counter is set to N again only after a run that did not change state.
-// Ignoring ignoreHitPause is the gap of decision 021: Step runs outside a
-// hit pause.
+// counter is set to N again only after a run that did not change state. In
+// a hit pause a block that is not flagged ignoreHitPause does nothing at all
+// (bytecode.go:5113-5120).
 func (r *runner) block(b *blockStmt, fr frame, depth int) (bool, error) {
+	if r.hitPause && !b.ignoreHitPause {
+		return false, nil
+	}
 	if b.persistIdx >= 0 {
 		if r.ctx.Persistent[b.persistIdx] != math.MaxInt32 {
 			r.ctx.Persistent[b.persistIdx]--
@@ -310,7 +369,7 @@ func (r *runner) block(b *blockStmt, fr frame, depth int) (bool, error) {
 			return false, nil
 		}
 	}
-	changed, err := r.stmts(b.body, fr, depth)
+	changed, err := r.stmts(b.body, fr, depth, !r.hitPause || b.ctrlsIgnoreHitPause)
 	if err != nil || changed {
 		return changed, err
 	}
@@ -322,7 +381,8 @@ func (r *runner) block(b *blockStmt, fr frame, depth int) (bool, error) {
 
 // call runs a Function in a fresh zeroed frame (arguments, then return
 // values, then lets) and, unless it changed state, copies its return values
-// to the caller's slots (BytecodeFunction.run, bytecode.go:4998-5030). A
+// to the caller's slots (BytecodeFunction.run, bytecode.go:4998-5030), its
+// body running whole even in a hit pause: the call itself was the check. A
 // call to an undefined function, or with the wrong number of arguments or
 // returns, is skipped and reported in Result.SkippedCalls, as Ikemen GO
 // logs it and does nothing (bytecode.go:5050-5069).
@@ -357,7 +417,7 @@ func (r *runner) call(st callStmt, fr frame, depth int) (bool, error) {
 		localStack[callee.base+i] = v
 	}
 	r.ctx.Locals = callee.locals()
-	changed, err := r.stmts(fn.stmts, callee, depth+1)
+	changed, err := r.stmts(fn.stmts, callee, depth+1, true)
 	localTop = callee.base
 	r.ctx.Locals = fr.locals()
 	if err != nil {

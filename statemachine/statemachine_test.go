@@ -980,3 +980,48 @@ func TestApplyController_CNSParameters_DoNotShortCircuit(t *testing.T) {
 		t.Error("RandSeed unchanged: the && right side was skipped in a .cns parameter")
 	}
 }
+
+// Ikemen GO changes state in one table shared by .cns and .zss states
+// (src/char.go changeState looks up sys.cgi[pn].states), so a ChangeState of
+// a .cns state may target a state the .cns map does not hold.
+func TestStepStateWith_ChangeStateToAStateKnownOnlyToExists_Applies(t *testing.T) {
+	states := map[int]cns.StateDef{0: {Number: 0, Controllers: []cns.Controller{changeStateController("", 700)}}}
+	exists := func(n int) bool { return n == 700 }
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	got, err := StepStateWith(ctx, 0, states, exists)
+	if err != nil {
+		t.Fatalf("StepStateWith: %v", err)
+	}
+	if got.Context.StateNo != 700 {
+		t.Errorf("StateNo = %d, want 700", got.Context.StateNo)
+	}
+}
+
+func TestStepStateWith_ChangeStateToAStateExistsDoesNotKnow_ReturnsError(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0:   {Number: 0, Controllers: []cns.Controller{changeStateController("", 700)}},
+		700: {Number: 700}, // in the .cns map, but the merged table says no
+	}
+	_, err := StepStateWith(evaluator.Context{}, 0, states, func(int) bool { return false })
+	if err == nil || !strings.Contains(err.Error(), "700") {
+		t.Fatalf("err = %v, want one naming state 700", err)
+	}
+}
+
+func TestStepStateDuringHitPauseWith_FlaggedChangeStateToAStateKnownOnlyToExists_Applies(t *testing.T) {
+	states := map[int]cns.StateDef{0: {Number: 0, Controllers: []cns.Controller{
+		func() cns.Controller {
+			c := changeStateController("", 700)
+			c.Parameters["ignorehitpause"] = "1"
+			return c
+		}(),
+	}}}
+	got, err := StepStateDuringHitPauseWith(evaluator.Context{}, 0, states, func(n int) bool { return n == 700 })
+	if err != nil {
+		t.Fatalf("StepStateDuringHitPauseWith: %v", err)
+	}
+	if got.Context.StateNo != 700 {
+		t.Errorf("StateNo = %d, want 700", got.Context.StateNo)
+	}
+}

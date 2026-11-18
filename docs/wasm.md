@@ -33,6 +33,25 @@ request/response shape and
 for why per-match runtime state stays Go-side in a session registry rather
 than round-tripping through JSON on every call.
 
+### `.zss` characters
+
+A program in a `newMatch` request carries its `.cns` states as `states` and its
+`.zss` files, in load order (`st`, `stN`, then `stcommon`), as `scripts`, each a
+`character/zss` `Script` (`blocks[]` with `kind`, `number`, `headerParams`,
+`params`, `ret`, `body`). A state number in both `states` and `scripts` resolves
+to `states`: to get Ikemen GO's rule that the first file wins, the caller leaves
+out of `states` any number an earlier script defines. A fighter whose starting
+state is defined only in `scripts` is valid. Scripts are compiled once, at
+`newMatch`; a block that does not parse only fails the `tick` that enters it,
+with an error naming the block. See
+[`.vibe/decisions/024`](../.vibe/decisions/024-zss-in-tick-merged-state-table.md).
+
+`tick` returns, next to `unsupported` (controller types skipped), a parallel
+`skippedCalls`: `[2][]string`, one array per side (`[]`, never `null`), the
+`.zss` `call` statements that did nothing this tick because the function is
+undefined or the argument or return count is wrong (Ikemen GO logs them and
+runs on). It is a per-tick log like `sounds`: a skipped response loses it.
+
 ### Example
 
 ```js

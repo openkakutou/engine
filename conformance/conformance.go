@@ -12,6 +12,7 @@ import (
 
 	"github.com/openkakutou/character"
 	"github.com/openkakutou/character/cns"
+	"github.com/openkakutou/character/zss"
 	engine "github.com/openkakutou/engine"
 	"github.com/openkakutou/engine/input"
 	"github.com/openkakutou/engine/match"
@@ -126,27 +127,23 @@ func runCharacter(defPath, display string, ticks int) CharacterReport {
 	}
 	for _, script := range ch.Scripts {
 		for _, block := range script.Script.Blocks {
-			if block.Kind == "Statedef" {
+			if block.Kind == zss.BlockKindStatedef {
 				report.ZssStatedefBlocks++
 			}
 		}
 	}
-	table, err := buildStateTable(ch, defPath)
+	prog, err := buildProgram(ch, defPath)
 	if err != nil {
 		report.Status = StatusLoadError
 		report.Error = err.Error()
 		return report
 	}
-	if _, ok := table[0]; !ok {
-		if report.ZssStatedefBlocks > 0 {
-			report.Status = StatusZssOnly
-			return report
-		}
+	if _, err := prog.NewRuntime(match.FighterState{}); err != nil {
 		report.Status = StatusLoadError
 		report.Error = "no state 0 in the character's state files"
 		return report
 	}
-	simulate(&report, ch, table, ticks)
+	simulate(&report, ch, prog, ticks)
 	return report
 }
 
@@ -162,22 +159,27 @@ func safeTick(state match.MatchState, programs [2]engine.FighterProgram, runtime
 }
 
 // simulate runs the mirror match and fills the report's run figures.
-func simulate(report *CharacterReport, ch *character.Character, table map[int]cns.StateDef, ticks int) {
+func simulate(report *CharacterReport, ch *character.Character, prog engine.FighterProgram, ticks int) {
+	table := prog.States
 	neutral, unparsable := neutralize(table)
 	report.ControllersUnparsable = unparsable
-	report.StatesTotal = len(table)
 	exposures := make(map[int]stateExposure, len(table))
 	for number, def := range table {
 		exposures[number] = exposureOf(def)
 	}
+	// The .zss states count as states and as reached, but are neither
+	// neutralized nor measured for exposure: an element the engine rejects
+	// stops the run as a tick error naming the block (decision 024).
+	zssStates := zssStateNumbers(ch, table)
+	report.StatesTotal = len(table) + len(zssStates)
 
-	prog := engine.NewFighterProgram(neutral, ch.Animations, ch.Commands)
+	prog.States = neutral
 	programs := [2]engine.FighterProgram{match.SideP1: prog, match.SideP2: prog}
 	bounds := &stage.StageBoundaries{Left: -stageBound, Right: stageBound}
 	p1Start := match.FighterState{Side: match.SideP1, Position: match.Position{X: -startX}, Facing: match.FacingRight, Health: startHealth}
 	p2Start := match.FighterState{Side: match.SideP2, Position: match.Position{X: startX}, Facing: match.FacingLeft, Health: startHealth}
 
-	state, runtimes, err := startRound(1, p1Start, p2Start, neutral)
+	state, runtimes, err := startRound(1, p1Start, p2Start, prog)
 	if err != nil {
 		report.Status = StatusLoadError
 		report.Error = err.Error()
@@ -193,6 +195,9 @@ func simulate(report *CharacterReport, ch *character.Character, table map[int]cn
 			number := runtimes[side].Context.StateNo
 			e, ok := exposures[number]
 			if !ok {
+				if zssStates[number] {
+					reached[number] = true
+				}
 				continue
 			}
 			reached[number] = true
@@ -217,7 +222,7 @@ func simulate(report *CharacterReport, ch *character.Character, table map[int]cn
 		*state = result.State
 		runtimes = result.Fighters
 		if result.Round.Outcome != round.OutcomeNone {
-			state, runtimes, err = startRound(state.Round+1, p1Start, p2Start, neutral)
+			state, runtimes, err = startRound(state.Round+1, p1Start, p2Start, prog)
 			if err != nil {
 				report.Status = StatusLoadError
 				report.Error = err.Error()
@@ -236,17 +241,32 @@ func simulate(report *CharacterReport, ch *character.Character, table map[int]cn
 }
 
 // startRound builds the match state and both fighters' runtimes for a round.
-func startRound(number int, p1Start, p2Start match.FighterState, states map[int]cns.StateDef) (*match.MatchState, [2]engine.FighterRuntime, error) {
+func startRound(number int, p1Start, p2Start match.FighterState, prog engine.FighterProgram) (*match.MatchState, [2]engine.FighterRuntime, error) {
 	state, err := round.ResetRound(number, roundTimer, p1Start, p2Start)
 	if err != nil {
 		return nil, [2]engine.FighterRuntime{}, err
 	}
 	var runtimes [2]engine.FighterRuntime
 	for side, start := range map[match.Side]match.FighterState{match.SideP1: p1Start, match.SideP2: p2Start} {
-		runtimes[side], err = engine.NewFighterRuntime(start, states)
+		runtimes[side], err = prog.NewRuntime(start)
 		if err != nil {
 			return nil, [2]engine.FighterRuntime{}, err
 		}
 	}
 	return state, runtimes, nil
+}
+
+// zssStateNumbers is the set of state numbers the character's .zss scripts
+// define that the .cns table does not already hold (a .cns state that came
+// first wins, and NewFighterProgramFromFiles dropped the one it beat).
+func zssStateNumbers(ch *character.Character, table map[int]cns.StateDef) map[int]bool {
+	numbers := map[int]bool{}
+	for _, script := range ch.Scripts {
+		for _, block := range script.Script.Blocks {
+			if _, inCns := table[block.Number]; block.Kind == zss.BlockKindStatedef && block.NumberRaw == "" && !inCns {
+				numbers[block.Number] = true
+			}
+		}
+	}
+	return numbers
 }

@@ -33,7 +33,10 @@ files.
    `stcommon`; the first definition of a state number wins (a character's own
    states override its common file's). `Character.StateDefs` is a last
    fallback. Missing files (typically `stcommon = common1.cns`, which lives in
-   the game's `data/`) are skipped. `.zss` entries are not state tables here.
+   the game's `data/`) are skipped. `.zss` entries are merged into the same
+   table in the same order, first definition winning whatever the format
+   (`engine.NewFighterProgramFromFiles`, decision `024`); a `.zss` that does not
+   parse is a `load-error`.
 2. **Mirror match.** The character fights itself: both sides run the same
    program, start in state 0 facing each other 140 units apart (x = -70 and
    +70) with 1000 health, in a stage bounded at x = -500..500, round timer 99 s
@@ -60,16 +63,18 @@ files.
    characters and counts the characters exposed to it.
 6. **Failures.** A `Tick` error stops that character's run (status `tick-error`,
    the message and the number of ticks completed are recorded) and the next
-   character runs. A character whose states exist only in `.zss` is reported
-   `not executed: .zss-only`; every character reports its count of `.zss`
-   `Statedef` blocks, which `Tick` does not execute.
+   character runs. A character whose states exist only in `.zss` runs like any
+   other; every character reports its count of `.zss` `Statedef` blocks.
 
 ## Limitations
 
 - Exposure counts **state presence**, not trigger evaluation: a controller
   counts every tick its state is current, whether or not its other triggers
   would have let it fire.
-- `.zss` is not executed; `.zss` states and functions are only counted.
+- `.zss` states run, but they are neither neutralized nor measured: a `.zss`
+  element the engine rejects (an unknown trigger, a block that does not parse)
+  stops the character's run as a `tick-error` naming the block, so the
+  exposure behind it is not counted. They count as states and as reached.
 - Neutralized controllers do not run, so they change the run: a neutralized
   `ChangeState` can keep a fighter out of states the real engine would reach,
   hiding the exposure behind them. Raise coverage, then re-run.

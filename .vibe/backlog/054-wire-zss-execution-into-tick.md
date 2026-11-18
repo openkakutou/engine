@@ -1,5 +1,5 @@
 ---
-status: todo
+status: in_progress
 ---
 # Wire .zss Execution into Tick
 

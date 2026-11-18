@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -128,9 +129,9 @@ func TestRun_FolderWithNonCharacterDef_SkipsItWithReason(t *testing.T) {
 	}
 }
 
-func TestRun_ZssOnlyCharacter_IsReportedNotExecuted(t *testing.T) {
+func TestRun_ZssOnlyCharacter_RunsAndCountsItsStatedefs(t *testing.T) {
 	dir := t.TempDir()
-	zss := "[Statedef 0; type: S; physics: S]\nvarSet(v: 0, value: 1)\n\n[Statedef 200; type: S]\nvarSet(v: 0, value: 2)\n"
+	zss := "[Statedef 0; type: S; physics: S]\nvarSet{v: 0; value: 1}\n\n[Statedef 200; type: S]\nvarSet{v: 0; value: 2}\n"
 	defPath := writeCharacter(t, dir, "zonly", "", "st = zonly.zss", map[string]string{"zonly.zss": zss})
 
 	report, err := Run([]string{defPath}, Options{Ticks: 10})
@@ -138,20 +139,45 @@ func TestRun_ZssOnlyCharacter_IsReportedNotExecuted(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 	c := findCharacter(t, report, "zonly.def")
-	if c.Status != StatusZssOnly {
-		t.Errorf("Status = %q, want %q", c.Status, StatusZssOnly)
+	if c.Status != StatusRan || c.TicksRun != 10 || c.Error != "" {
+		t.Errorf("Status, TicksRun, Error = %q, %d, %q, want ran, 10 and none", c.Status, c.TicksRun, c.Error)
 	}
-	if c.TicksRun != 0 || c.Error != "" {
-		t.Errorf("TicksRun = %d, Error = %q, want 0 and none", c.TicksRun, c.Error)
-	}
-	if c.ZssStatedefBlocks != 2 {
-		t.Errorf("ZssStatedefBlocks = %d, want 2", c.ZssStatedefBlocks)
+	if c.ZssStatedefBlocks != 2 || c.StatesTotal != 2 || c.StatesReached != 1 {
+		t.Errorf("ZssStatedefBlocks, StatesTotal, StatesReached = %d, %d, %d, want 2, 2, 1", c.ZssStatedefBlocks, c.StatesTotal, c.StatesReached)
 	}
 }
 
-func TestRun_CnsCharacterWithZssStatedefs_CountsThemAsNotExecuted(t *testing.T) {
+func TestRun_ZssOnlyCharacterWithoutStateZero_IsALoadError(t *testing.T) {
 	dir := t.TempDir()
-	zss := "[Statedef 300; type: S]\nvarSet(v: 0, value: 2)\n"
+	defPath := writeCharacter(t, dir, "nozero", "", "st = nozero.zss", map[string]string{"nozero.zss": "[Statedef 200; type: S]\nnull{}\n"})
+	report, err := Run([]string{defPath}, Options{Ticks: 10})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if c := findCharacter(t, report, "nozero.def"); c.Status != StatusLoadError || c.Error == "" {
+		t.Errorf("Status, Error = %q, %q, want a load error naming the missing state 0", c.Status, c.Error)
+	}
+}
+
+func TestRun_ZssCharacterThatStopsTheEngine_IsATickErrorNamingTheBlock(t *testing.T) {
+	// .zss states are not neutralized: a block the engine cannot run (here an
+	// unknown trigger) is the tick error, as for any other engine failure.
+	dir := t.TempDir()
+	zss := "[Statedef 0; type: S; physics: S]\nif nosuchtrigger {\n null{}\n}\n"
+	defPath := writeCharacter(t, dir, "zbad", "", "st = zbad.zss", map[string]string{"zbad.zss": zss})
+	report, err := Run([]string{defPath}, Options{Ticks: 10})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	c := findCharacter(t, report, "zbad.def")
+	if c.Status != StatusTickError || !strings.Contains(c.Error, "state 0") {
+		t.Errorf("Status, Error = %q, %q, want a tick error naming state 0", c.Status, c.Error)
+	}
+}
+
+func TestRun_CnsCharacterWithZssStatedefs_RunsThemAndCountsThem(t *testing.T) {
+	dir := t.TempDir()
+	zss := "[Statedef 300; type: S]\nnull{}\n"
 	defPath := writeCharacter(t, dir, "mixed", exposureCNS, "cns = mixed.cns\nst = mixed.zss", map[string]string{"mixed.zss": zss})
 
 	report, err := Run([]string{defPath}, Options{Ticks: 5})

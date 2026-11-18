@@ -21,9 +21,6 @@ const (
 	StatusLoadError Status = "load-error"
 	// StatusSkipped means the .def is not a character definition.
 	StatusSkipped Status = "skipped"
-	// StatusZssOnly means the character's states exist only in .zss, which
-	// Tick does not execute yet.
-	StatusZssOnly Status = "not executed: .zss-only"
 )
 
 // Count is one identifier (controller type or trigger name) and how many
@@ -138,7 +135,7 @@ func (r Report) WriteText(w io.Writer) error {
 		printf("  states reached: %d/%d\n", c.StatesReached, c.StatesTotal)
 		printf("  controllers supported (reached states): %d/%d\n", c.ControllersSupported, c.ControllersTotal)
 		printf("  controllers with an unparsable trigger: %d\n", c.ControllersUnparsable)
-		printf("  .zss Statedef blocks (not executed): %d\n", c.ZssStatedefBlocks)
+		printf("  .zss Statedef blocks: %d\n", c.ZssStatedefBlocks)
 		for _, u := range c.UnsupportedControllers {
 			printf("  unsupported controller %s: %d\n", u.Name, u.Count)
 		}

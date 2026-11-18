@@ -279,3 +279,183 @@ func TestStep_RealCharacterFixture_KfmIdle_HoldFwd_ChangesStateAndStops(t *testi
 		t.Errorf("Vars[0] = %d, want 0 (MarkEnteredIdle never reached once ChangeState applied)", result.Context.Vars[0])
 	}
 }
+
+// allExist reports every state as existing, as the root package's merged
+// state table would for a ChangeState target.
+func allExist(int) bool { return true }
+
+func TestStepState_GivenStateNumber_RunsThatStateNotTheCurrentOne(t *testing.T) {
+	script := mustParseScript(t,
+		"[Statedef 0]\nvarSet{v: 1; value: 111}",
+		"[Statedef -1]\nvarSet{v: 1; value: 7}",
+	)
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	result, err := StepState(ctx, -1, script, allExist)
+	if err != nil {
+		t.Fatalf("StepState returned unexpected error: %v", err)
+	}
+	if got := result.Context.Vars[1]; got != 7 {
+		t.Errorf("var(1) = %d, want 7 (state -1's body, not state 0's 111)", got)
+	}
+	if result.Context.StateNo != 0 {
+		t.Errorf("StateNo = %d, want 0 (a special state does not become the current one)", result.Context.StateNo)
+	}
+}
+
+func TestStepState_ChangeStateToAStateOnlyTheCallersExistsKnows_Applies(t *testing.T) {
+	// Ikemen GO changes state in one table shared by .cns and .zss states
+	// (src/char.go changeState looks up sys.cgi[pn].states), so the target
+	// may be defined outside this script.
+	script := mustParseScript(t, "[Statedef 0]\nchangeState{value: 700}")
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+
+	result, err := StepState(ctx, 0, script, func(n int) bool { return n == 700 })
+	if err != nil {
+		t.Fatalf("StepState returned unexpected error: %v", err)
+	}
+	if result.Context.StateNo != 700 {
+		t.Errorf("StateNo = %d, want 700", result.Context.StateNo)
+	}
+}
+
+func TestStepState_MissingState_ReturnsDescriptiveError(t *testing.T) {
+	script := mustParseScript(t, "[Statedef 0]\nvarSet{v: 1; value: 1}")
+	_, err := StepState(evaluator.Context{}, 42, script, allExist)
+	if err == nil || !strings.Contains(err.Error(), "42") {
+		t.Errorf("error = %v, want one naming state 42", err)
+	}
+}
+
+func TestStepState_BlockWithParseError_ErrorNamesTheBlock(t *testing.T) {
+	script := mustParseScript(t, "[Statedef 9]\nfor i = 0, 3 {\n}")
+	_, err := StepState(evaluator.Context{}, 9, script, allExist)
+	if err == nil || !strings.Contains(err.Error(), "Statedef 9") {
+		t.Errorf("error = %v, want one naming \"Statedef 9\"", err)
+	}
+}
+
+func TestStepState_PlaySnd_ReturnsTheSoundAndLeavesNoneInTheContext(t *testing.T) {
+	script := mustParseScript(t, "[Statedef 0]\nplaySnd{value: 5, 2}")
+	result, err := StepState(evaluator.Context{}, 0, script, allExist)
+	if err != nil {
+		t.Fatalf("StepState returned unexpected error: %v", err)
+	}
+	if len(result.Sounds) != 1 || result.Sounds[0] != (evaluator.SoundEvent{Group: 5, Sample: 2}) {
+		t.Errorf("Sounds = %v, want one {5 2}", result.Sounds)
+	}
+	if result.Context.Sounds != nil {
+		t.Errorf("Context.Sounds = %v, want nil (the log is per call)", result.Context.Sounds)
+	}
+}
+
+// Ikemen GO StateBlock.Run (src/bytecode.go:5136-5260, commit 54d4148a): in
+// a hit pause a block without ignorehitpause does not run, and the
+// statements of a block run only when that block has ctrlsIgnorehitpause.
+func TestStepStateDuringHitPause_OnlyIgnoreHitPauseBlocksRun(t *testing.T) {
+	script := mustParseScript(t, "[Statedef 0]\n"+
+		"varSet{v: 0; value: 1}\n"+ // root-level statement: skipped
+		"ignoreHitPause {\n varSet{v: 1; value: 1}\n}\n"+ // runs
+		"if 1 {\n varSet{v: 2; value: 1}\n}\n"+ // block without the flag: skipped
+		"ignoreHitPause if 1 {\n varSet{v: 3; value: 1}\n}\n") // runs
+
+	result, err := StepStateDuringHitPause(evaluator.Context{}, 0, script, allExist)
+	if err != nil {
+		t.Fatalf("StepStateDuringHitPause returned unexpected error: %v", err)
+	}
+	got := [4]int{result.Context.Vars[0], result.Context.Vars[1], result.Context.Vars[2], result.Context.Vars[3]}
+	if want := [4]int{0, 1, 0, 1}; got != want {
+		t.Errorf("var(0..3) = %v, want %v", got, want)
+	}
+}
+
+func TestStepStateDuringHitPause_OuterBlockOfAFlaggedInnerBlock_RunsOnlyTheInnerOne(t *testing.T) {
+	// The flag propagates up (compiler.go:7530), so the outer `if` is
+	// entered and its condition evaluated; its own controllers are skipped.
+	script := mustParseScript(t, "[Statedef 0]\n"+
+		"if 1 {\n varSet{v: 0; value: 1}\n ignoreHitPause {\n  varSet{v: 1; value: 1}\n }\n}")
+	result, err := StepStateDuringHitPause(evaluator.Context{}, 0, script, allExist)
+	if err != nil {
+		t.Fatalf("StepStateDuringHitPause returned unexpected error: %v", err)
+	}
+	if result.Context.Vars[0] != 0 || result.Context.Vars[1] != 1 {
+		t.Errorf("var(0), var(1) = %d, %d, want 0, 1", result.Context.Vars[0], result.Context.Vars[1])
+	}
+}
+
+func TestStepStateDuringHitPause_SkippedBlock_KeepsItsPersistentCounter(t *testing.T) {
+	// StateBlock.Run returns before touching the counter (bytecode.go:5113-5120).
+	script := mustParseScript(t, "[Statedef 0]\npersistent(3) if 1 {\n varSet{v: 0; value: 1}\n}")
+	ctx := evaluator.Context{}
+	ctx.Persistent[0] = 2
+
+	result, err := StepStateDuringHitPause(ctx, 0, script, allExist)
+	if err != nil {
+		t.Fatalf("StepStateDuringHitPause returned unexpected error: %v", err)
+	}
+	if result.Context.Persistent[0] != 2 {
+		t.Errorf("Persistent[0] = %d, want 2 (untouched)", result.Context.Persistent[0])
+	}
+}
+
+func TestStepStateDuringHitPause_FunctionCallInAFlaggedBlock_RunsTheFunctionBody(t *testing.T) {
+	// A Function's blocks all carry ignorehitpause (compiler.go:7852), but
+	// the `call` itself is a statement like any other.
+	script := mustParseScript(t,
+		"[Function F()]\nvarSet{v: 0; value: 5}",
+		"[Function G()]\nvarSet{v: 2; value: 9}",
+		"[Statedef 0]\ncall G();\nignoreHitPause {\n call F();\n varSet{v: 1; value: 6}\n}",
+	)
+	result, err := StepStateDuringHitPause(evaluator.Context{}, 0, script, allExist)
+	if err != nil {
+		t.Fatalf("StepStateDuringHitPause returned unexpected error: %v", err)
+	}
+	got := [3]int{result.Context.Vars[0], result.Context.Vars[1], result.Context.Vars[2]}
+	if want := [3]int{5, 6, 0}; got != want {
+		t.Errorf("var(0..2) = %v, want %v (the unflagged root-level call G is skipped)", got, want)
+	}
+}
+
+func TestStepStateDuringHitPause_FlaggedChangeState_Applies(t *testing.T) {
+	script := mustParseScript(t, "[Statedef 0]\nignoreHitPause {\n changeState{value: 5}\n}", "[Statedef 5]")
+	result, err := StepStateDuringHitPause(evaluator.Context{}, 0, script, allExist)
+	if err != nil {
+		t.Fatalf("StepStateDuringHitPause returned unexpected error: %v", err)
+	}
+	if result.Context.StateNo != 5 {
+		t.Errorf("StateNo = %d, want 5", result.Context.StateNo)
+	}
+}
+
+func TestCompile_StatedefHeader_ConvertsToTheStateDefBookkeeping(t *testing.T) {
+	// Ikemen GO stateDef (src/compiler.go:7020-7130): type, movetype,
+	// physics, anim, ctrl, poweradd, juggle, ...
+	script := mustParseScript(t,
+		"[Statedef 40; type: A; movetype: H; physics: N; anim: 41; ctrl: 0; poweradd: 5; juggle: 2; facep2: 1;]\n",
+		"[Statedef 0]\n",
+	)
+	def, ok := script.Header(40)
+	if !ok {
+		t.Fatal("Header(40) not found")
+	}
+	if def.Number != 40 || def.Type != "A" || def.MoveType != "H" || def.Physics != "N" ||
+		def.Anim != 41 || def.Ctrl || def.PowerAdd != 5 || def.Juggle != 2 || !def.FaceP2 {
+		t.Errorf("Header(40) = %+v, want type A movetype H physics N anim 41 ctrl false poweradd 5 juggle 2 facep2", def)
+	}
+	if _, ok := script.Header(99); ok {
+		t.Error("Header(99) reported a state the script does not define")
+	}
+}
+
+func TestCompile_SymbolicStatedefNumber_DoesNotDefineStateZero(t *testing.T) {
+	// Number is 0 for a symbolic or relative number (zss.Block.NumberRaw);
+	// such a block must not shadow the real state 0.
+	script := mustParseScript(t,
+		"[Statedef const(StateDizzy); type: A;]\nnull{}",
+		"[Statedef 0; type: S;]\nnull{}",
+	)
+	def, ok := script.Header(0)
+	if !ok || def.Type != "S" {
+		t.Errorf("Header(0) = %+v, %v, want the real state 0 (type S)", def, ok)
+	}
+}

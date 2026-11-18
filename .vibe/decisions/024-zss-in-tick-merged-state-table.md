@@ -1,0 +1,21 @@
+---
+date: 2026-11-18
+status: accepted
+---
+# .zss runs in Tick, in one state table shared with .cns
+
+**Context:** Backlog item 054. `Tick` ran `.cns` states only (decision 011 scoped `.zss` out), so no match played a `.zss` character or Ikemen GO's `common1.cns.zss`, and decisions 021 and 023 left two hit-pause gaps open: the `ignoreHitPause` block and the delayed reset of persistent counters. Compat is a MUST (Ikemen GO, commit `54d4148a`).
+**Decision:**
+1. **One table, two formats.** Ikemen GO compiles `st`, `stN`, the `.cmd` and `stcommon` in that order into one map of states, `.cns` and `.zss` mixed, and skips a state number already declared (`src/compiler.go:8776-8798`, `:7538-7539`, and `:8466-8475` for `.zss`). `FighterProgram` keeps `States` (`.cns`) and gains a compiled `.zss` script (`WithScripts`); a number resolves to `States` first. `NewFighterProgramFromFiles` takes the files in load order and drops the `.cns` definition a `.zss` file defined first, so the first file wins whatever the format. Functions are shared by every script, the first loaded winning (`compiler.go` "the first loaded one overrides others"). `ChangeState` target checks see both formats (`statemachine.StepStateWith`, `zssexec.StepState` take an `exists` predicate).
+2. **Same tick, same order.** `tickFighter` runs -3, -2, -1 then the current state exactly as before (`char.go` actionRun), each through `FighterProgram.step`, which picks `statemachine` or `zssexec` by the number's format. `zssexec` gains `StepState(ctx, number, prog, exists)` and `StepStateDuringHitPause`, two functions and no mode flag (decision 021's rule); `Step` stays. A `.zss` Statedef header (type, movetype, physics, anim, ctrl, poweradd, ...) is converted once at `Compile` to a `cns.StateDef` (`Header`) and enters through the same `enterState` (Ikemen GO `stateDef`, `compiler.go:7020`).
+3. **`ignoreHitPause` closes (021's gap).** In a hit pause `zssexec` follows `StateBlock.Run` (`bytecode.go:5136-5260`): a block not flagged does nothing (no condition, no counter), and the statements directly in a block run only if its `ctrlsIgnorehitpause` says so; a Statedef's top level never does, a Function body always does (`BytecodeFunction.run`: "the function call already checked").
+4. **Persistent reset stays as is (023's gap, kept).** Ikemen GO defers the reset during a hit pause only for characters without `ikemenversion` (`char.go:6896-6903`); a `.zss` character is an Ikemen character, so the immediate reset is the right behaviour for every `.zss` state, and `.cns` persistence is not implemented through these counters. Nothing to add.
+5. **Reporting.** `zssexec.Result.SkippedCalls` and its unsupported controllers reach `TickResult.SkippedCalls` / `Unsupported` per side, in buffers reused tick after tick (no allocation on the hot path), and the WASM `tick` response (`skippedCalls`, a parallel field as decision 012 does). `zssexec.Result` now returns `Sounds`, so `PlaySnd` in `.zss` reaches `TickResult.Sounds`.
+6. **Conformance** parses `.zss` into the same table and runs `.zss` characters; their states are not neutralized (a rejected element is a tick error naming the block).
+**Reason:** A merged table is what Ikemen GO does, so mixing formats (a `.zss` `common1` under a `.cns` character and the reverse) needs no special case; `States`-first keeps every `.cns`-only program, test and WASM request unchanged.
+**Known limits:** a negative state defined in several `.zss` files keeps only the first (Ikemen GO appends them, `compiler.go:8466`; kfm_zss's AI `-1` is dropped); a `HitDef` inside a `.zss` block is not acted on (only `.cns` reports applied controllers); a header field written as an expression is not evaluated; the header's `velset` and `poweradd` are not applied on entry, for `.cns` either.
+**Rejected alternatives:**
+- *A flag per fighter, `.cns` or `.zss`* (011's option): a character mixes formats in Ikemen GO.
+- *Converting `.zss` blocks to `cns.StateDef`*: a block is a tree of statements with locals and calls, not a flat controller list.
+- *A mode argument on `Step`/`StepState`*: decision 021 rejected it.
+- *Resolving a number found in both formats by format* (`.cns` always first): contradicts file order.

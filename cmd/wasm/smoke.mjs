@@ -77,9 +77,15 @@ const attackerStates = {
 		],
 	},
 };
-const defenderStates = {
-	0: { number: 0, type: "S", moveType: "I", physics: "S", anim: 0, ctrl: true, controllers: [] },
-};
+// The defender's states come from a .zss script, not .cns (backlog item 054):
+// its state 0 calls a function nobody defined, which Tick skips and reports
+// under `skippedCalls` (Ikemen GO logs it and runs on, bytecode.go:5050-5069).
+const defenderScripts = [{
+	blocks: [{
+		kind: "Statedef", number: 0, headerParams: { type: "S", movetype: "I", physics: "S", anim: "0", ctrl: "1" },
+		params: [], ret: [], body: "call Nope();",
+	}],
+}];
 const attackerAnimations = [
 	{ number: 0, frames: [{ group: 0, image: 0, x: 0, y: 0, time: -1, clsn1: [], clsn2: [] }], loopStart: 0 },
 	{ number: 200, frames: [{ group: 0, image: 0, x: 0, y: 0, time: 100, clsn1: [{ left: -5, top: -50, right: 5, bottom: 0 }], clsn2: [] }], loopStart: 0 },
@@ -93,7 +99,7 @@ const emptyCommands = { remap: {}, defaults: { time: 0, bufferTime: 0 }, command
 const newMatchRequest = {
 	programs: [
 		{ states: attackerStates, animations: attackerAnimations, commands: attackerCommands },
-		{ states: defenderStates, animations: defenderAnimations, commands: emptyCommands },
+		{ states: {}, scripts: defenderScripts, animations: defenderAnimations, commands: emptyCommands },
 	],
 	starting: [
 		{ side: 0, position: { x: 0, y: 0 }, facing: 0, velocity: { x: 0, y: 0 }, stateNo: 0, health: 1000 },
@@ -130,6 +136,9 @@ assert(Array.isArray(idleTick.data?.sounds?.[0]) && idleTick.data.sounds[0].leng
 assert(Array.isArray(idleTick.data?.sounds?.[1]) && idleTick.data.sounds[1].length === 0, `idle tick: P2's sounds is an empty array, not null (got: ${JSON.stringify(idleTick.data?.sounds?.[1])})`);
 assert(Array.isArray(idleTick.data?.unsupported?.[0]) && idleTick.data.unsupported[0].length === 0, `idle tick: P1 unsupported is an empty array, not null (got: ${JSON.stringify(idleTick.data?.unsupported?.[0])})`);
 assert(Array.isArray(idleTick.data?.unsupported?.[1]) && idleTick.data.unsupported[1].length === 0, `idle tick: P2 unsupported is an empty array, not null (got: ${JSON.stringify(idleTick.data?.unsupported?.[1])})`);
+
+assert(Array.isArray(idleTick.data?.skippedCalls?.[0]) && idleTick.data.skippedCalls[0].length === 0, `idle tick: P1 skippedCalls is an empty array, not null (got: ${JSON.stringify(idleTick.data?.skippedCalls?.[0])})`);
+assert(idleTick.data?.skippedCalls?.[1]?.length === 1 && /nope/i.test(idleTick.data.skippedCalls[1][0]), `idle tick: P2's .zss call to an undefined function is reported under skippedCalls (got: ${JSON.stringify(idleTick.data?.skippedCalls?.[1])})`);
 
 // --- tick with P1's attack button held: P1's ChangeState controller
 // (state 0) fires, moving it into its attack state (200) -- a controller

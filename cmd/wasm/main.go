@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"syscall/js"
 
+	"github.com/openkakutou/character/zss"
 	"github.com/openkakutou/engine"
 	"github.com/openkakutou/engine/evaluator"
 	"github.com/openkakutou/engine/input"
@@ -110,17 +111,38 @@ func extractArgString(args []js.Value) (string, error) {
 	return args[0].String(), nil
 }
 
+// programRequest is one fighter's program as the JS side sends it: the
+// engine.FighterProgram fields (flattened by the embedding) plus the
+// character's compiled-at-load .zss scripts in load order (Scripts, each a
+// character/zss Script). A state number defined in both `states` and
+// `scripts` resolves to `states`; to get Ikemen GO's first-file-wins across
+// the two, the JS side leaves out of `states` the numbers an earlier script
+// defines (engine.NewFighterProgramFromFiles does it in Go).
+type programRequest struct {
+	engine.FighterProgram
+	Scripts []zss.Script `json:"scripts"`
+}
+
+// build returns the FighterProgram with its animation lookup and its .zss
+// scripts compiled once, at match creation. FighterProgram's own JSON
+// decoding only ever populates its exported States/Animations/Commands
+// fields, never the unexported index and compiled script (see
+// .vibe/decisions/013 and 024).
+func (r programRequest) build() engine.FighterProgram {
+	return engine.NewFighterProgram(r.States, r.Animations, r.Commands).WithScripts(r.Scripts)
+}
+
 // newMatchRequest is OpenKakutouEngine.newMatch's JSON request shape.
 // Programs/Starting are indexed [P1, P2], matching match.Side's own
 // SideP1/SideP2 ordering.
 type newMatchRequest struct {
-	Programs    [2]engine.FighterProgram `json:"programs"`
-	Starting    [2]match.FighterState    `json:"starting"`
-	RoundTimer  int                      `json:"roundTimer"`
-	BestOf      int                      `json:"bestOf"`
-	Bounds      stage.StageBoundaries    `json:"bounds"`
-	Gravity     float64                  `json:"gravity"`
-	ComboWindow int                      `json:"comboWindow"`
+	Programs    [2]programRequest     `json:"programs"`
+	Starting    [2]match.FighterState `json:"starting"`
+	RoundTimer  int                   `json:"roundTimer"`
+	BestOf      int                   `json:"bestOf"`
+	Bounds      stage.StageBoundaries `json:"bounds"`
+	Gravity     float64               `json:"gravity"`
+	ComboWindow int                   `json:"comboWindow"`
 	// RandSeed seeds the match's Random sequence (match.MatchState.RandSeed);
 	// omitted, it is 0.
 	RandSeed int32 `json:"randSeed"`
@@ -186,24 +208,20 @@ func newMatch(args []js.Value) (any, error) {
 	}
 	state.RandSeed = req.RandSeed
 
-	p1Runtime, err := engine.NewFighterRuntime(req.Starting[match.SideP1], req.Programs[match.SideP1].States)
+	// Rebuilding each side's FighterProgram here, once at match creation,
+	// precomputes its animation lookup and compiles its .zss scripts for the
+	// whole match's worth of ticks that follow (see programRequest.build).
+	programs := [2]engine.FighterProgram{
+		match.SideP1: req.Programs[match.SideP1].build(),
+		match.SideP2: req.Programs[match.SideP2].build(),
+	}
+	p1Runtime, err := programs[match.SideP1].NewRuntime(req.Starting[match.SideP1])
 	if err != nil {
 		return nil, fmt.Errorf("side %v: %w", match.SideP1, err)
 	}
-	p2Runtime, err := engine.NewFighterRuntime(req.Starting[match.SideP2], req.Programs[match.SideP2].States)
+	p2Runtime, err := programs[match.SideP2].NewRuntime(req.Starting[match.SideP2])
 	if err != nil {
 		return nil, fmt.Errorf("side %v: %w", match.SideP2, err)
-	}
-
-	// Rebuilding each side's FighterProgram through NewFighterProgram here,
-	// once at match creation, precomputes its animation lookup for the
-	// whole match's worth of ticks that follow -- req.Programs itself came
-	// straight from JSON decoding, which only ever populates the exported
-	// States/Animations/Commands fields, never the unexported index (see
-	// this item's own ADR, .vibe/decisions/013).
-	programs := [2]engine.FighterProgram{
-		match.SideP1: engine.NewFighterProgram(req.Programs[match.SideP1].States, req.Programs[match.SideP1].Animations, req.Programs[match.SideP1].Commands),
-		match.SideP2: engine.NewFighterProgram(req.Programs[match.SideP2].States, req.Programs[match.SideP2].Animations, req.Programs[match.SideP2].Commands),
 	}
 
 	id := nextID
@@ -252,9 +270,15 @@ type tickResponse struct {
 	// asks for something the engine skips". Additive: no existing field
 	// changed. See .vibe/decisions/020.
 	Unsupported [2][]string `json:"unsupported"`
+	// SkippedCalls is each fighter's .zss calls that did nothing this tick
+	// (an undefined function, a wrong argument or return count), indexed by
+	// match.Side, each side always a JSON array like Unsupported. A parallel
+	// field, not part of `unsupported`: those are controller types, these
+	// are statements (decision 012's additive rule, decision 024).
+	SkippedCalls [2][]string `json:"skippedCalls"`
 }
 
-// normalizeUnsupported returns names unchanged if non-nil, or a non-nil
+// normalizeUnsupported (also used for skippedCalls) returns names unchanged if non-nil, or a non-nil
 // empty slice otherwise, so the JSON field is `[]`, never `null`.
 func normalizeUnsupported(names []string) []string {
 	if names == nil {
@@ -331,6 +355,10 @@ func tickJS(args []js.Value) (any, error) {
 		Unsupported: [2][]string{
 			match.SideP1: normalizeUnsupported(result.Unsupported[match.SideP1]),
 			match.SideP2: normalizeUnsupported(result.Unsupported[match.SideP2]),
+		},
+		SkippedCalls: [2][]string{
+			match.SideP1: normalizeUnsupported(result.SkippedCalls[match.SideP1]),
+			match.SideP2: normalizeUnsupported(result.SkippedCalls[match.SideP2]),
 		},
 	}, nil
 }
@@ -409,11 +437,11 @@ func resetRoundJS(args []js.Value) (any, error) {
 		return nil, err
 	}
 
-	p1Runtime, err := engine.NewFighterRuntime(req.Starting[match.SideP1], sess.programs[match.SideP1].States)
+	p1Runtime, err := sess.programs[match.SideP1].NewRuntime(req.Starting[match.SideP1])
 	if err != nil {
 		return nil, fmt.Errorf("side %v: %w", match.SideP1, err)
 	}
-	p2Runtime, err := engine.NewFighterRuntime(req.Starting[match.SideP2], sess.programs[match.SideP2].States)
+	p2Runtime, err := sess.programs[match.SideP2].NewRuntime(req.Starting[match.SideP2])
 	if err != nil {
 		return nil, fmt.Errorf("side %v: %w", match.SideP2, err)
 	}

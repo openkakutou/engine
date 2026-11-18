@@ -130,7 +130,16 @@ func Step(ctx evaluator.Context, states map[int]cns.StateDef) (Result, error) {
 // state, without becoming ctx's current state. It returns an error when
 // number is not present in states.
 func StepState(ctx evaluator.Context, number int, states map[int]cns.StateDef) (Result, error) {
-	return stepState(ctx, number, states, false)
+	return stepState(ctx, number, states, func(n int) bool { _, ok := states[n]; return ok }, false)
+}
+
+// StepStateWith is StepState for a character whose states are not all in
+// states: exists reports whether a state number is defined anywhere (here
+// and in the .zss script of the same character), and validates ChangeState
+// targets only -- Ikemen GO changes state in one table of .cns and .zss
+// states (char.go changeState). number itself must be in states.
+func StepStateWith(ctx evaluator.Context, number int, states map[int]cns.StateDef, exists func(int) bool) (Result, error) {
+	return stepState(ctx, number, states, exists, false)
 }
 
 // StepStateDuringHitPause is StepState for a fighter frozen by a hit pause:
@@ -140,10 +149,16 @@ func StepState(ctx evaluator.Context, number int, states map[int]cns.StateDef) (
 // controller without ignorehitpause "will not be checked during a hit
 // pause"; Ikemen GO wraps such blocks in ignoreHitPause{}.
 func StepStateDuringHitPause(ctx evaluator.Context, number int, states map[int]cns.StateDef) (Result, error) {
-	return stepState(ctx, number, states, true)
+	return stepState(ctx, number, states, func(n int) bool { _, ok := states[n]; return ok }, true)
 }
 
-func stepState(ctx evaluator.Context, number int, states map[int]cns.StateDef, hitPause bool) (Result, error) {
+// StepStateDuringHitPauseWith is StepStateDuringHitPause with the existence
+// check of StepStateWith.
+func StepStateDuringHitPauseWith(ctx evaluator.Context, number int, states map[int]cns.StateDef, exists func(int) bool) (Result, error) {
+	return stepState(ctx, number, states, exists, true)
+}
+
+func stepState(ctx evaluator.Context, number int, states map[int]cns.StateDef, exists func(int) bool, hitPause bool) (Result, error) {
 	def, ok := states[number]
 	if !ok {
 		return Result{}, fmt.Errorf("statemachine: state %d not found in loaded character", number)
@@ -178,7 +193,7 @@ func stepState(ctx evaluator.Context, number int, states map[int]cns.StateDef, h
 		}
 		applied = append(applied, i)
 
-		changedState, err := ApplyController(ctrl, &working, func(n int) bool { _, ok := states[n]; return ok })
+		changedState, err := ApplyController(ctrl, &working, exists)
 		if err != nil {
 			return Result{}, fmt.Errorf("statemachine: state %d controller %d (%s): %w", number, i, ctrl.Type, err)
 		}

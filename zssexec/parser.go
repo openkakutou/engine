@@ -97,6 +97,9 @@ type compiledBlock struct {
 	names          []string
 	nArgs, nRets   int
 	numPersistents int
+	// header is a Statedef's header converted to the cns.StateDef shape the
+	// root package's state entry already takes; zero for a Function.
+	header cns.StateDef
 }
 
 // compileBlock parses b's header and body. The returned block always has
@@ -113,6 +116,7 @@ func compileBlock(b zss.Block) *compiledBlock {
 			raw = strconv.Itoa(b.Number)
 		}
 		cb.desc = "Statedef " + raw
+		cb.header = statedefHeader(b)
 	}
 	if err := p.parseBlock(b); err != nil {
 		cb.err = fmt.Errorf("%s: %w", cb.desc, err)
@@ -737,4 +741,37 @@ func (p *parser) controller(name string) (stmt, error) {
 		}
 	}
 	return ctrlStmt{ctrl: cns.Controller{Type: name, Parameters: params}}, nil
+}
+
+// statedefHeader converts a Statedef header to a cns.StateDef, the fields
+// Ikemen GO's stateDef (src/compiler.go:7020-7130, commit 54d4148a) reads.
+// shortcut: only literal values convert; a header field written as an
+// expression (Ikemen GO evaluates it on state entry) keeps the zero value,
+// upgrade when a real character needs it (none of the reference files do).
+func statedefHeader(b zss.Block) cns.StateDef {
+	h := b.HeaderParams
+	return cns.StateDef{
+		Number:          b.Number,
+		Type:            cns.StateType(h["type"]),
+		MoveType:        cns.MoveType(h["movetype"]),
+		Physics:         cns.PhysicsType(h["physics"]),
+		Anim:            literalInt(h["anim"]),
+		Ctrl:            literalInt(h["ctrl"]) != 0,
+		PowerAdd:        literalInt(h["poweradd"]),
+		Juggle:          literalInt(h["juggle"]),
+		FaceP2:          literalInt(h["facep2"]) != 0,
+		SprPriority:     literalInt(h["sprpriority"]),
+		HitDefPersist:   literalInt(h["hitdefpersist"]) != 0,
+		MoveHitPersist:  literalInt(h["movehitpersist"]) != 0,
+		HitCountPersist: literalInt(h["hitcountpersist"]) != 0,
+	}
+}
+
+// literalInt is s as an integer, 0 when it is absent or not a plain literal.
+func literalInt(s string) int {
+	n, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil {
+		return 0
+	}
+	return n
 }
