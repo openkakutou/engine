@@ -264,9 +264,19 @@ func (p FighterProgram) NewRuntime(fighter match.FighterState) (FighterRuntime, 
 	if !ok {
 		return FighterRuntime{}, fmt.Errorf("engine: NewRuntime: state %d not found in loaded character", fighter.StateNo)
 	}
-	ctx := evaluator.Context{FighterState: fighter, Consts: p.Constants}
+	ctx := evaluator.Context{FighterState: fighter, Consts: p.Constants, Anims: p.animationTable()}
 	enterState(&ctx, def)
 	return FighterRuntime{Context: ctx}, nil
+}
+
+// animationTable is the animations by number the evaluator reads
+// (Context.Anims): the precomputed index, or one built now for a program made
+// without NewFighterProgram.
+func (p FighterProgram) animationTable() map[int]air.Animation {
+	if p.animIndex != nil {
+		return p.animIndex
+	}
+	return NewFighterProgram(nil, p.Animations, p.Commands).animIndex
 }
 
 // TickResult is the outcome of one Tick call: the updated MatchState, both
@@ -802,21 +812,6 @@ func currentFrame(anim air.Animation, animTime int) air.Frame {
 	if len(anim.Frames) == 0 {
 		return air.Frame{}
 	}
-
-	elapsed := animTime
-	i := 0
-	for {
-		f := anim.Frames[i]
-		if f.Time <= 0 || elapsed < f.Time {
-			return f
-		}
-		elapsed -= f.Time
-		i++
-		if i >= len(anim.Frames) {
-			i = anim.LoopStart
-			if i < 0 || i >= len(anim.Frames) {
-				i = 0
-			}
-		}
-	}
+	elem, _ := evaluator.ElementAt(anim, animTime)
+	return anim.Frames[elem]
 }

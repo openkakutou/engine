@@ -1,6 +1,9 @@
 package evaluator
 
-import "github.com/openkakutou/engine/match"
+import (
+	"github.com/openkakutou/character/air"
+	"github.com/openkakutou/engine/match"
+)
 
 // maxVars, maxSysVars, maxFVars and maxSysFVars mirror MUGEN's fixed variable
 // slot counts (var(0)..var(59), sysvar(0)..sysvar(4), fvar(0)..fvar(39),
@@ -55,6 +58,12 @@ type Context struct {
 	// into AnimTime and clears it the same tick. Not persistent fighter
 	// state.
 	AnimElem, AnimElemTime int
+	// Anims is the character's animations by number, read by AnimElem,
+	// AnimElemTime, AnimElemNo, AnimExist and SelfAnimExist. Like Consts it
+	// is set once per fighter by FighterProgram.NewRuntime and never written
+	// after, so copying a Context copies one map header, not the table. Nil
+	// means the character has no animation.
+	Anims map[int]air.Animation
 	// YAccel is the vertical acceleration the Gravity controller adds to
 	// the fighter's downward velocity each time it runs (Ikemen GO's
 	// movement.yaccel constant). The caller supplies it from simulation

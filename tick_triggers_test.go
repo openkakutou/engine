@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/openkakutou/character/air"
+	"github.com/openkakutou/character/cmd"
 	"github.com/openkakutou/character/cns"
 	"github.com/openkakutou/engine/input"
 	"github.com/openkakutou/engine/match"
@@ -145,5 +147,48 @@ func TestTick_PositionTriggers_ReadTheLiveFighterPosition(t *testing.T) {
 	res := tickBoth(t, states, states, 0, 1, nil, nil)
 	if got := res.Fighters[match.SideP1].Context.Vars[2]; got != 9 {
 		t.Errorf("var(2) = %d, want 9", got)
+	}
+}
+
+func TestTick_AnimElem_FiresOnTheFirstTickOfThatElementOfTheFightersAnimation(t *testing.T) {
+	// Animation 0 (state 0's own): elements of 2 ticks each, so element 2
+	// starts at AnimTime 2, the third tick (AnimTime is 0 on the first).
+	anims := []air.Animation{{Number: 0, Frames: []air.Frame{{Time: 2}, {Time: 2}, {Time: 2}}}}
+	states := map[int]cns.StateDef{0: {Number: 0, Type: cns.StateTypeStanding, Ctrl: true, Controllers: []cns.Controller{
+		{Type: "VarSet", Triggers: []string{"AnimElem = 2"}, Parameters: map[string]string{"v": "0", "value": "AnimTime + 100"}},
+		{Type: "VarSet", Triggers: []string{"SelfAnimExist(0)", "!SelfAnimExist(1)"}, Parameters: map[string]string{"v": "1", "value": "7"}},
+	}}}
+	prog := NewFighterProgram(states, anims, cmd.CommandFile{})
+	p1 := match.FighterState{Side: match.SideP1, Health: 1000}
+	p2 := match.FighterState{Side: match.SideP2, Health: 1000}
+	rt1, err := prog.NewRuntime(p1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt2, err := prog.NewRuntime(p2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := match.NewMatchState(1, 1000, p1, p2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtimes := [2]FighterRuntime{rt1, rt2}
+	for tick := 1; tick <= 4; tick++ {
+		res, err := Tick(*st, [2]FighterProgram{prog, prog}, runtimes, [2]input.TickInput{}, TickConfig{Bounds: testBounds(), Tick: tick, ComboWindow: 60})
+		if err != nil {
+			t.Fatalf("Tick %d: %v", tick, err)
+		}
+		st, runtimes = &res.State, res.Fighters
+		want := 0
+		if tick >= 3 {
+			want = 102
+		}
+		if got := runtimes[match.SideP1].Context.Vars[0]; got != want {
+			t.Errorf("after tick %d Vars[0] = %d, want %d", tick, got, want)
+		}
+		if got := runtimes[match.SideP1].Context.Vars[1]; got != 7 {
+			t.Errorf("after tick %d SelfAnimExist(0) && !SelfAnimExist(1) left Vars[1] = %d, want 7", tick, got)
+		}
 	}
 }

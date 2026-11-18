@@ -78,6 +78,16 @@ type assignNode struct {
 	value  node
 }
 
+// animElemNode is "AnimElem = n" or "AnimElem = n, op t": the AnimElemTime(n)
+// comparison Ikemen GO compiles it to. op is "=" when the source has no
+// comparison after the comma, and value is t, 0 when there is no comma.
+type animElemNode struct {
+	elem  int
+	op    string
+	value node
+}
+
+func (animElemNode) isNode()   {}
 func (localNode) isNode()      {}
 func (assignNode) isNode()     {}
 func (componentNode) isNode()  {}

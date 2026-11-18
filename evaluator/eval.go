@@ -197,6 +197,9 @@ func collectTriggerNames(n node, names *[]TriggerName, seen map[TriggerName]bool
 		for _, arg := range tn.args {
 			collectTriggerNames(arg, names, seen)
 		}
+	case animElemNode:
+		add(TriggerName{Name: "animelem"})
+		collectTriggerNames(tn.value, names, seen)
 	case unaryNode:
 		collectTriggerNames(tn.operand, names, seen)
 	case assignNode:
@@ -281,6 +284,9 @@ func evalNode(n node, ctx *Context) (Value, error) {
 	case localNode:
 		return evalLocal(tn.name, ctx)
 
+	case animElemNode:
+		return evalAnimElem(tn, ctx)
+
 	case componentNode:
 		return evalComponent(tn, ctx)
 
@@ -305,6 +311,8 @@ func evalIdentifier(name string, ctx *Context) (Value, error) {
 		return intValue(float64(ctx.Anim)), nil
 	case "animtime":
 		return intValue(float64(ctx.AnimTime)), nil
+	case "animelem":
+		return Value{}, fmt.Errorf("evaluator: AnimElem must be compared to an element number, e.g. AnimElem = 3")
 	case "ctrl":
 		return boolValue(ctx.Ctrl), nil
 	case "hitshakeover":

@@ -227,7 +227,8 @@ func scenarioJump(t *testing.T, prog FighterProgram) error {
 // trigger or grammar Ikemen GO has and the engine does not; checked by
 // running): both characters' state -1 reach an interval first, `stateNo =
 // [200, 299]` (kfm_zss's Function Combo, kfm's state -1 controller 3): item
-// 041 (expression grammar). Past it comes `moveContact`: item 042. kfm_zss's
+// 041 (expression grammar). Past it comes `moveContact`: item 042 (its animation family, AnimElem and
+// the like, landed first and is not a blocker any more). kfm_zss's
 // first trigger, `roundState = 2 && !aiLevelF`, evaluates since item 042's
 // "Other" family (AILevel, Const, FVar, PalNo, NumHelper) landed.
 var (

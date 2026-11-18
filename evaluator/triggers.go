@@ -134,6 +134,8 @@ func evalFighterCall(n callNode, ctx *Context) (v Value, ok bool, err error) {
 			}
 		}
 		return intValue(0), true, nil
+	case "animelemtime", "animelemno", "animexist", "selfanimexist":
+		return evalAnimCall(n, ctx)
 	case "const240p":
 		return evalConstScale(n, ctx, 320)
 	case "const480p":

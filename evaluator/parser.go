@@ -246,6 +246,9 @@ func (p *parser) parseIdentifierOrCall(name string) (node, error) {
 			return componentNode{name: strings.ToLower(name), axis: axis[0]}, nil
 		}
 	}
+	if strings.EqualFold(name, "animelem") && p.peekIsOp("=", "!=", "<", ">", "<=", ">=") {
+		return p.parseAnimElem()
+	}
 	if p.peek().kind != tokLParen {
 		return identifierNode{name: strings.ToLower(name)}, nil
 	}
@@ -317,4 +320,36 @@ func (p *parser) parseCallArgs(name string) ([]node, error) {
 	}
 	p.next() // consume ')'
 	return args, nil
+}
+
+// parseAnimElem parses what follows the AnimElem trigger: "= n" and an
+// optional ", op t" (Ikemen GO's old-style trigger, compiler.go:1296-1311 and
+// 4297-4318). The first comparison is "=" with a positive integer; after the
+// comma the operator may be omitted, meaning "=".
+func (p *parser) parseAnimElem() (node, error) {
+	if op := p.next().text; op != "=" {
+		return nil, fmt.Errorf("evaluator: AnimElem only supports '=' before the element number, not %q", op)
+	}
+	tok := p.peek()
+	elem, err := strconv.Atoi(tok.text)
+	if tok.kind != tokNumber || err != nil {
+		return nil, fmt.Errorf("evaluator: AnimElem expects an integer element number, got %q", tok.text)
+	}
+	if elem <= 0 {
+		return nil, fmt.Errorf("evaluator: AnimElem must be greater than 0")
+	}
+	p.next()
+	if p.peek().kind != tokComma {
+		return animElemNode{elem: elem, op: "=", value: numberNode{}}, nil
+	}
+	p.next()
+	op := "="
+	if p.peekIsOp("=", "!=", "<", ">", "<=", ">=") {
+		op = p.next().text
+	}
+	value, err := p.parseAdditive()
+	if err != nil {
+		return nil, err
+	}
+	return animElemNode{elem: elem, op: op, value: value}, nil
 }
