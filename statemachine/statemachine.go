@@ -97,9 +97,21 @@ type Result struct {
 // parameter fails to evaluate, or the resulting target state number is not
 // present in states.
 func Step(ctx evaluator.Context, states map[int]cns.StateDef) (Result, error) {
-	def, ok := states[ctx.StateNo]
-	if !ok {
+	if _, ok := states[ctx.StateNo]; !ok {
 		return Result{}, fmt.Errorf("statemachine: current state %d not found in loaded character", ctx.StateNo)
+	}
+	return StepState(ctx, ctx.StateNo, states)
+}
+
+// StepState runs the controllers of state number against ctx exactly as
+// Step does for the current state, but for any state of the character --
+// the special states -3, -2 and -1 are run this way, ahead of the current
+// state, without becoming ctx's current state. It returns an error when
+// number is not present in states.
+func StepState(ctx evaluator.Context, number int, states map[int]cns.StateDef) (Result, error) {
+	def, ok := states[number]
+	if !ok {
+		return Result{}, fmt.Errorf("statemachine: state %d not found in loaded character", number)
 	}
 
 	working := ctx
@@ -114,7 +126,7 @@ func Step(ctx evaluator.Context, states map[int]cns.StateDef) (Result, error) {
 	for i, ctrl := range def.Controllers {
 		pass, err := triggersPass(ctrl.Triggers, working)
 		if err != nil {
-			return Result{}, fmt.Errorf("statemachine: state %d controller %d (%s): evaluating triggers: %w", ctx.StateNo, i, ctrl.Type, err)
+			return Result{}, fmt.Errorf("statemachine: state %d controller %d (%s): evaluating triggers: %w", number, i, ctrl.Type, err)
 		}
 		if !pass {
 			continue
@@ -123,7 +135,7 @@ func Step(ctx evaluator.Context, states map[int]cns.StateDef) (Result, error) {
 
 		changedState, err := ApplyController(ctrl, &working, func(n int) bool { _, ok := states[n]; return ok })
 		if err != nil {
-			return Result{}, fmt.Errorf("statemachine: state %d controller %d (%s): %w", ctx.StateNo, i, ctrl.Type, err)
+			return Result{}, fmt.Errorf("statemachine: state %d controller %d (%s): %w", number, i, ctrl.Type, err)
 		}
 		if changedState {
 			break

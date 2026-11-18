@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Characters' special states (-3, -2 and -1, where command-driven moves are written) now run every tick, in Ikemen GO's order, ahead of the current state: a command pressed in a character's own files can now move the fighter into a special move, which starts in that same tick.
+
 ## [2.7.0] - 2026-11-17
 
 ### Added

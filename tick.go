@@ -283,6 +283,10 @@ type fighterTickOutput struct {
 	Frozen bool
 }
 
+// specialStates are the negative states run every tick before the current
+// one, in Ikemen GO's order (char.go actionRun).
+var specialStates = [...]int{-3, -2, -1}
+
 // tickFighter advances one fighter's own per-tick simulation -- input
 // recognition, CNS state-machine execution, and current-frame resolution
 // -- given fighter, that fighter's live match.FighterState as of the start
@@ -322,10 +326,37 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		return fighterTickOutput{Runtime: frozenRuntime, Frame: frame, Frozen: true}, nil
 	}
 
+	// Ikemen GO's actionRun (char.go): states -3, -2 then -1 run every
+	// tick, each as its own phase, before the current state. A ChangeState
+	// stops only the state it is in; the next phase still runs and sees the
+	// new StateNo. A state change made by them is entered (stateChange2)
+	// before the current state -- now the new one -- runs, in this tick.
+	var sounds []evaluator.SoundEvent
+	for _, number := range specialStates {
+		if _, ok := prog.States[number]; !ok {
+			continue
+		}
+		special, err := statemachine.StepState(ctx, number, prog.States)
+		if err != nil {
+			return fighterTickOutput{}, err
+		}
+		ctx = special.Context
+		sounds = append(sounds, special.Sounds...)
+	}
+	if ctx.StateNo != runtime.Context.StateNo {
+		enterState(&ctx, prog.States[ctx.StateNo])
+		// Ikemen GO applies the new animation in stateChange2, before
+		// collision detection: this tick uses its first frame (char.go:6943,
+		// 13049-13062).
+		frame = currentFrame(findAnimation(prog, ctx.Anim), ctx.AnimTime)
+	}
+
+	def = prog.States[ctx.StateNo]
 	result, err := statemachine.Step(ctx, prog.States)
 	if err != nil {
 		return fighterTickOutput{}, err
 	}
+	sounds = append(sounds, result.Sounds...)
 
 	newCtx := result.Context
 	if newCtx.StateNo != ctx.StateNo {
@@ -360,7 +391,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		Frame:     frame,
 		HasHitDef: hasHitDef,
 		HitDef:    hitDef,
-		Sounds:    result.Sounds,
+		Sounds:    sounds,
 	}, nil
 }
 

@@ -2,6 +2,7 @@ package statemachine
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/openkakutou/character/cns"
@@ -884,5 +885,26 @@ func TestSplitPlaySndHalves_SplitsAtFirstComma(t *testing.T) {
 	}
 	if _, err := SplitPlaySndValue("5"); err == nil {
 		t.Error("expected error for a value with no comma")
+	}
+}
+
+func TestStepState_RunsTheNamedStateWithoutChangingCurrentState(t *testing.T) {
+	states := map[int]cns.StateDef{
+		-1: {Number: -1, Controllers: []cns.Controller{{Type: "VarSet", Triggers: []string{"1"}, Parameters: map[string]string{"v": "3", "value": "8"}}}},
+		0:  {Number: 0},
+	}
+	res, err := StepState(evaluator.Context{}, -1, states)
+	if err != nil {
+		t.Fatalf("StepState: %v", err)
+	}
+	if res.Context.Vars[3] != 8 || res.Context.StateNo != 0 {
+		t.Errorf("var(3)=%d StateNo=%d, want 8 and 0", res.Context.Vars[3], res.Context.StateNo)
+	}
+}
+
+func TestStepState_MissingState_ReturnsErrorNamingIt(t *testing.T) {
+	_, err := StepState(evaluator.Context{}, -2, map[int]cns.StateDef{0: {Number: 0}})
+	if err == nil || !strings.Contains(err.Error(), "state -2") {
+		t.Fatalf("err = %v, want one naming state -2", err)
 	}
 }

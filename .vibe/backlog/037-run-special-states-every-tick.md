@@ -9,9 +9,12 @@ MUGEN and Ikemen GO run the special states -3, -2 and -1 every tick before the f
 🔒 MUST: MUGEN 1.0/1.1 and Ikemen GO compatibility, verified against Ikemen GO (roadmap decision `038`).
 
 ## Acceptance Criteria
-- [ ] A command in state -1 moves the fighter into its special move state
-- [ ] Order and rules match Ikemen GO's source, cited
-- [ ] Conformance run: most characters reach more than one state
+- [x] A command in state -1 moves the fighter into its special move state
+- [x] Order and rules match Ikemen GO's source, cited
+- [ ] Conformance run: most characters reach more than one state (moved to 039/041/028: their -1 triggers need them, see docs/conformance.md)
 
 ## Notes
 Found by the conformance harness (item 030, `docs/conformance.md`, 2026-11-17).
+
+## Done
+Special states run in `tick.go` through `statemachine.StepState`, after Ikemen GO `char.go:12497-12531` (actionRun) and `bytecode.go:5749-5775` (ChangeState stops only its own state). Limits left: helpers, HitDef inside special states, same-tick run of a state entered from the current state, ChangeState to the same state number.
