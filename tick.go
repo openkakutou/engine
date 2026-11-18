@@ -278,13 +278,15 @@ type TickResult struct {
 	Sounds [2][]evaluator.SoundEvent
 	// Unsupported is each fighter's controller types that fired this tick
 	// without an implementation, lower-cased and deduplicated across the
-	// special states and the current state -- nil for a side with none. A
-	// fresh per-tick log like Sounds; see .vibe/decisions/020.
+	// special states and the current state -- nil for a side with none.
+	// It shares storage with the runtime's reused buffer: read it before the
+	// next Tick, which overwrites it. See .vibe/decisions/020.
 	Unsupported [2][]string
 	// SkippedCalls is each fighter's .zss calls that did nothing this tick
 	// (an undefined function, a wrong argument or return count), as the
 	// Ikemen GO console logs them (bytecode.go:5050-5069) -- nil for a side
-	// with none, a fresh per-tick log like Unsupported.
+	// with none. Same reused storage as Unsupported: read it before the next
+	// Tick.
 	SkippedCalls [2][]string
 }
 

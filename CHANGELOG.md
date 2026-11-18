@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- Characters written in `.zss`, or mixing `.cns` and `.zss` states, now play in a match: a single state table as in Ikemen GO, `ignoreHitPause` blocks running during a hit pause, and calls that do nothing reported each tick (also in the WebAssembly response). The conformance harness now runs `.zss` characters too.
+
 ## [2.12.0] - 2026-11-18
 
 ### Added
