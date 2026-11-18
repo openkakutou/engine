@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Characters can now move and change state with the controllers every real character relies on: VelSet, VelAdd, VelMul, PosSet, PosAdd, ChangeAnim (including its starting element), CtrlSet, StateTypeSet, Turn, LifeAdd, LifeSet, Gravity and Null, in both `.cns` states and `.zss` scripts, following Ikemen GO's own rules.
+- Each tick now reports, per fighter, the controller types a character used that the engine does not support yet, instead of silently ignoring them.
+
+### Changed
+
+- Gravity now applies automatically only in states whose physics is "air", as in Ikemen GO; other states fall only through their own Gravity or velocity controllers. A fighter that is hit now reacts according to its current state type (standing, crouching or airborne), including a type changed during the state.
+
 ## [2.9.0] - 2026-11-18
 
 ### Added

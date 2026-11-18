@@ -38,6 +38,10 @@ type Result struct {
 	// Context is the fighter's Context after running script's Statedef
 	// body for ctx.StateNo.
 	Context evaluator.Context
+	// Unsupported lists, lower-cased and deduplicated, the controller types
+	// the script applied that the engine does not implement -- fresh per
+	// call, nil when there were none (see statemachine.Result.Unsupported).
+	Unsupported []string
 }
 
 // CompiledScript is a character's full parsed .zss Script (zss.Script) with
@@ -126,6 +130,7 @@ func Step(ctx evaluator.Context, prog CompiledScript) (Result, error) {
 	}
 
 	working := ctx
+	working.Unsupported = working.Unsupported[:0]
 	exists := func(n int) bool {
 		_, ok := prog.statedef(n)
 		return ok
@@ -134,7 +139,8 @@ func Step(ctx evaluator.Context, prog CompiledScript) (Result, error) {
 		return Result{}, fmt.Errorf("zssexec: state %d: %w", ctx.StateNo, err)
 	}
 
-	return Result{Context: working}, nil
+	unsupported := statemachine.TakeUnsupported(&working)
+	return Result{Context: working, Unsupported: unsupported}, nil
 }
 
 // bodyCache memoizes parseBody by a block's raw Body text, so a Statedef/

@@ -245,6 +245,22 @@ type tickResponse struct {
 	// own Go API keeps the idiomatic nil-slice-means-empty instead; see
 	// .vibe/decisions/017.
 	Sounds [2][]evaluator.SoundEvent `json:"sounds"`
+	// Unsupported is each fighter's controller types that fired this tick
+	// without an engine implementation, lower-cased and deduplicated,
+	// indexed by match.Side. Each side is always a JSON array (`[]` when
+	// none), so a client can tell "character runs fully" from "character
+	// asks for something the engine skips". Additive: no existing field
+	// changed. See .vibe/decisions/020.
+	Unsupported [2][]string `json:"unsupported"`
+}
+
+// normalizeUnsupported returns names unchanged if non-nil, or a non-nil
+// empty slice otherwise, so the JSON field is `[]`, never `null`.
+func normalizeUnsupported(names []string) []string {
+	if names == nil {
+		return []string{}
+	}
+	return names
 }
 
 // normalizeSoundEvents returns events unchanged if non-nil, or a non-nil
@@ -311,6 +327,10 @@ func tickJS(args []js.Value) (any, error) {
 		Sounds: [2][]evaluator.SoundEvent{
 			match.SideP1: normalizeSoundEvents(result.Sounds[match.SideP1]),
 			match.SideP2: normalizeSoundEvents(result.Sounds[match.SideP2]),
+		},
+		Unsupported: [2][]string{
+			match.SideP1: normalizeUnsupported(result.Unsupported[match.SideP1]),
+			match.SideP2: normalizeUnsupported(result.Unsupported[match.SideP2]),
 		},
 	}, nil
 }

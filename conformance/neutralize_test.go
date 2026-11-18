@@ -91,3 +91,20 @@ func TestInspectController_PlaySndHalves_AreInspectedSeparately(t *testing.T) {
 		t.Errorf("unknown = %v, want [movecontact]", unknown)
 	}
 }
+
+func TestNeutralize_UnknownTriggerInMovementParameter_NeutralizesTheController(t *testing.T) {
+	original := map[int]cns.StateDef{0: {Number: 0, Controllers: []cns.Controller{
+		{Type: "VelSet", Triggers: []string{"1"}, Parameters: map[string]string{"x": "nosuchtrigger"}},
+		{Type: "ChangeAnim", Triggers: []string{"1"}, Parameters: map[string]string{"value": "200", "elem": "nosuchtrigger"}},
+		{Type: "LifeAdd", Triggers: []string{"1"}, Parameters: map[string]string{"value": "-1", "kill": "nosuchtrigger"}},
+		{Type: "VelSet", Triggers: []string{"1"}, Parameters: map[string]string{"x": "3"}},
+	}}}
+
+	got, _ := neutralize(original)
+
+	for i, want := range [][]string{{"0"}, {"0"}, {"0"}, {"1"}} {
+		if !reflect.DeepEqual(got[0].Controllers[i].Triggers, want) {
+			t.Errorf("controller %d Triggers = %v, want %v", i, got[0].Controllers[i].Triggers, want)
+		}
+	}
+}

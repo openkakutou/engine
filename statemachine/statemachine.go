@@ -7,16 +7,15 @@
 // Context, and every controller whose trigger conditions evaluate true is
 // applied, updating the Context as it goes so that a later controller's
 // trigger can observe an earlier one's effect within the same call. This
-// item intentionally supports only the small set of controller types
-// needed to prove out the execution loop -- ChangeState (state transition),
-// VarSet (variable assignment), PowerAdd (power/meter gain or spend,
-// clamped to [0, DefaultMaxPower]), and PlaySnd (recording a triggered
+// package supports a growing set of controller types: ChangeState (state
+// transition), VarSet (variable assignment), PowerAdd (power/meter gain or
+// spend, clamped to [0, DefaultMaxPower]), PlaySnd (recording a triggered
 // (group, sample) sound event -- engine never decodes or plays the audio
-// itself) -- not full MUGEN controller-type coverage, which is expected to
-// grow via later items. A controller of an
-// unimplemented type is still recorded as "applied" when its trigger
-// evaluates true (so callers can observe that the condition held), but has
-// no effect on the Context.
+// itself), and the movement and state controllers of movement.go (VelSet,
+// VelAdd, VelMul, PosSet, PosAdd, ChangeAnim, CtrlSet, StateTypeSet, Turn,
+// LifeAdd, LifeSet, Gravity, Null). A controller of an unimplemented type
+// is still recorded as "applied" when its trigger evaluates true, has no
+// effect on the Context, and is reported by name in Result.Unsupported.
 //
 // A controller's Triggers ("triggerN"/"triggerall" lines) are combined
 // with logical AND across the whole flat list, not MUGEN's full
@@ -50,6 +49,20 @@ const (
 	ControllerTypeHitDef      = "HitDef"
 	ControllerTypePowerAdd    = "PowerAdd"
 	ControllerTypePlaySnd     = "PlaySnd"
+
+	ControllerTypeVelSet       = "VelSet"
+	ControllerTypeVelAdd       = "VelAdd"
+	ControllerTypeVelMul       = "VelMul"
+	ControllerTypePosSet       = "PosSet"
+	ControllerTypePosAdd       = "PosAdd"
+	ControllerTypeChangeAnim   = "ChangeAnim"
+	ControllerTypeCtrlSet      = "CtrlSet"
+	ControllerTypeStateTypeSet = "StateTypeSet"
+	ControllerTypeTurn         = "Turn"
+	ControllerTypeLifeAdd      = "LifeAdd"
+	ControllerTypeLifeSet      = "LifeSet"
+	ControllerTypeGravity      = "Gravity"
+	ControllerTypeNull         = "Null"
 )
 
 // DefaultMaxPower is the power/meter cap applied when clamping a
@@ -77,6 +90,14 @@ type Result struct {
 	// evaluator.Context.Sounds's own doc comment and
 	// .vibe/decisions/017).
 	Sounds []evaluator.SoundEvent
+	// Unsupported lists, lower-cased and deduplicated in first-seen order,
+	// the types of the controllers that applied this call without an
+	// implementation (HitDef excepted: the root package's Tick acts on it).
+	// Fresh per call like Applied and Sounds; nil when there were none. It
+	// aliases a buffer the Context's own Unsupported keeps between calls, so
+	// it is only valid until the next call that starts from Context. See
+	// .vibe/decisions/020.
+	Unsupported []string
 }
 
 // Step interprets one simulation tick of ctx's current state (ctx.StateNo)
@@ -121,6 +142,7 @@ func StepState(ctx evaluator.Context, number int, states map[int]cns.StateDef) (
 	// tick-to-tick via FighterRuntime) can never be mistaken for this
 	// call's. See evaluator.Context.Sounds's own doc comment.
 	working.Sounds = nil
+	working.Unsupported = working.Unsupported[:0]
 	var applied []int
 
 	for i, ctrl := range def.Controllers {
@@ -144,7 +166,8 @@ func StepState(ctx evaluator.Context, number int, states map[int]cns.StateDef) (
 
 	sounds := working.Sounds
 	working.Sounds = nil
-	return Result{Context: working, Applied: applied, Sounds: sounds}, nil
+	unsupported := TakeUnsupported(&working)
+	return Result{Context: working, Applied: applied, Sounds: sounds, Unsupported: unsupported}, nil
 }
 
 // triggersPass reports whether every trigger expression in triggers
@@ -236,16 +259,18 @@ func IsSupportedController(controllerType string) bool {
 // types to a controller-shaped statement without duplicating this logic --
 // see that package's own doc comment and .vibe/decisions/008 in this repo.
 //
-// A controller type with no registered handler is a no-op: its trigger
-// having evaluated true is still visible to the caller via Result.Applied,
-// but it has no effect on ctx.
+// A controller type with no registered handler has no effect on ctx but is
+// not silent: its lower-cased name is added to ctx.Unsupported (once per
+// type), which Step surfaces as Result.Unsupported. HitDef is the exception:
+// it has no handler here because the root package's Tick acts on it.
 func ApplyController(ctrl cns.Controller, ctx *evaluator.Context, exists func(int) bool) (bool, error) {
-	t := strings.ToLower(ctrl.Type)
-	if t == strings.ToLower(ControllerTypeChangeState) {
+	if strings.EqualFold(ctrl.Type, ControllerTypeChangeState) {
 		return true, applyChangeState(ctrl, ctx, exists)
 	}
+	t := lowerType(ctrl.Type)
 	handler, ok := controllerHandlers[t]
 	if !ok {
+		reportUnsupported(ctx, t)
 		return false, nil
 	}
 	updated, err := handler(ctrl, *ctx)

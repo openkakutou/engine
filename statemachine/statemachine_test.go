@@ -625,7 +625,7 @@ func TestStep_UnimplementedControllerType_TriggersTrueButHasNoEffect(t *testing.
 			Number: 0,
 			Controllers: []cns.Controller{
 				{
-					Type:       "VelSet", // not implemented by this item
+					Type:       "Explod", // not implemented yet
 					Triggers:   []string{"1"},
 					Parameters: map[string]string{"x": "5"},
 				},

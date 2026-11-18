@@ -13,10 +13,13 @@ import (
 const neverTrue = "0"
 
 // evaluatedParameters are the controller parameters the engine evaluates as
-// expressions for the supported controller types (statemachine's ChangeState,
-// VarSet, PowerAdd and PlaySnd handlers read "value" and "v"). Other
-// parameters of a supported type (e.g. HitDef's attr) are not expressions.
-var evaluatedParameters = []string{"value", "v"}
+// expressions for the supported controller types: statemachine's handlers
+// read "value" and "v" (ChangeState, VarSet, PowerAdd, PlaySnd, ChangeAnim,
+// CtrlSet, LifeAdd, LifeSet), "x" and "y" (VelSet, VelAdd, VelMul, PosSet,
+// PosAdd), and "elem", "elemtime" and "kill" (ChangeAnim, LifeAdd). Other
+// parameters of a supported type (e.g. StateTypeSet's statetype, a letter)
+// are not expressions.
+var evaluatedParameters = []string{"value", "v", "x", "y", "elem", "elemtime", "kill"}
 
 // inspectController lists the unknown trigger names the controller's
 // triggers (and, for a supported type, its evaluated parameters) mention,

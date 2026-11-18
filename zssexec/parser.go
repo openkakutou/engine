@@ -194,11 +194,12 @@ func parseCtrlStmt(line string) (stmt, error) {
 }
 
 // parseCtrlParams parses a controller statement's semicolon-separated
-// "key: value" parameter list (e.g. `v: 3; value: 7`) into a map, keyed by
-// parameter name, mirroring cns.Controller.Parameters's own shape. Each
-// value is kept verbatim (including surrounding quotes, if any) since it
-// is handed to evaluator.Evaluate unchanged, the same unevaluated-string
-// convention cns.Controller.Parameters already follows.
+// "key: value" parameter list (e.g. `v: 3; value: 7`) into a map, mirroring
+// cns.Controller.Parameters's own shape: keyed by the lower-cased parameter
+// name (Ikemen GO's are case-insensitive), each value kept verbatim
+// (including surrounding quotes, if any) since it is handed to
+// evaluator.Evaluate unchanged, the same unevaluated-string convention
+// cns.Controller.Parameters already follows.
 func parseCtrlParams(raw string) map[string]string {
 	params := map[string]string{}
 	for _, part := range strings.Split(raw, ";") {
@@ -210,7 +211,7 @@ func parseCtrlParams(raw string) map[string]string {
 		if !ok {
 			continue
 		}
-		params[strings.TrimSpace(key)] = strings.TrimSpace(value)
+		params[strings.ToLower(strings.TrimSpace(key))] = strings.TrimSpace(value)
 	}
 	return params
 }

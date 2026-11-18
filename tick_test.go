@@ -25,7 +25,9 @@ func testBounds() *stage.StageBoundaries {
 }
 
 func TestTick_AdvancesPhysics_WhenNoStateChangeOccurs(t *testing.T) {
-	states := idleStates()
+	states := map[int]cns.StateDef{
+		0: {Number: 0, Type: cns.StateTypeStanding, Physics: cns.PhysicsAir, Ctrl: true},
+	}
 	p1 := FighterProgram{States: states}
 	p2 := FighterProgram{States: states}
 

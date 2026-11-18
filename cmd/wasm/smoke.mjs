@@ -71,6 +71,9 @@ const attackerStates = {
 			// exercises the sound-trigger-events contract (backlog item 020)
 			// through the real WASM round trip, not just the Go unit tests.
 			{ type: "PlaySnd", triggers: ["Time = 0"], parameters: { value: "1,3" } },
+			// An engine-unsupported controller type fires on the same tick:
+			// tick's response must name it, lower-cased, under `unsupported`.
+			{ type: "Explod", triggers: ["Time = 0"], parameters: {} },
 		],
 	},
 };
@@ -125,6 +128,8 @@ assert(idleTick.data?.animations?.[0]?.animNo === 0, `idle tick: P1's animNo is 
 assert(idleTick.data?.animations?.[0]?.animTime === 1, `idle tick: P1's animTime advanced to 1 (got: ${idleTick.data?.animations?.[0]?.animTime})`);
 assert(Array.isArray(idleTick.data?.sounds?.[0]) && idleTick.data.sounds[0].length === 0, `idle tick: P1's sounds is an empty array, not null (got: ${JSON.stringify(idleTick.data?.sounds?.[0])})`);
 assert(Array.isArray(idleTick.data?.sounds?.[1]) && idleTick.data.sounds[1].length === 0, `idle tick: P2's sounds is an empty array, not null (got: ${JSON.stringify(idleTick.data?.sounds?.[1])})`);
+assert(Array.isArray(idleTick.data?.unsupported?.[0]) && idleTick.data.unsupported[0].length === 0, `idle tick: P1 unsupported is an empty array, not null (got: ${JSON.stringify(idleTick.data?.unsupported?.[0])})`);
+assert(Array.isArray(idleTick.data?.unsupported?.[1]) && idleTick.data.unsupported[1].length === 0, `idle tick: P2 unsupported is an empty array, not null (got: ${JSON.stringify(idleTick.data?.unsupported?.[1])})`);
 
 // --- tick with P1's attack button held: P1's ChangeState controller
 // (state 0) fires, moving it into its attack state (200) -- a controller
@@ -157,6 +162,9 @@ assert(hitTick.data?.animations?.[0]?.animNo === 200, `hit tick: P1 stays in ani
 assert(hitTick.data?.animations?.[0]?.animTime === 1, `hit tick: P1's animTime advances to 1 within animNo 200 (got: ${hitTick.data?.animations?.[0]?.animTime})`);
 assert(JSON.stringify(hitTick.data?.sounds?.[0]) === JSON.stringify([{ group: 1, sample: 3 }]), `hit tick: P1's PlaySnd controller triggers group 1 sample 3 (got: ${JSON.stringify(hitTick.data?.sounds?.[0])})`);
 assert(Array.isArray(hitTick.data?.sounds?.[1]) && hitTick.data.sounds[1].length === 0, `hit tick: P2 (no PlaySnd controller of its own) has an empty sounds array, not null (got: ${JSON.stringify(hitTick.data?.sounds?.[1])})`);
+
+assert(JSON.stringify(hitTick.data?.unsupported?.[0]) === JSON.stringify(["explod"]), `hit tick: P1's Explod is reported as unsupported (got: ${JSON.stringify(hitTick.data?.unsupported?.[0])})`);
+assert(Array.isArray(hitTick.data?.unsupported?.[1]) && hitTick.data.unsupported[1].length === 0, `hit tick: P2 has an empty unsupported array (got: ${JSON.stringify(hitTick.data?.unsupported?.[1])})`);
 
 // --- resetRound: both fighters restored for round 2 -- edge case: a
 // client that (incorrectly) echoes back P1's round-1 power in its

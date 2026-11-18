@@ -41,6 +41,18 @@ type Context struct {
 	// AnimTime is the number of simulation ticks elapsed since Anim
 	// started playing.
 	AnimTime int
+	// AnimElem and AnimElemTime are a ChangeAnim controller's pending request
+	// to start the new animation at element AnimElem (1-based, 0 meaning no
+	// request) AnimElemTime ticks into it. The statemachine cannot resolve it
+	// -- it has no animation data -- so the root package's Tick converts it
+	// into AnimTime and clears it the same tick. Not persistent fighter
+	// state.
+	AnimElem, AnimElemTime int
+	// YAccel is the vertical acceleration the Gravity controller adds to
+	// the fighter's downward velocity each time it runs (Ikemen GO's
+	// movement.yaccel constant). The caller supplies it from simulation
+	// config, like Round and RandSeed; zero makes Gravity a no-op.
+	YAccel float64
 	// Vars holds MUGEN's general-purpose per-fighter integer variables,
 	// indexed by var(N). An index never written reads as 0, matching
 	// MUGEN's default.
@@ -62,12 +74,26 @@ type Context struct {
 	// statemachine.Result alone, because ApplyController's only mutable
 	// output channel is *Context.
 	Sounds []SoundEvent
+	// Unsupported lists, lower-cased and deduplicated, the controller types
+	// whose trigger conditions held during the current statemachine.Step
+	// call but which the engine does not implement. Like Sounds it is a
+	// per-call log, never carried over between ticks: Step resets its
+	// length to 0 before and after running a state's controllers. Unlike
+	// Sounds, the emptied slice keeps its backing array so a fighter that
+	// triggers unsupported controllers every tick does not allocate a new
+	// one each time (see .vibe/decisions/017 and 020).
+	Unsupported []string
 	// StateType and MoveType are the fighter's current state type (S, C, A
 	// or L) and move type (I, A or H) as upper-case letters, read by the
 	// StateType and MoveType triggers. Zero until the fighter has entered a
 	// state that declares one; a state that declares none leaves the
 	// previous value (MUGEN's "unchanged").
 	StateType, MoveType byte
+	// Physics is the fighter's current physics type (S, C, A or N) as an
+	// upper-case letter, set by the state it entered and overridable by
+	// StateTypeSet. Tick applies gravity automatically only for A, as
+	// Ikemen GO's char.go posUpdate does. Zero before any state is entered.
+	Physics byte
 	// PrevStateNo is the number of the state the fighter was in before its
 	// current one (0 before any change).
 	PrevStateNo int

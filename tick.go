@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/openkakutou/character/air"
@@ -88,6 +89,11 @@ type FighterRuntime struct {
 	// here rather than on evaluator.Context; the defender's own freeze is
 	// Context.GetHit.HitShakeTime. See .vibe/decisions/018.
 	HitPause int
+	// Unsupported is the controller types that fired unimplemented in the
+	// last tick this runtime went through, in a buffer reused tick after
+	// tick so reporting allocates nothing once it has grown. TickResult
+	// exposes it: read it before the next Tick, which overwrites it.
+	Unsupported []string
 }
 
 // NewFighterRuntime builds a fresh FighterRuntime for a fighter entering
@@ -125,6 +131,11 @@ type TickResult struct {
 	// (JSON-null-vs-empty-array normalization is cmd/wasm's own
 	// boundary-only responsibility). See .vibe/decisions/017.
 	Sounds [2][]evaluator.SoundEvent
+	// Unsupported is each fighter's controller types that fired this tick
+	// without an implementation, lower-cased and deduplicated across the
+	// special states and the current state -- nil for a side with none. A
+	// fresh per-tick log like Sounds; see .vibe/decisions/020.
+	Unsupported [2][]string
 }
 
 // TickConfig bundles Tick's simulation-constant parameters (bounds,
@@ -175,19 +186,25 @@ func Tick(
 	inputs [2]input.TickInput,
 	cfg TickConfig,
 ) (TickResult, error) {
-	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), inputs[match.SideP1], cfg.Tick, state.Round, state.RandSeed)
+	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), inputs[match.SideP1], cfg.Tick, cfg.Gravity, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
 	}
 	// Both fighters draw Random from one sequence, P1 first, as Ikemen GO's
 	// single seed is advanced in player order; the seed rides in match state.
 	state.RandSeed = p1Out.Runtime.Context.RandSeed
-	p2Out, err := tickFighter(programs[match.SideP2], runtimes[match.SideP2], state.Fighter(match.SideP2), inputs[match.SideP2], cfg.Tick, state.Round, state.RandSeed)
+	// What the controllers did to position, velocity, facing, health and
+	// power is the fighter's new match state: hit detection below and the
+	// next fighter's tick see it, as in Ikemen GO where a controller's
+	// effect is immediate.
+	state.Fighters[match.SideP1] = p1Out.Runtime.Context.FighterState
+	p2Out, err := tickFighter(programs[match.SideP2], runtimes[match.SideP2], state.Fighter(match.SideP2), inputs[match.SideP2], cfg.Tick, cfg.Gravity, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
 	}
 
 	state.RandSeed = p2Out.Runtime.Context.RandSeed
+	state.Fighters[match.SideP2] = p2Out.Runtime.Context.FighterState
 
 	var frames [2]air.Frame
 	frames[match.SideP1] = p1Out.Frame
@@ -218,7 +235,7 @@ func Tick(
 	p1Fighter.Power = runtimesOut[match.SideP1].Context.Power
 	updatedP1 := p1Fighter
 	if !p1Out.Frozen {
-		updatedP1, err = physics.Step(p1Fighter, cfg.Bounds, cfg.Gravity)
+		updatedP1, err = physics.Step(p1Fighter, cfg.Bounds, gravityFor(&runtimesOut[match.SideP1].Context, cfg.Gravity))
 		if err != nil {
 			return TickResult{}, fmt.Errorf("engine: Tick: side %v: physics: %w", match.SideP1, err)
 		}
@@ -230,7 +247,7 @@ func Tick(
 	p2Fighter.Power = runtimesOut[match.SideP2].Context.Power
 	updatedP2 := p2Fighter
 	if !p2Out.Frozen {
-		updatedP2, err = physics.Step(p2Fighter, cfg.Bounds, cfg.Gravity)
+		updatedP2, err = physics.Step(p2Fighter, cfg.Bounds, gravityFor(&runtimesOut[match.SideP2].Context, cfg.Gravity))
 		if err != nil {
 			return TickResult{}, fmt.Errorf("engine: Tick: side %v: physics: %w", match.SideP2, err)
 		}
@@ -240,6 +257,10 @@ func Tick(
 	var sounds [2][]evaluator.SoundEvent
 	sounds[match.SideP1] = p1Out.Sounds
 	sounds[match.SideP2] = p2Out.Sounds
+
+	var unsupported [2][]string
+	unsupported[match.SideP1] = nilIfEmpty(p1Out.Runtime.Unsupported)
+	unsupported[match.SideP2] = nilIfEmpty(p2Out.Runtime.Unsupported)
 
 	// A RoundTimer of 0 at the start of a tick is an untimed round
 	// (MUGEN/Ikemen's "unlimited time" convention): it neither counts down
@@ -256,10 +277,11 @@ func Tick(
 	}
 
 	return TickResult{
-		State:    state,
-		Fighters: runtimesOut,
-		Round:    result,
-		Sounds:   sounds,
+		State:       state,
+		Fighters:    runtimesOut,
+		Round:       result,
+		Sounds:      sounds,
+		Unsupported: unsupported,
 	}, nil
 }
 
@@ -289,11 +311,12 @@ var specialStates = [...]int{-3, -2, -1}
 // of this tick (position/facing/health, sourced from match.MatchState, the
 // single source of truth Tick reconciles runtime.Context against every
 // call).
-func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.FighterState, in input.TickInput, tick, round int, seed int32) (fighterTickOutput, error) {
+func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.FighterState, in input.TickInput, tick int, gravity float64, round int, seed int32) (fighterTickOutput, error) {
 	ctx := runtime.Context
 	ctx.FighterState = fighter
 	ctx.Round = round
 	ctx.RandSeed = seed
+	ctx.YAccel = gravity
 
 	newInputState, active := input.Step(runtime.Input, tick, fighter.Facing, in, prog.Commands)
 	ctx.ActiveCommands = active
@@ -313,7 +336,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	// controllers, advances no Time/AnimTime and moves no physics; only
 	// input recognition above keeps running. See .vibe/decisions/018.
 	if runtime.HitPause > 0 || ctx.GetHit.HitShakeTime > 0 {
-		frozenRuntime := FighterRuntime{Context: ctx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause}
+		frozenRuntime := FighterRuntime{Context: ctx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: runtime.Unsupported[:0]}
 		if frozenRuntime.HitPause > 0 {
 			frozenRuntime.HitPause--
 		}
@@ -330,6 +353,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	// new StateNo. A state change made by them is entered (stateChange2)
 	// before the current state -- now the new one -- runs, in this tick.
 	var sounds []evaluator.SoundEvent
+	unsupported := runtime.Unsupported[:0]
 	for _, number := range specialStates {
 		if _, ok := prog.States[number]; !ok {
 			continue
@@ -340,6 +364,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		}
 		ctx = special.Context
 		sounds = append(sounds, special.Sounds...)
+		unsupported = appendMissing(unsupported, special.Unsupported)
 	}
 	if ctx.StateNo != runtime.Context.StateNo {
 		enterState(&ctx, prog.States[ctx.StateNo])
@@ -355,8 +380,10 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		return fighterTickOutput{}, err
 	}
 	sounds = append(sounds, result.Sounds...)
+	unsupported = appendMissing(unsupported, result.Unsupported)
 
 	newCtx := result.Context
+	resolveAnimElem(&newCtx, findAnimation(prog, newCtx.Anim))
 	if newCtx.StateNo != ctx.StateNo {
 		// statemachine's own ChangeState handling already reset Time to 0
 		// (character/cmd data plays no part in that); Anim/AnimTime/Ctrl
@@ -385,12 +412,57 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	}
 
 	return fighterTickOutput{
-		Runtime:   FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo},
+		Runtime:   FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, Unsupported: unsupported},
 		Frame:     frame,
 		HasHitDef: hasHitDef,
 		HitDef:    hitDef,
 		Sounds:    sounds,
 	}, nil
+}
+
+// nilIfEmpty returns names, or nil when it is empty, so a side with nothing
+// to report reads as nil though its buffer is kept.
+func nilIfEmpty(names []string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	return names
+}
+
+// appendMissing appends to dst each of src's names it does not hold yet.
+func appendMissing(dst, src []string) []string {
+	for _, name := range src {
+		if !slices.Contains(dst, name) {
+			dst = append(dst, name)
+		}
+	}
+	return dst
+}
+
+// resolveAnimElem converts ctx's pending ChangeAnim element request into an
+// AnimTime within anim and clears the request. Ikemen GO char.go
+// setAnimElem: an element past the animation's last becomes 1 with time 0,
+// and an element time that is negative or not shorter than the element's own
+// duration becomes 0. An animation without frames (unknown to the character)
+// leaves AnimTime at the 0 ChangeAnim set. A frame with no positive duration
+// (held indefinitely) adds nothing to the start of a later element.
+func resolveAnimElem(ctx *evaluator.Context, anim air.Animation) {
+	elem, elemTime := ctx.AnimElem, ctx.AnimElemTime
+	ctx.AnimElem, ctx.AnimElemTime = 0, 0
+	if elem == 0 || len(anim.Frames) == 0 {
+		return
+	}
+	if elem > len(anim.Frames) {
+		elem, elemTime = 1, 0
+	}
+	if frame := anim.Frames[elem-1]; elemTime < 0 || (frame.Time > 0 && elemTime >= frame.Time) {
+		elemTime = 0
+	}
+	start := 0
+	for _, frame := range anim.Frames[:elem-1] {
+		start += max(frame.Time, 0)
+	}
+	ctx.AnimTime = start + elemTime
 }
 
 // enterState applies the bookkeeping of entering the state def to ctx,
@@ -405,7 +477,13 @@ func enterState(ctx *evaluator.Context, def cns.StateDef) {
 		ctx.Anim = ctx.StateNo
 	}
 	ctx.AnimTime = 0
+	ctx.AnimElem, ctx.AnimElemTime = 0, 0
 	ctx.Ctrl = def.Ctrl
+	// An omitted physics is N (Ikemen GO newStateBytecode); U or an unknown
+	// letter keeps the previous one (StateBytecode.init).
+	if l := physicsLetter(def.Physics); strings.IndexByte("SCAN", l) >= 0 {
+		ctx.Physics = l
+	}
 	// A state type or move type of U, or one that is not a known letter,
 	// leaves the previous one in place (Ikemen GO bytecode.go
 	// StateBytecode.init); an omitted one is S and I (newStateBytecode).
@@ -438,7 +516,7 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 
 	hitTime := params.GroundHitTime
 	target := 0
-	switch stanceLetter(states[ctx.StateNo].Type) {
+	switch ctx.StateType {
 	case 'S':
 		target = 5000
 	case 'C':
@@ -474,6 +552,30 @@ func moveLetter(t cns.MoveType) byte {
 		c -= 'a' - 'A'
 	}
 	return c
+}
+
+// physicsLetter is a StateDef's physics type as an upper-case letter: its
+// first character, case-insensitive, and 'N' when the line was omitted.
+func physicsLetter(t cns.PhysicsType) byte {
+	if t == "" {
+		return 'N'
+	}
+	c := t[0]
+	if c >= 'a' && c <= 'z' {
+		c -= 'a' - 'A'
+	}
+	return c
+}
+
+// gravityFor is the gravity physics.Step should apply to a fighter: the
+// configured one in physics type A, none otherwise. Ikemen GO's char.go
+// posUpdate adds yaccel automatically only for ss.physics == ST_A; any other
+// state gets gravity from its Gravity controller.
+func gravityFor(ctx *evaluator.Context, gravity float64) float64 {
+	if ctx.Physics != 'A' {
+		return 0
+	}
+	return gravity
 }
 
 // stanceLetter is a StateDef's type as an upper-case letter: its first
