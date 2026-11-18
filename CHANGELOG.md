@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-11-18
+
 ### Added
 
 - Characters' special states (-3, -2 and -1, where command-driven moves are written) now run every tick, in Ikemen GO's order, ahead of the current state: a command pressed in a character's own files can now move the fighter into a special move, which starts in that same tick.
@@ -161,7 +163,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.7.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.8.0...HEAD
+[2.8.0]: https://github.com/openkakutou/engine/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/openkakutou/engine/compare/v2.6.1...v2.7.0
 [2.6.1]: https://github.com/openkakutou/engine/compare/v2.6.0...v2.6.1
 [2.6.0]: https://github.com/openkakutou/engine/compare/v2.5.1...v2.6.0
