@@ -105,6 +105,8 @@ If tests or lint fail:
 - One test file per source file
 - Test names must describe behavior: `TestEvaluate_ReturnsError_OnUnknownTrigger`, not `TestEvaluate`
 - Always cover: happy path + at least 2 edge cases + error/invalid input
+- Fixture-driven integration tests (backlog item 009) use scripted real-character-vs-character scenarios, matching the org's existing practice (`character`) of validating against real files, not just hand-built data
+
 ### End-to-end tests (MUST) <!-- keep -->
 
 Product Owner decision, 2026-11-18. Every item that changes combat behaviour (controllers, triggers, `.zss`, physics, hits, rounds) adds or extends an end-to-end scenario, once the feature can be reached through `Tick`:
@@ -112,8 +114,6 @@ Product Owner decision, 2026-11-18. Every item that changes combat behaviour (co
 - Inputs are scripted frame by frame, there is no wall clock, and the random seed is fixed. Assertions are on observable state (state number, position, life, animation), with expected values grounded in Ikemen GO, as items 036 and game#051 will do through differential traces.
 - A scenario that fails for a known missing feature is kept and marked as an expected failure, naming the backlog item that will make it pass. It is never deleted or weakened. When that item lands, the scenario must pass.
 - A unit test alone does not close a combat item.
-
-- Fixture-driven integration tests (backlog item 009) use scripted real-character-vs-character scenarios, matching the org's existing practice (`character`) of validating against real files, not just hand-built data
 
 ## Constraints
 
