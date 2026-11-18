@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 ---
 # Reference Common1 and Kfm Fixtures
 
@@ -9,9 +9,9 @@ Commit the reference content as test fixtures, unmodified, so tests on real cont
 🔒 MUST: MUGEN 1.0/1.1 and Ikemen GO compatibility, verified against Ikemen GO (roadmap decision `038`).
 
 ## Acceptance Criteria
-- [ ] The four fixtures are committed unmodified, with a provenance file giving the source (repo and commit, or install) and the licence of each
-- [ ] A test loads each common file and each character through `character` without error
-- [ ] A test fails if a fixture file is missing or altered (checksum recorded in the provenance file)
+- [x] The four fixtures are committed unmodified, with a provenance file giving the source (repo and commit, or install) and the licence of each
+- [x] A test loads each common file and each character through `character` without error
+- [x] A test fails if a fixture file is missing or altered (checksum recorded in the provenance file)
 
 ## Notes
 Split out of item 035. Revised on 2026-11-18 (roadmap decisions `043`, then `044`).
