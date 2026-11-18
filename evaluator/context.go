@@ -9,6 +9,9 @@ import "github.com/openkakutou/engine/match"
 const (
 	maxVars    = 60
 	maxSysVars = 5
+	// MaxPersistent is the number of persistent(N) counters a Statedef can
+	// hold; zssexec rejects a Statedef with more at parse time.
+	MaxPersistent = 16
 )
 
 // Context is the per-fighter, per-tick data a trigger expression is
@@ -111,6 +114,11 @@ type Context struct {
 	// Locals is the frame of local variables ($name) the expression runs
 	// in; see LocalFrame. The zero value has none.
 	Locals LocalFrame
+	// Persistent holds the counters of the current state's .zss
+	// persistent(N) blocks, one per block in source order, the way Ikemen GO
+	// keeps them in c.ss.ps (char.go:6891-6903). zssexec runs them and
+	// zeroes them on a state change; see .vibe/decisions/022.
+	Persistent [MaxPersistent]int32
 }
 
 // LocalFrame is the local variables an expression can read as $name: the

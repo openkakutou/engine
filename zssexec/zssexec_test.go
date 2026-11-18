@@ -174,7 +174,7 @@ func TestStep_MutuallyRecursiveFunctionCalls_ReturnsDescriptiveErrorInsteadOfCra
 }
 
 func TestStep_UnsupportedConstruct_ReturnsDescriptiveError(t *testing.T) {
-	script := mustParseScript(t, "[Statedef 0]\nlet x = 1;")
+	script := mustParseScript(t, "[Statedef 0]\nfor i = 0, 3 {\n}")
 	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
 
 	_, err := Step(ctx, script)
