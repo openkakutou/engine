@@ -1,6 +1,6 @@
 ---
 status: todo
-depends_on: [027, 028, 034, 039, 040, 041, 042, 043, 047, 048, 049, 050, 051, 052, 053]
+depends_on: [027, 028, 034, 039, 040, 041, 042, 043, 047, 048, 049, 050, 051, 052]
 ---
 # Run an unmodified real common1 end to end
 
@@ -17,4 +17,4 @@ depends_on: [027, 028, 034, 039, 040, 041, 042, 043, 047, 048, 049, 050, 051, 05
 ## Notes
 Combat-completeness milestone, step order in roadmap decision `036`.
 Split on 2026-11-18 (Product Owner): the real files are missing 17 controller types, about 40 triggers and part of the `.zss` grammar, so the prerequisites became items 047-052, plus 039-043. Reference files: the `common1.cns` and `common1.cns.zss` shipped with Ikemen GO (MIT), not Elecbyte's. Acceptance characters: Ikemen GO's `kfm` and `kfm_zss`, committed as fixtures (047).
-Revised on 2026-11-18: the acceptance character is our own free character (053), not Ikemen GO's `kfm`, which is Elecbyte content. Ikemen GO ships only `common1.cns.zss`. MUGEN's `common1.cns` (Elecbyte) is exercised only from a local copy.
+Revised on 2026-11-18 (roadmap decision `044`): the acceptance characters are Ikemen GO's `kfm` and `kfm_zss`, and the common files are MUGEN 1.1's `common1.cns` and Ikemen GO's `common1.cns.zss`. All are committed as fixtures (047).
