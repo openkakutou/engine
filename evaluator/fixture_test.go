@@ -55,7 +55,7 @@ func TestEval_RealTriggerStringsFromCNSFixture_EvaluateToExpectedValues(t *testi
 	ctx := Context{
 		FighterState:   match.FighterState{StateNo: 200},
 		Time:           0,
-		AnimTime:       0,
+		AnimElapsed:    0,
 		Ctrl:           true,
 		ActiveCommands: map[string]bool{"holdback": true},
 		StateType:      'S',

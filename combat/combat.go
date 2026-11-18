@@ -190,8 +190,15 @@ func advanceCombo(combo ComboState, tick, comboWindow int) ComboState {
 // ground.slidetime 0; air.hittime 20; animtype Light; ground.type High;
 // air.type = ground.type.
 const (
+	animTypeBack      = 3
+	animTypeUp        = 4
 	defaultAirHitTime = 20
 	defaultGroundType = 1
+	// Ikemen GO's HitDef defaults (char.go:730-885, HitDef.reset): yaccel
+	// 0.35, fall.yvelocity -4.5, fall.recover on, fall.recovertime 4.
+	defaultYAccel          = 0.35
+	defaultFallYVelocity   = -4.5
+	defaultFallRecoverTime = 4
 )
 
 // HitDefParams is the subset of a HitDef controller's parameters that drive
@@ -209,6 +216,24 @@ type HitDefParams struct {
 	AnimType        int
 	GroundType      int
 	AirType         int
+	// AirAnimType and FallAnimType are air.animtype and fall.animtype, with
+	// Ikemen GO's defaults (char.go:958-967), in the same codes as AnimType.
+	AirAnimType, FallAnimType int
+	// GroundVelocityY and AirVelocityY are the y of ground.velocity and
+	// air.velocity, in the content's units (Y down); the x is not used here.
+	GroundVelocityY, AirVelocityY float64
+	// YAccel is the defender's gravity while it is knocked about (yaccel).
+	YAccel float64
+	// GroundFall and AirFall are fall and air.fall; air.fall follows fall when
+	// absent (Ikemen GO finalizeParams).
+	GroundFall, AirFall bool
+	// FallYVelocity, FallRecover and FallRecoverTime are fall.yvelocity,
+	// fall.recover and fall.recovertime.
+	FallYVelocity   float64
+	FallRecover     bool
+	FallRecoverTime int
+	// HitID is the HitDef's id, the one NumTarget(id) filters on.
+	HitID int
 }
 
 // ParseHitDef reads a HitDef controller's raw, lower-cased parameter map
@@ -220,8 +245,13 @@ type HitDefParams struct {
 // the hit path of the per-tick hot loop.
 func ParseHitDef(params map[string]string) HitDefParams {
 	p := HitDefParams{
-		AirHitTime: defaultAirHitTime,
-		GroundType: defaultGroundType,
+		AirHitTime:      defaultAirHitTime,
+		GroundType:      defaultGroundType,
+		YAccel:          parseFloatOr(params["yaccel"], defaultYAccel),
+		FallYVelocity:   parseFloatOr(params["fall.yvelocity"], defaultFallYVelocity),
+		FallRecover:     parseIntOr(params["fall.recover"], 1) != 0,
+		FallRecoverTime: parseIntOr(params["fall.recovertime"], defaultFallRecoverTime),
+		HitID:           parseIntOr(params["id"], 0),
 	}
 	if raw, ok := params["pausetime"]; ok {
 		first, second := raw, ""
@@ -237,9 +267,57 @@ func ParseHitDef(params map[string]string) HitDefParams {
 	p.GroundSlideTime = parseIntOr(params["ground.slidetime"], 0)
 	p.AirHitTime = parseIntOr(params["air.hittime"], defaultAirHitTime)
 	p.AnimType = animTypeCode(params["animtype"])
+	p.AirAnimType = p.AnimType
+	if raw, ok := params["air.animtype"]; ok {
+		p.AirAnimType = animTypeCode(raw)
+	}
+	switch raw, ok := params["fall.animtype"]; {
+	case ok:
+		p.FallAnimType = animTypeCode(raw)
+	case p.AirAnimType >= animTypeUp:
+		p.FallAnimType = p.AirAnimType
+	default:
+		p.FallAnimType = animTypeBack
+	}
 	p.GroundType = hitTypeCode(params["ground.type"], defaultGroundType)
 	p.AirType = hitTypeCode(params["air.type"], p.GroundType)
+	p.GroundVelocityY = velocityY(params["ground.velocity"])
+	p.AirVelocityY = velocityY(params["air.velocity"])
+	p.GroundFall = parseIntOr(params["fall"], 0) != 0
+	p.AirFall = parseIntOr(params["air.fall"], boolInt(p.GroundFall)) != 0
 	return p
+}
+
+// velocityY is the y of an "x, y" velocity parameter, 0 when it has no y or
+// the y is not a literal number.
+func velocityY(raw string) float64 {
+	i := strings.IndexByte(raw, ',')
+	if i < 0 {
+		return 0
+	}
+	return parseFloatOr(raw[i+1:], 0)
+}
+
+// parseFloatOr parses s as a decimal number, returning def when s is empty or
+// not one. The empty check comes first so that a missing parameter, the common
+// case, never reaches strconv's allocating error path.
+func parseFloatOr(s string, def float64) float64 {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return def
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return def
+	}
+	return v
+}
+
+func boolInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // parseIntOr parses s as a decimal integer (optional sign, surrounding

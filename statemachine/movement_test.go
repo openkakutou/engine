@@ -162,10 +162,10 @@ func TestApplyController_Turn_FlipsFacingBothWays_KeepingWorldVelocity(t *testin
 }
 
 func TestApplyController_ChangeAnim_SetsAnimAndRestartsAnimTime(t *testing.T) {
-	ctx := evaluator.Context{Anim: 0, AnimTime: 7, AnimElem: 2}
+	ctx := evaluator.Context{Anim: 0, AnimElapsed: 7, AnimElem: 2}
 	ctx = apply(t, controller("ChangeAnim", "value", "200"), ctx)
-	if ctx.Anim != 200 || ctx.AnimTime != 0 {
-		t.Errorf("Anim, AnimTime = %d, %d, want 200, 0", ctx.Anim, ctx.AnimTime)
+	if ctx.Anim != 200 || ctx.AnimElapsed != 0 {
+		t.Errorf("Anim, AnimTime = %d, %d, want 200, 0", ctx.Anim, ctx.AnimElapsed)
 	}
 	if ctx.AnimElem != 0 {
 		t.Errorf("AnimElem = %d, want 0 (a stale element request must not survive a plain ChangeAnim)", ctx.AnimElem)

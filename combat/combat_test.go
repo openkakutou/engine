@@ -298,7 +298,8 @@ func TestParseHitDef_ReadsTheRealKfmHitDefValues(t *testing.T) {
 		"ground.type":      "High",
 		"air.type":         "High",
 	})
-	want := HitDefParams{PauseTime: [2]int{8, 8}, GroundHitTime: 11, GroundSlideTime: 5, AirHitTime: 15, AnimType: 0, GroundType: 1, AirType: 1}
+	want := HitDefParams{PauseTime: [2]int{8, 8}, GroundHitTime: 11, GroundSlideTime: 5, AirHitTime: 15, AnimType: 0, GroundType: 1, AirType: 1,
+		FallAnimType: 3, YAccel: 0.35, FallYVelocity: -4.5, FallRecover: true, FallRecoverTime: 4}
 	if got != want {
 		t.Errorf("ParseHitDef = %+v, want %+v", got, want)
 	}
@@ -306,7 +307,8 @@ func TestParseHitDef_ReadsTheRealKfmHitDefValues(t *testing.T) {
 
 func TestParseHitDef_FallsBackToTheDocumentedDefaults_WhenParametersAreMissing(t *testing.T) {
 	got := ParseHitDef(nil)
-	want := HitDefParams{PauseTime: [2]int{0, 0}, GroundHitTime: 0, GroundSlideTime: 0, AirHitTime: 20, AnimType: 0, GroundType: 1, AirType: 1}
+	want := HitDefParams{PauseTime: [2]int{0, 0}, GroundHitTime: 0, GroundSlideTime: 0, AirHitTime: 20, AnimType: 0, GroundType: 1, AirType: 1,
+		FallAnimType: 3, YAccel: 0.35, FallYVelocity: -4.5, FallRecover: true, FallRecoverTime: 4}
 	if got != want {
 		t.Errorf("ParseHitDef(nil) = %+v, want %+v", got, want)
 	}
@@ -347,7 +349,8 @@ func TestParseHitDef_ExpressionValuesFallBackToTheirDefault(t *testing.T) {
 	})
 	// The literal second pausetime value survives; each non-literal one is
 	// replaced by its own default, independently.
-	want := HitDefParams{PauseTime: [2]int{0, 3}, GroundHitTime: 0, AirHitTime: 20, AnimType: 0, GroundType: 1, AirType: 1}
+	want := HitDefParams{PauseTime: [2]int{0, 3}, GroundHitTime: 0, AirHitTime: 20, AnimType: 0, GroundType: 1, AirType: 1,
+		FallAnimType: 3, YAccel: 0.35, FallYVelocity: -4.5, FallRecover: true, FallRecoverTime: 4}
 	if got != want {
 		t.Errorf("ParseHitDef = %+v, want %+v", got, want)
 	}
@@ -361,7 +364,8 @@ func TestParseHitDef_ASinglePauseTimeValueLeavesTheDefenderShakeAtItsDefault(t *
 }
 
 func TestParseHitDef_DoesNotAllocate(t *testing.T) {
-	params := map[string]string{"pausetime": "8, 8", "ground.hittime": "11", "animtype": "Light", "ground.type": "High"}
+	params := map[string]string{"pausetime": "8, 8", "ground.hittime": "11", "animtype": "Light", "ground.type": "High",
+		"ground.velocity": "-2.5, -7", "yaccel": ".5", "fall": "1", "fall.yvelocity": "-5.5", "fall.recovertime": "7", "id": "4"}
 	allocs := testing.AllocsPerRun(100, func() { _ = ParseHitDef(params) })
 	if allocs != 0 {
 		t.Errorf("ParseHitDef allocated %v times per call, want 0", allocs)
@@ -462,6 +466,79 @@ func TestApplyHits_TwoValueDamage_AppliesHitDamageAndKeepsGuardDamage(t *testing
 		}
 		if got := newState.Fighter(match.SideP2).Health; got != 1000-c.wantDamage {
 			t.Errorf("damage %q: defender health = %d, want %d", c.raw, got, 1000-c.wantDamage)
+		}
+	}
+}
+
+// Ikemen GO's HitDef defaults and fields (char.go:730-885 reset, 11680-11810
+// where they are copied to the defender's get-hit variables).
+
+func TestParseHitDef_ReadsTheFallAndVelocityParameters(t *testing.T) {
+	got := ParseHitDef(map[string]string{
+		"ground.velocity":  "-2.5, -7",
+		"air.velocity":     "-1, -9.25",
+		"yaccel":           ".5",
+		"fall":             "1",
+		"fall.yvelocity":   "-5.5",
+		"fall.recover":     "0",
+		"fall.recovertime": "7",
+		"id":               "4",
+	})
+	if got.GroundVelocityY != -7 || got.AirVelocityY != -9.25 {
+		t.Errorf("GroundVelocityY, AirVelocityY = %v, %v, want -7, -9.25", got.GroundVelocityY, got.AirVelocityY)
+	}
+	if got.YAccel != 0.5 || got.FallYVelocity != -5.5 || got.FallRecoverTime != 7 || got.HitID != 4 {
+		t.Errorf("YAccel, FallYVelocity, FallRecoverTime, HitID = %v, %v, %v, %v, want 0.5, -5.5, 7, 4", got.YAccel, got.FallYVelocity, got.FallRecoverTime, got.HitID)
+	}
+	if !got.GroundFall || got.FallRecover {
+		t.Errorf("GroundFall, FallRecover = %v, %v, want true, false", got.GroundFall, got.FallRecover)
+	}
+}
+
+func TestParseHitDef_AirFallDefaultsToTheGroundFall(t *testing.T) {
+	if got := ParseHitDef(map[string]string{"fall": "1"}); !got.GroundFall || !got.AirFall {
+		t.Errorf("fall = 1: GroundFall, AirFall = %v, %v, want true, true", got.GroundFall, got.AirFall)
+	}
+	if got := ParseHitDef(map[string]string{"fall": "1", "air.fall": "0"}); !got.GroundFall || got.AirFall {
+		t.Errorf("fall = 1, air.fall = 0: GroundFall, AirFall = %v, %v, want true, false", got.GroundFall, got.AirFall)
+	}
+	if got := ParseHitDef(map[string]string{"air.fall": "1"}); got.GroundFall || !got.AirFall {
+		t.Errorf("air.fall = 1: GroundFall, AirFall = %v, %v, want false, true", got.GroundFall, got.AirFall)
+	}
+}
+
+func TestParseHitDef_AVelocityWithoutAYComponentLeavesYAtZero(t *testing.T) {
+	got := ParseHitDef(map[string]string{"ground.velocity": "-3", "air.velocity": "bad, nope"})
+	if got.GroundVelocityY != 0 || got.AirVelocityY != 0 {
+		t.Errorf("GroundVelocityY, AirVelocityY = %v, %v, want 0, 0", got.GroundVelocityY, got.AirVelocityY)
+	}
+}
+
+func TestParseHitDef_NonLiteralFallValuesFallBackToTheirDefaults(t *testing.T) {
+	got := ParseHitDef(map[string]string{"yaccel": "Const(movement.yaccel)", "fall.yvelocity": "var(1)", "fall.recovertime": "Time", "fall": "var(0)"})
+	if got.YAccel != 0.35 || got.FallYVelocity != -4.5 || got.FallRecoverTime != 4 || got.GroundFall {
+		t.Errorf("YAccel, FallYVelocity, FallRecoverTime, GroundFall = %v, %v, %v, %v, want 0.35, -4.5, 4, false", got.YAccel, got.FallYVelocity, got.FallRecoverTime, got.GroundFall)
+	}
+}
+
+// char.go:958-967: air.animtype defaults to animtype; fall.animtype to
+// air.animtype when that is Up or DiagUp, else Back.
+func TestParseHitDef_AirAndFallAnimTypesDefaultLikeIkemenGO(t *testing.T) {
+	cases := []struct {
+		name                      string
+		params                    map[string]string
+		wantGround, wantAir, want int
+	}{
+		{"nothing given", nil, 0, 0, 3},
+		{"animtype only", map[string]string{"animtype": "Medium"}, 1, 1, 3},
+		{"air.animtype Up", map[string]string{"animtype": "Light", "air.animtype": "Up"}, 0, 4, 4},
+		{"air.animtype DiagUp", map[string]string{"air.animtype": "DiagUp"}, 0, 5, 5},
+		{"explicit fall.animtype", map[string]string{"air.animtype": "Up", "fall.animtype": "Hard"}, 0, 4, 2},
+	}
+	for _, tc := range cases {
+		got := ParseHitDef(tc.params)
+		if got.AnimType != tc.wantGround || got.AirAnimType != tc.wantAir || got.FallAnimType != tc.want {
+			t.Errorf("%s: AnimType, AirAnimType, FallAnimType = %d, %d, %d, want %d, %d, %d", tc.name, got.AnimType, got.AirAnimType, got.FallAnimType, tc.wantGround, tc.wantAir, tc.want)
 		}
 	}
 }

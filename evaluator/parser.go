@@ -249,6 +249,12 @@ func (p *parser) parseIdentifierOrCall(name string) (node, error) {
 	if strings.EqualFold(name, "animelem") && p.peekIsOp("=", "!=", "<", ">", "<=", ">=") {
 		return p.parseAnimElem()
 	}
+	if strings.EqualFold(name, "hitdefattr") && p.peekIsOp("=", "!=") {
+		return p.parseHitDefAttr()
+	}
+	if _, isRedirect := redirectKinds[strings.ToLower(name)]; isRedirect {
+		return p.parseRedirect(strings.ToLower(name))
+	}
 	if p.peek().kind != tokLParen {
 		return identifierNode{name: strings.ToLower(name)}, nil
 	}
@@ -352,4 +358,74 @@ func (p *parser) parseAnimElem() (node, error) {
 		return nil, err
 	}
 	return animElemNode{elem: elem, op: op, value: value}, nil
+}
+
+// parseHitDefAttr parses what follows the HitDefAttr trigger: "= attr" or
+// "!= attr", the attr being a word of state types and any number of attack
+// classes after commas, bare or in quotes (Ikemen GO compiler.go:1510-1535,
+// 830-897). A comma followed by a word that is no attack class ends the
+// attribute, as trgAttr stops there.
+func (p *parser) parseHitDefAttr() (node, error) {
+	not := p.next().text == "!="
+	tok := p.next()
+	var text string
+	switch tok.kind {
+	case tokString:
+		text = tok.text
+	case tokIdent:
+		text = tok.text
+		for p.peek().kind == tokComma && p.toks[p.pos+1].kind == tokIdent {
+			if _, ok := attackClass(p.toks[p.pos+1].text); !ok {
+				break
+			}
+			p.next()
+			text += "," + p.next().text
+		}
+	default:
+		return nil, fmt.Errorf("evaluator: HitDefAttr expects an attribute such as SCA, NA after the operator, got %q", tok.text)
+	}
+	attr, err := ParseAttr(text, false)
+	if err != nil {
+		return nil, err
+	}
+	return hitDefAttrNode{attr: attr, not: not}, nil
+}
+
+// parseRedirect parses a redirection keyword already consumed: an optional
+// "(index)", a comma and the trigger it redirects (Ikemen GO compiler.go:
+// 836-883). The redirection reaches only the next primary, so "p2,time > 1"
+// is (p2,time) > 1, and a state or move type comparison belongs to it. A
+// redirection to a helper or the like fails at parse time, naming itself.
+func (p *parser) parseRedirect(kind string) (node, error) {
+	var arg node
+	if p.peek().kind == tokLParen {
+		args, err := p.parseCallArgs(kind)
+		if err != nil {
+			return nil, err
+		}
+		if len(args) != 1 {
+			return nil, fmt.Errorf("evaluator: %s() expects 1 argument, got %d", kind, len(args))
+		}
+		arg = args[0]
+	}
+	if p.peek().kind != tokComma {
+		return nil, fmt.Errorf("evaluator: %s must be followed by ',' and a trigger, e.g. %s, Life", kind, kind)
+	}
+	p.next()
+	if !redirectKinds[kind] {
+		return nil, fmt.Errorf("evaluator: redirection to %s is not supported yet: the engine has no helpers", kind)
+	}
+	inner, err := p.parsePrimary()
+	if err != nil {
+		return nil, err
+	}
+	if id, ok := inner.(identifierNode); ok && (id.name == "statetype" || id.name == "movetype") && p.peekIsOp("=", "!=") {
+		op := p.next().text
+		letter := p.next()
+		if letter.kind != tokIdent {
+			return nil, fmt.Errorf("evaluator: %s must be compared to a state letter, got %q", id.name, letter.text)
+		}
+		inner = binaryNode{op: op, left: id, right: identifierNode{name: strings.ToLower(letter.text)}}
+	}
+	return redirectNode{kind: kind, arg: arg, inner: inner}, nil
 }

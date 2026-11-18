@@ -130,8 +130,8 @@ func TestTick_StateTransition_ResetsAnimAndAnimTime_ToTheEnteredStatesOwn(t *tes
 	if p1Ctx.Anim != 200 {
 		t.Errorf("Anim = %d, want 200 (the entered state's own anim)", p1Ctx.Anim)
 	}
-	if p1Ctx.AnimTime != 0 {
-		t.Errorf("AnimTime = %d, want 0", p1Ctx.AnimTime)
+	if p1Ctx.AnimElapsed != 0 {
+		t.Errorf("AnimTime = %d, want 0", p1Ctx.AnimElapsed)
 	}
 	if p1Ctx.Time != 0 {
 		t.Errorf("Time = %d, want 0", p1Ctx.Time)

@@ -152,7 +152,8 @@ func TestTick_PositionTriggers_ReadTheLiveFighterPosition(t *testing.T) {
 
 func TestTick_AnimElem_FiresOnTheFirstTickOfThatElementOfTheFightersAnimation(t *testing.T) {
 	// Animation 0 (state 0's own): elements of 2 ticks each, so element 2
-	// starts at AnimTime 2, the third tick (AnimTime is 0 on the first).
+	// starts 2 ticks in, the third tick (the elapsed counter is 0 on the first).
+	// AnimTime there is curtime - totaltime = 2 - 6 = -4 (Ikemen GO anim.go:617).
 	anims := []air.Animation{{Number: 0, Frames: []air.Frame{{Time: 2}, {Time: 2}, {Time: 2}}}}
 	states := map[int]cns.StateDef{0: {Number: 0, Type: cns.StateTypeStanding, Ctrl: true, Controllers: []cns.Controller{
 		{Type: "VarSet", Triggers: []string{"AnimElem = 2"}, Parameters: map[string]string{"v": "0", "value": "AnimTime + 100"}},
@@ -182,7 +183,7 @@ func TestTick_AnimElem_FiresOnTheFirstTickOfThatElementOfTheFightersAnimation(t 
 		st, runtimes = &res.State, res.Fighters
 		want := 0
 		if tick >= 3 {
-			want = 102
+			want = 96
 		}
 		if got := runtimes[match.SideP1].Context.Vars[0]; got != want {
 			t.Errorf("after tick %d Vars[0] = %d, want %d", tick, got, want)

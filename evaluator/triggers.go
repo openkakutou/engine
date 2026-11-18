@@ -9,7 +9,7 @@ import (
 )
 
 // axisTriggers are the triggers written with an axis letter ("Pos Y").
-var axisTriggers = map[string]bool{"pos": true, "vel": true}
+var axisTriggers = map[string]bool{"pos": true, "vel": true, "p2dist": true, "p2bodydist": true}
 
 // randomMax is Ikemen GO's IMax (common.go), the generator's modulus.
 const randomMax = 2147483647
@@ -62,12 +62,54 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 			return intValue(1), true, nil
 		}
 		return intValue(float64(ctx.PalNo)), true, nil
+	case "p2stateno":
+		return opponentInt(ctx, float64(ctx.P2.StateNo)), true, nil // bytecode.go:3341-3347
+	case "p2life":
+		return opponentInt(ctx, float64(ctx.P2.Health)), true, nil
+	case "numenemy":
+		// char.go:6002-6014: the enemies of a one-on-one match are the opponent.
+		if ctx.P2.Valid {
+			return intValue(1), true, nil
+		}
+		return intValue(0), true, nil
+	case "numtarget":
+		return numTarget(ctx, -1), true, nil
+	case "movecontact":
+		// char.go:5967-5973: |mctime| unless the last contact was a reversal.
+		return intValue(float64(ctx.MoveContactTime)), true, nil
+	case "movehit":
+		return intValue(float64(ctx.MoveContactTime)), true, nil
+	case "moveguarded", "movereversed":
+		// char.go:5981-5999. shortcut: the engine has no guarding or ReversalDef
+		// yet, so no contact is ever of these types.
+		return intValue(0), true, nil
+	case "hitfall":
+		return boolValue(ctx.GetHit.Fall), true, nil
+	case "canrecover":
+		return boolValue(ctx.GetHit.FallRecover && ctx.GetHit.FallTime >= ctx.GetHit.FallRecoverTime), true, nil
 	case "numhelper", "numexplod":
 		// bytecode.go:2657-2660. shortcut: the engine has no helpers or
 		// explods yet (backlog items 029 and 052), so there is none to count.
 		return intValue(0), true, nil
 	}
 	return Value{}, false, nil
+}
+
+// opponentInt is an opponent value as an int Value, 0 with no opponent.
+func opponentInt(ctx *Context, v float64) Value {
+	if !ctx.P2.Valid {
+		return intValue(0)
+	}
+	return intValue(v)
+}
+
+// numTarget is Char.numTarget (char.go:6211): 1 while the opponent is the
+// fighter's target (and carries HitDef id when id is not negative), else 0.
+func numTarget(ctx *Context, id int) Value {
+	if isTarget(ctx, id) {
+		return intValue(1)
+	}
+	return intValue(0)
 }
 
 // drawRandom advances ctx.RandSeed one step of Ikemen GO's generator
@@ -87,10 +129,13 @@ func drawRandom(ctx *Context) int32 {
 	return seed / (randomMax/1000 + 1)
 }
 
-// evalComponent evaluates "Pos X/Y/Z" and "Vel X/Y/Z".
+// evalComponent evaluates "Pos X/Y/Z", "Vel X/Y/Z", "P2Dist X/Y/Z" and
+// "P2BodyDist X/Y/Z".
 func evalComponent(n componentNode, ctx *Context) (Value, error) {
 	var x, y float64
 	switch n.name {
+	case "p2dist", "p2bodydist":
+		return evalP2Distance(n, ctx)
 	case "pos":
 		x, y = ctx.Position.X, ctx.Position.Y
 	case "vel":
@@ -122,6 +167,21 @@ func evalFighterCall(n callNode, ctx *Context) (v Value, ok bool, err error) {
 	switch n.name {
 	case "ishelper":
 		return boolValue(false), true, nil
+	case "numtarget":
+		// The optional id picks the targets hit by the HitDef with that id
+		// (compiler.go:3440-3445, char.go:6211-6224); none means every target.
+		if len(n.args) > 1 {
+			return Value{}, true, fmt.Errorf("evaluator: numtarget() expects at most 1 argument, got %d", len(n.args))
+		}
+		id := -1
+		for _, arg := range n.args {
+			v, err := evalNode(arg, ctx)
+			if err != nil {
+				return Value{}, true, err
+			}
+			id = v.Int()
+		}
+		return numTarget(ctx, id), true, nil
 	case "numhelper", "numexplod":
 		// The optional id picks which helpers or explods to count
 		// (compiler.go:3415-3425); with none to count it changes nothing.
@@ -250,19 +310,23 @@ func evalLog(n callNode, ctx *Context) (Value, bool, error) {
 // typeComparison recognizes "StateType = S" and "MoveType != H": a state or
 // move type trigger compared to a bare letter. It returns the trigger name,
 // the letter upper-cased, and true only for exactly that form.
-func typeComparison(n binaryNode) (trigger string, letter string, ok bool) {
+func typeComparison(n binaryNode) (trigger string, letter byte, ok bool) {
 	if n.op != "=" && n.op != "!=" {
-		return "", "", false
+		return "", 0, false
 	}
 	id, ok := n.left.(identifierNode)
-	if !ok || (id.name != "statetype" && id.name != "movetype") {
-		return "", "", false
+	if !ok || (id.name != "statetype" && id.name != "movetype" && id.name != "p2statetype" && id.name != "p2movetype") {
+		return "", 0, false
 	}
 	l, ok := n.right.(identifierNode)
 	if !ok || len(l.name) != 1 {
-		return "", "", false
+		return "", 0, false
 	}
-	return id.name, strings.ToUpper(l.name), true
+	letter = l.name[0]
+	if letter >= 'a' && letter <= 'z' {
+		letter -= 'a' - 'A'
+	}
+	return id.name, letter, true
 }
 
 func evalTypeComparison(n binaryNode, ctx *Context) (Value, bool, error) {
@@ -271,13 +335,18 @@ func evalTypeComparison(n binaryNode, ctx *Context) (Value, bool, error) {
 		return Value{}, false, nil
 	}
 	valid, current := "SCAL", ctx.StateType
-	if trigger == "movetype" {
+	switch trigger {
+	case "movetype":
 		valid, current = "IAH", ctx.MoveType
+	case "p2statetype":
+		current = ctx.P2.StateType
+	case "p2movetype":
+		valid, current = "IAH", ctx.P2.MoveType
 	}
-	if !strings.Contains(valid, letter) {
-		return Value{}, true, fmt.Errorf("evaluator: %s cannot be compared to %q (expected one of %s)", trigger, letter, valid)
+	if strings.IndexByte(valid, letter) < 0 {
+		return Value{}, true, fmt.Errorf("evaluator: %s cannot be compared to %q (expected one of %s)", trigger, string(letter), valid)
 	}
-	same := current == letter[0]
+	same := current == letter
 	if n.op == "!=" {
 		same = !same
 	}

@@ -235,7 +235,7 @@ type FighterRuntime struct {
 
 // NewFighterRuntime builds a fresh FighterRuntime for a fighter entering
 // states[fighter.StateNo] for the first time -- typically match start or a
-// round reset (see round.ResetRound). Time and AnimTime start at 0, and
+// round reset (see round.ResetRound). Time and AnimElapsed start at 0, and
 // Anim/Ctrl take the entered state's own declared values (Anim defaulting
 // to the state number itself, matching cns.StateDef.Anim's own "0 means
 // not set" convention) -- mirroring the bookkeeping Tick itself applies on
@@ -355,7 +355,13 @@ func Tick(
 	inputs [2]input.TickInput,
 	cfg TickConfig,
 ) (TickResult, error) {
-	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), inputs[match.SideP1], cfg.Tick, cfg.Gravity, state.Round, state.RandSeed)
+	// Ikemen GO runs the fighters one after the other (char.go:14066-14090):
+	// the first sees the second as the previous tick left it, the second sees
+	// what the first's controllers just did -- its new state, velocity and
+	// move type -- but not yet its movement, which Tick applies after both
+	// (decision 027).
+	p2Seen := snapshotOf(state.Fighter(match.SideP2), &runtimes[match.SideP2].Context)
+	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), p2Seen, inputs[match.SideP1], cfg.Tick, cfg.Gravity, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
 	}
@@ -367,7 +373,8 @@ func Tick(
 	// next fighter's tick see it, as in Ikemen GO where a controller's
 	// effect is immediate.
 	state.Fighters[match.SideP1] = p1Out.Runtime.Context.FighterState
-	p2Out, err := tickFighter(programs[match.SideP2], runtimes[match.SideP2], state.Fighter(match.SideP2), inputs[match.SideP2], cfg.Tick, cfg.Gravity, state.Round, state.RandSeed)
+	p1Seen := snapshotOf(state.Fighter(match.SideP1), &p1Out.Runtime.Context)
+	p2Out, err := tickFighter(programs[match.SideP2], runtimes[match.SideP2], state.Fighter(match.SideP2), p1Seen, inputs[match.SideP2], cfg.Tick, cfg.Gravity, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
 	}
@@ -471,7 +478,7 @@ type fighterTickOutput struct {
 	Sounds    []evaluator.SoundEvent
 	// Frozen reports the fighter was in hit pause (attacker freeze or
 	// defender shake) this tick: only controllers flagged ignorehitpause
-	// ran, Time/AnimTime were held, and Tick skips its physics.
+	// ran, Time/AnimElapsed were held, and Tick skips its physics.
 	Frozen bool
 }
 
@@ -485,9 +492,15 @@ var specialStates = [...]int{-3, -2, -1}
 // of this tick (position/facing/health, sourced from match.MatchState, the
 // single source of truth Tick reconciles runtime.Context against every
 // call).
-func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.FighterState, in input.TickInput, tick int, gravity float64, round int, seed int32) (fighterTickOutput, error) {
+func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.FighterState, opponent evaluator.Opponent, in input.TickInput, tick int, gravity float64, round int, seed int32) (fighterTickOutput, error) {
 	ctx := runtime.Context
 	ctx.FighterState = fighter
+	ctx.P2 = opponent
+	// A target that left its hit states is dropped before the fighter acts
+	// (Ikemen GO char.go:12490, 10387-10404).
+	if opponent.MoveType != 'H' {
+		ctx.HasTarget = false
+	}
 	ctx.Round = round
 	ctx.RandSeed = seed
 	ctx.YAccel = gravity
@@ -498,15 +511,15 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	// The frame resolved here is the one active as this tick begins --
 	// i.e. before this tick's own state-machine transition (if any) is
 	// applied. A transition's new animation takes effect starting next
-	// tick, once AnimTime has actually reset -- see this item's own ADR.
-	frame := currentFrame(findAnimation(prog, ctx.Anim), ctx.AnimTime)
+	// tick, once AnimElapsed has actually reset -- see this item's own ADR.
+	frame := currentFrame(findAnimation(prog, ctx.Anim), ctx.AnimElapsed)
 
 	if !prog.hasState(ctx.StateNo) {
 		return fighterTickOutput{}, fmt.Errorf("current state %d not found in loaded character", ctx.StateNo)
 	}
 
 	// A fighter in hit pause (attacker freeze or defender shake) runs only
-	// the controllers flagged ignorehitpause, advances no Time/AnimTime and
+	// the controllers flagged ignorehitpause, advances no Time/AnimElapsed and
 	// moves no physics; input recognition above keeps running. See
 	// .vibe/decisions/018 and 021.
 	frozen := runtime.HitPause > 0 || ctx.GetHit.HitShakeTime > 0
@@ -538,7 +551,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		// Ikemen GO applies the new animation in stateChange2, before
 		// collision detection: this tick uses its first frame (char.go:6943,
 		// 13049-13062).
-		frame = currentFrame(findAnimation(prog, ctx.Anim), ctx.AnimTime)
+		frame = currentFrame(findAnimation(prog, ctx.Anim), ctx.AnimElapsed)
 	}
 
 	result, err := prog.step(ctx, ctx.StateNo, frozen)
@@ -563,11 +576,14 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		if frozenRuntime.Context.GetHit.HitShakeTime > 0 {
 			frozenRuntime.Context.GetHit.HitShakeTime--
 		}
+		if runtime.HitPause == 0 { // the defender's shake steps the fall time; an attacker's pause does not
+			stepFall(&frozenRuntime.Context)
+		}
 		return fighterTickOutput{Runtime: frozenRuntime, Frame: frame, Frozen: true, Sounds: sounds}, nil
 	}
 	if newCtx.StateNo != ctx.StateNo {
 		// statemachine's own ChangeState handling already reset Time to 0
-		// (character/cmd data plays no part in that); Anim/AnimTime/Ctrl
+		// (character/cmd data plays no part in that); Anim/AnimElapsed/Ctrl
 		// are enterState's responsibility, since statemachine has no
 		// character-loadout knowledge of the target state's declared
 		// values.
@@ -575,8 +591,15 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		enterState(&newCtx, entered)
 	} else {
 		newCtx.Time++
-		newCtx.AnimTime++
+		newCtx.AnimElapsed++
 	}
+	// After every unfrozen action, a state change included, the contact
+	// counter grows (char.go:12594-12596); a state entered without
+	// movehitpersist has just reset it to 0.
+	if newCtx.MoveContactTime > 0 {
+		newCtx.MoveContactTime++
+	}
+	stepFall(&newCtx)
 	// Once the shake is over the get-hit time counts down on every
 	// unfrozen tick, stopping at -1 (HitOver).
 	if newCtx.GetHit.Active && newCtx.GetHit.HitTime >= 0 {
@@ -593,6 +616,14 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 			hitDef = def.Controllers[i]
 			hasHitDef = true
 			break
+		}
+	}
+
+	// The HitDef that just applied becomes the one HitDefAttr reads, unless
+	// the state changed in the same tick (which would have cleared it).
+	if hasHitDef && newCtx.StateNo == ctx.StateNo {
+		if attr, err := evaluator.ParseAttr(hitDef.Parameters["attr"], true); err == nil {
+			newCtx.HitDefAttr = attr
 		}
 	}
 
@@ -625,11 +656,11 @@ func appendMissing(dst, src []string) []string {
 }
 
 // resolveAnimElem converts ctx's pending ChangeAnim element request into an
-// AnimTime within anim and clears the request. Ikemen GO char.go
+// AnimElapsed within anim and clears the request. Ikemen GO char.go
 // setAnimElem: an element past the animation's last becomes 1 with time 0,
 // and an element time that is negative or not shorter than the element's own
 // duration becomes 0. An animation without frames (unknown to the character)
-// leaves AnimTime at the 0 ChangeAnim set. A frame with no positive duration
+// leaves AnimElapsed at the 0 ChangeAnim set. A frame with no positive duration
 // (held indefinitely) adds nothing to the start of a later element.
 func resolveAnimElem(ctx *evaluator.Context, anim air.Animation) {
 	elem, elemTime := ctx.AnimElem, ctx.AnimElemTime
@@ -647,11 +678,11 @@ func resolveAnimElem(ctx *evaluator.Context, anim air.Animation) {
 	for _, frame := range anim.Frames[:elem-1] {
 		start += max(frame.Time, 0)
 	}
-	ctx.AnimTime = start + elemTime
+	ctx.AnimElapsed = start + elemTime
 }
 
 // enterState applies the bookkeeping of entering the state def to ctx,
-// whose StateNo is already the new state's: Time and AnimTime restart at 0,
+// whose StateNo is already the new state's: Time and AnimElapsed restart at 0,
 // Anim takes the StateDef's own value (defaulting to the state number,
 // cns.StateDef.Anim's "0 means not set" convention) and Ctrl the StateDef's.
 // Shared by tickFighter's ChangeState path and the get-hit entry below.
@@ -662,8 +693,13 @@ func enterState(ctx *evaluator.Context, def cns.StateDef) {
 	if ctx.Anim == 0 {
 		ctx.Anim = ctx.StateNo
 	}
-	ctx.AnimTime = 0
+	ctx.AnimElapsed = 0
 	ctx.AnimElem, ctx.AnimElemTime = 0, 0
+	// Entering a state clears the contact counter unless its StateDef says
+	// movehitpersist (Ikemen GO bytecode.go:5456-5459, compiler.go:7072-7079).
+	if !def.MoveHitPersist {
+		ctx.MoveContactTime = 0
+	}
 	ctx.Ctrl = def.Ctrl
 	// An omitted physics is N (Ikemen GO newStateBytecode); U or an unknown
 	// letter keeps the previous one (StateBytecode.init).
@@ -678,6 +714,37 @@ func enterState(ctx *evaluator.Context, def cns.StateDef) {
 	}
 	if l := moveLetter(def.MoveType); strings.IndexByte("IAH", l) >= 0 {
 		ctx.MoveType = l
+	}
+}
+
+// snapshotOf is what the other fighter's triggers read of fighter: its match
+// state as of now and the rest from its runtime context.
+func snapshotOf(fighter match.FighterState, ctx *evaluator.Context) evaluator.Opponent {
+	return evaluator.Opponent{
+		Valid:           true,
+		FighterState:    fighter,
+		Time:            ctx.Time,
+		Anim:            ctx.Anim,
+		PrevStateNo:     ctx.PrevStateNo,
+		Ctrl:            ctx.Ctrl,
+		StateType:       ctx.StateType,
+		MoveType:        ctx.MoveType,
+		GetHit:          ctx.GetHit,
+		MoveContactTime: ctx.MoveContactTime,
+		HitDefAttr:      ctx.HitDefAttr,
+		Consts:          ctx.Consts,
+	}
+}
+
+// stepFall is what a fighter's tick does to its fall: in a hit state the fall
+// time counts while the fall flag is set, and the first tick out of one clears
+// the flag (Ikemen GO char.go:12644-12673). canRecover reads the fall time.
+func stepFall(ctx *evaluator.Context) {
+	switch {
+	case ctx.MoveType != 'H':
+		ctx.GetHit.Fall = false
+	case ctx.GetHit.Fall:
+		ctx.GetHit.FallTime++
 	}
 }
 
@@ -696,6 +763,10 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 	}
 	params := combat.ParseHitDef(hitDefParams)
 	runtimes[attacker].HitPause = params.PauseTime[0]
+	// The contact counter starts at 1 on the tick of the hit (Ikemen GO
+	// char.go:14270-14271, 13125-13126), and the defender becomes a target.
+	runtimes[attacker].Context.MoveContactTime = 1
+	runtimes[attacker].Context.HasTarget = true
 
 	ctx := &runtimes[hit.Defender].Context
 	defender := programs[hit.Defender]
@@ -711,20 +782,66 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 		target = 5020
 		hitTime = params.AirHitTime
 	}
-	ctx.GetHit = evaluator.GetHit{
-		Active:       true,
-		HitShakeTime: params.PauseTime[1],
-		HitTime:      hitTime,
-		SlideTime:    params.GroundSlideTime,
-		AnimType:     params.AnimType,
-		GroundType:   params.GroundType,
-		AirType:      params.AirType,
-	}
+	ctx.GetHit = getHitFor(params, ctx, hitTime)
+	// Ikemen GO makes the defender's move type H before entering the get-hit
+	// state, whose StateDef may then set its own (char.go:13123-13129).
+	ctx.MoveType = 'H'
 	if def, ok := defender.stateHeader(target); ok && target != 0 {
 		ctx.PrevStateNo = ctx.StateNo
 		ctx.StateNo = target
 		enterState(ctx, def)
 	}
+}
+
+// getHitFor is the defender's get-hit variables for a landed hit, as Ikemen GO
+// copies them from the HitDef (char.go:11680-11838): the velocity, fall flag
+// and control time of the air branch for a fighter in the air and of the ground
+// one otherwise, the fall flag kept from an earlier hit it has not recovered
+// from, and the animation type chosen by gethitAnimtype (char.go:8102-8114).
+//
+// shortcut: a defender lying down (type L) takes the ground branch, where
+// Ikemen GO uses down.velocity and down.hittime (char.go:11773-11787); Tick does
+// not put a lying fighter into a get-hit state yet.
+func getHitFor(params combat.HitDefParams, defender *evaluator.Context, hitTime int) evaluator.GetHit {
+	g := evaluator.GetHit{
+		Active:          true,
+		HitShakeTime:    params.PauseTime[1],
+		HitTime:         hitTime,
+		SlideTime:       params.GroundSlideTime,
+		GroundType:      params.GroundType,
+		AirType:         params.AirType,
+		Yaccel:          params.YAccel,
+		FallYvel:        params.FallYVelocity,
+		FallRecover:     params.FallRecover,
+		FallRecoverTime: params.FallRecoverTime,
+		HitID:           params.HitID,
+		Fall:            defender.GetHit.Fall,
+	}
+	airborne := defender.StateType == 'A'
+	if airborne {
+		g.Yvel = params.AirVelocityY
+		g.Fall = g.Fall || params.AirFall
+		g.CtrlTime = params.AirHitTime
+	} else {
+		g.Yvel = params.GroundVelocityY
+		g.Fall = g.Fall || params.GroundFall
+		g.CtrlTime = params.GroundHitTime
+		if g.Fall && g.Yvel == 0 {
+			g.Yvel = -0.001 // char.go:11796-11799, "some form of internal workaround"
+		}
+	}
+	const animTypeBack = 3
+	switch {
+	case g.Fall:
+		g.AnimType = params.FallAnimType
+	case airborne:
+		g.AnimType = params.AirAnimType
+	case params.AnimType >= animTypeBack && g.Yvel == 0:
+		g.AnimType = 2 // Hard
+	default:
+		g.AnimType = params.AnimType
+	}
+	return g
 }
 
 // moveLetter is a StateDef's move type as an upper-case letter: its first

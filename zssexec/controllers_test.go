@@ -55,10 +55,10 @@ func TestStep_ParameterNamesAreCaseInsensitive(t *testing.T) {
 }
 
 func TestStep_ChangeAnimWithElem_RecordsTheRequest(t *testing.T) {
-	result := stepBody(t, evaluator.Context{Anim: 1, AnimTime: 9}, "ChangeAnim{value: 200; elem: 2; elemtime: 1}")
+	result := stepBody(t, evaluator.Context{Anim: 1, AnimElapsed: 9}, "ChangeAnim{value: 200; elem: 2; elemtime: 1}")
 	c := result.Context
-	if c.Anim != 200 || c.AnimTime != 0 || c.AnimElem != 2 || c.AnimElemTime != 1 {
-		t.Errorf("Anim, AnimTime, AnimElem, AnimElemTime = %d, %d, %d, %d, want 200, 0, 2, 1", c.Anim, c.AnimTime, c.AnimElem, c.AnimElemTime)
+	if c.Anim != 200 || c.AnimElapsed != 0 || c.AnimElem != 2 || c.AnimElemTime != 1 {
+		t.Errorf("Anim, AnimTime, AnimElem, AnimElemTime = %d, %d, %d, %d, want 200, 0, 2, 1", c.Anim, c.AnimElapsed, c.AnimElem, c.AnimElemTime)
 	}
 }
 

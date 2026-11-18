@@ -226,8 +226,8 @@ func TestTick_ChangeAnim_ChangesAnimAndRestartsItObservably(t *testing.T) {
 	got := tickWithP1Program(t, changeAnimProgram(), match.FighterState{Health: 1000}, 0).Fighters[match.SideP1].Context
 	// AnimTime restarts at 0 and the tick's own advance makes it 1, as Ikemen
 	// GO runs anim.Action() after the controllers (char.go:13060).
-	if got.Anim != 300 || got.AnimTime != 1 {
-		t.Errorf("Anim, AnimTime = %d, %d, want 300, 1", got.Anim, got.AnimTime)
+	if got.Anim != 300 || got.AnimElapsed != 1 {
+		t.Errorf("Anim, AnimTime = %d, %d, want 300, 1", got.Anim, got.AnimElapsed)
 	}
 	if got.AnimElem != 0 {
 		t.Errorf("AnimElem = %d, want 0: the request is resolved within the tick", got.AnimElem)
@@ -237,8 +237,8 @@ func TestTick_ChangeAnim_ChangesAnimAndRestartsItObservably(t *testing.T) {
 func TestTick_ChangeAnimElem_StartsAtThatElementPlusElemTime(t *testing.T) {
 	got := tickWithP1Program(t, changeAnimProgram("elem", "2", "elemtime", "3"), match.FighterState{Health: 1000}, 0).Fighters[match.SideP1].Context
 	// Element 2 starts at 5 ticks in; +3 into it = 8; the tick's advance = 9.
-	if got.AnimTime != 9 {
-		t.Errorf("AnimTime = %d, want 9", got.AnimTime)
+	if got.AnimElapsed != 9 {
+		t.Errorf("AnimTime = %d, want 9", got.AnimElapsed)
 	}
 }
 
@@ -254,8 +254,8 @@ func TestTick_ChangeAnimElem_InvalidElemOrElemTime_FallBackLikeIkemen(t *testing
 	}
 	for _, tc := range tests {
 		got := tickWithP1Program(t, changeAnimProgram(tc.extra...), match.FighterState{Health: 1000}, 0).Fighters[match.SideP1].Context
-		if got.AnimTime != tc.want {
-			t.Errorf("%s: AnimTime = %d, want %d", tc.name, got.AnimTime, tc.want)
+		if got.AnimElapsed != tc.want {
+			t.Errorf("%s: AnimTime = %d, want %d", tc.name, got.AnimElapsed, tc.want)
 		}
 	}
 }
@@ -264,8 +264,8 @@ func TestTick_ChangeAnimElem_UnknownAnimation_RestartsAtZero(t *testing.T) {
 	prog := changeAnimProgram("elem", "2")
 	prog.Animations = nil
 	got := tickWithP1Program(t, prog, match.FighterState{Health: 1000}, 0).Fighters[match.SideP1].Context
-	if got.Anim != 300 || got.AnimTime != 1 {
-		t.Errorf("Anim, AnimTime = %d, %d, want 300, 1", got.Anim, got.AnimTime)
+	if got.Anim != 300 || got.AnimElapsed != 1 {
+		t.Errorf("Anim, AnimTime = %d, %d, want 300, 1", got.Anim, got.AnimElapsed)
 	}
 }
 
@@ -372,8 +372,8 @@ func TestTick_ChangeAnimElem_AfterHeldOrZeroLengthFrames(t *testing.T) {
 	prog.Animations = []air.Animation{{Number: 300, Frames: []air.Frame{{Time: -1}, {Time: 0}, {Time: 7}}}}
 	got := tickWithP1Program(t, prog, match.FighterState{Health: 1000}, 0).Fighters[match.SideP1].Context
 	// start 0 + elemtime 2 = 2, then the tick's advance: 3.
-	if got.AnimTime != 3 {
-		t.Errorf("AnimTime = %d, want 3", got.AnimTime)
+	if got.AnimElapsed != 3 {
+		t.Errorf("AnimTime = %d, want 3", got.AnimElapsed)
 	}
 }
 
@@ -386,8 +386,8 @@ func TestTick_ChangeAnimInSpecialState_TakesEffect(t *testing.T) {
 	prog.States = states
 	got := tickWithP1Program(t, prog, match.FighterState{Health: 1000}, 0).Fighters[match.SideP1].Context
 	// Element 2 starts at 5; the tick's advance: 6.
-	if got.Anim != 300 || got.AnimTime != 6 {
-		t.Errorf("Anim, AnimTime = %d, %d, want 300, 6", got.Anim, got.AnimTime)
+	if got.Anim != 300 || got.AnimElapsed != 6 {
+		t.Errorf("Anim, AnimTime = %d, %d, want 300, 6", got.Anim, got.AnimElapsed)
 	}
 }
 
@@ -402,8 +402,8 @@ func TestTick_ChangeAnimThenChangeState_StateEntryWins(t *testing.T) {
 	prog := changeAnimProgram()
 	prog.States = states
 	got := tickWithP1Program(t, prog, match.FighterState{Health: 1000}, 0).Fighters[match.SideP1].Context
-	if got.StateNo != 200 || got.Anim != 210 || got.AnimTime != 0 || got.AnimElem != 0 {
-		t.Errorf("StateNo, Anim, AnimTime, AnimElem = %d, %d, %d, %d, want 200, 210, 0, 0", got.StateNo, got.Anim, got.AnimTime, got.AnimElem)
+	if got.StateNo != 200 || got.Anim != 210 || got.AnimElapsed != 0 || got.AnimElem != 0 {
+		t.Errorf("StateNo, Anim, AnimTime, AnimElem = %d, %d, %d, %d, want 200, 210, 0, 0", got.StateNo, got.Anim, got.AnimElapsed, got.AnimElem)
 	}
 }
 

@@ -169,7 +169,7 @@ func TestTick_LandedHit_FreezesBothFightersForTheKfmPauseTime_HoldingTimeAnimTim
 	if got := s.ctx(match.SideP1).Vars[0]; got != 1 {
 		t.Fatalf("landing tick: attacker var(0) = %d, want 1", got)
 	}
-	attackerTime, attackerAnimTime := s.ctx(match.SideP1).Time, s.ctx(match.SideP1).AnimTime
+	attackerTime, attackerAnimTime := s.ctx(match.SideP1).Time, s.ctx(match.SideP1).AnimElapsed
 	defenderCounter := s.ctx(match.SideP2).Vars[1] // 1: its state-0 counter ran before the hit landed
 
 	// Ticks 2..9 are the 8 frozen ticks for both sides.
@@ -179,11 +179,11 @@ func TestTick_LandedHit_FreezesBothFightersForTheKfmPauseTime_HoldingTimeAnimTim
 		if a.Vars[0] != 1 || d.Vars[1] != defenderCounter {
 			t.Fatalf("tick %d: attacker var(0)=%d defender var(1)=%d, want 1 and %d (no controller may run while frozen)", tick, a.Vars[0], d.Vars[1], defenderCounter)
 		}
-		if a.Time != attackerTime || a.AnimTime != attackerAnimTime {
-			t.Fatalf("tick %d: attacker Time/AnimTime = %d/%d, want held at %d/%d", tick, a.Time, a.AnimTime, attackerTime, attackerAnimTime)
+		if a.Time != attackerTime || a.AnimElapsed != attackerAnimTime {
+			t.Fatalf("tick %d: attacker Time/AnimTime = %d/%d, want held at %d/%d", tick, a.Time, a.AnimElapsed, attackerTime, attackerAnimTime)
 		}
-		if d.Time != 0 || d.AnimTime != 0 || d.StateNo != 5000 {
-			t.Fatalf("tick %d: defender StateNo/Time/AnimTime = %d/%d/%d, want 5000/0/0", tick, d.StateNo, d.Time, d.AnimTime)
+		if d.Time != 0 || d.AnimElapsed != 0 || d.StateNo != 5000 {
+			t.Fatalf("tick %d: defender StateNo/Time/AnimTime = %d/%d/%d, want 5000/0/0", tick, d.StateNo, d.Time, d.AnimElapsed)
 		}
 		if x := s.state.Fighter(match.SideP1).Position.X; x != attackerX {
 			t.Fatalf("tick %d: attacker X = %v, want held at %v (physics skipped)", tick, x, attackerX)
@@ -268,8 +268,8 @@ func TestTick_LandedHit_EntersTheGetHitStateMatchingTheDefendersStanceOnTheLandi
 			if got := s.state.Fighter(match.SideP2).StateNo; got != c.wantState {
 				t.Errorf("MatchState defender StateNo = %d, want %d", got, c.wantState)
 			}
-			if d.Time != 0 || d.AnimTime != 0 {
-				t.Errorf("defender Time/AnimTime = %d/%d, want 0/0", d.Time, d.AnimTime)
+			if d.Time != 0 || d.AnimElapsed != 0 {
+				t.Errorf("defender Time/AnimTime = %d/%d, want 0/0", d.Time, d.AnimElapsed)
 			}
 			if d.Anim != c.wantState {
 				t.Errorf("defender Anim = %d, want %d (StateDef anim)", d.Anim, c.wantState)
@@ -287,7 +287,8 @@ func TestTick_LandedHit_EntersTheGetHitStateMatchingTheDefendersStanceOnTheLandi
 func TestTick_LandedHit_RecordsTheKfmGetHitVars(t *testing.T) {
 	s := newHitScenario(t, nil)
 	s.step()
-	want := evaluator.GetHit{Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, AnimType: 0, GroundType: 1, AirType: 1}
+	want := evaluator.GetHit{Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, AnimType: 0, GroundType: 1, AirType: 1,
+		Yaccel: 0.35, FallYvel: -4.5, FallRecover: true, FallRecoverTime: 4, CtrlTime: 11}
 	if got := s.ctx(match.SideP2).GetHit; got != want {
 		t.Errorf("defender GetHit = %+v, want %+v", got, want)
 	}
@@ -333,7 +334,8 @@ func TestTick_LandedHit_WithNoHitDefParameters_UsesTheDocumentedDefaults(t *test
 	}
 	s := newHitScenario(t, strip)
 	s.step()
-	want := evaluator.GetHit{Active: true, HitShakeTime: 0, HitTime: 0, SlideTime: 0, AnimType: 0, GroundType: 1, AirType: 1}
+	want := evaluator.GetHit{Active: true, HitShakeTime: 0, HitTime: 0, SlideTime: 0, AnimType: 0, GroundType: 1, AirType: 1,
+		Yaccel: 0.35, FallYvel: -4.5, FallRecover: true, FallRecoverTime: 4}
 	if got := s.ctx(match.SideP2).GetHit; got != want {
 		t.Errorf("defender GetHit = %+v, want %+v", got, want)
 	}

@@ -48,14 +48,14 @@ type Context struct {
 	Ctrl bool
 	// Anim is the fighter's current animation number.
 	Anim int
-	// AnimTime is the number of simulation ticks elapsed since Anim
+	// AnimElapsed is the number of simulation ticks elapsed since Anim
 	// started playing.
-	AnimTime int
+	AnimElapsed int
 	// AnimElem and AnimElemTime are a ChangeAnim controller's pending request
 	// to start the new animation at element AnimElem (1-based, 0 meaning no
 	// request) AnimElemTime ticks into it. The statemachine cannot resolve it
 	// -- it has no animation data -- so the root package's Tick converts it
-	// into AnimTime and clears it the same tick. Not persistent fighter
+	// into AnimElapsed and clears it the same tick. Not persistent fighter
 	// state.
 	AnimElem, AnimElemTime int
 	// Anims is the character's animations by number, read by AnimElem,
@@ -136,6 +136,23 @@ type Context struct {
 	// recorded it when the hit landed (see .vibe/decisions/018). Its zero
 	// value is "no hit taken yet".
 	GetHit GetHit
+	// P2 is the opponent as it stood when this fighter's turn in the tick
+	// began, set by Tick before the fighter acts: the opponent triggers and
+	// the redirections to it read it. See Opponent.
+	P2 Opponent
+	// MoveContactTime is Ikemen GO's |mctime|: 0 until this fighter's HitDef
+	// lands, then 1 from the tick it lands, growing by one after each unfrozen
+	// tick and reset when a state is entered (unless its StateDef says
+	// movehitpersist). MoveContact and MoveHit read it; MoveGuarded and
+	// MoveReversed read 0 until guarding and ReversalDef exist.
+	MoveContactTime int
+	// HitDefAttr is the attr of the fighter's current HitDef, parsed by
+	// ParseAttr; HitDefAttr reads it while the move type is A.
+	HitDefAttr int32
+	// HasTarget reports that the fighter hit the opponent and the opponent has
+	// not left its hit states since: the fighter's target list, which in a
+	// one-on-one match holds at most the opponent (NumTarget, "target,").
+	HasTarget bool
 	// Locals is the frame of local variables ($name) the expression runs
 	// in; see LocalFrame. The zero value has none.
 	Locals LocalFrame
@@ -182,6 +199,20 @@ type GetHit struct {
 	AnimType   int
 	GroundType int
 	AirType    int
+	// CtrlTime, Yvel, Yaccel, Fall, FallYvel, FallRecover, FallRecoverTime,
+	// FallTime and HitID are the values the HitDef gave the hit (Ikemen GO's
+	// ghv.ctrltime, yvel, yaccel, fallflag, fall_yvelocity, fall_recover,
+	// fall_recovertime, fall_time, hitid, char.go:11680-11810). Yvel, Yaccel
+	// and FallYvel are in the content's units, Y down, as GetHitVar returns
+	// them. FallTime counts the ticks spent in a hit state with Fall set.
+	CtrlTime        int
+	Yvel, Yaccel    float64
+	Fall            bool
+	FallYvel        float64
+	FallRecover     bool
+	FallRecoverTime int
+	FallTime        int
+	HitID           int
 }
 
 // SoundEvent is one PlaySnd controller execution recorded onto a fighter's

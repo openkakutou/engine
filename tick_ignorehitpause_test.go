@@ -40,7 +40,7 @@ func tickFrozenP1(t *testing.T, kind freezeKind, states map[int]cns.StateDef) Ti
 	}
 	rt1.Context.Vars[0] = 1
 	rt1.Context.Time = 5
-	rt1.Context.AnimTime = 7
+	rt1.Context.AnimElapsed = 7
 	if kind == attackerPause {
 		rt1.HitPause = 3
 	} else {
@@ -191,7 +191,7 @@ func TestTickFighter_IgnoreHitPauseHitDef_StartsNoHitWhileFrozen(t *testing.T) {
 		return rt
 	}
 
-	unfrozen, err := tickFighter(prog, build(0), fighter, input.TickInput{}, 1, 0, 1, 0)
+	unfrozen, err := tickFighter(prog, build(0), fighter, evaluator.Opponent{}, input.TickInput{}, 1, 0, 1, 0)
 	if err != nil {
 		t.Fatalf("tickFighter (unfrozen): %v", err)
 	}
@@ -199,7 +199,7 @@ func TestTickFighter_IgnoreHitPauseHitDef_StartsNoHitWhileFrozen(t *testing.T) {
 		t.Fatal("control case: the same HitDef must start a hit on an unfrozen tick")
 	}
 
-	frozen, err := tickFighter(prog, build(3), fighter, input.TickInput{}, 1, 0, 1, 0)
+	frozen, err := tickFighter(prog, build(3), fighter, evaluator.Opponent{}, input.TickInput{}, 1, 0, 1, 0)
 	if err != nil {
 		t.Fatalf("tickFighter (frozen): %v", err)
 	}
@@ -264,8 +264,8 @@ func TestTick_FrozenTickWithIgnoreHitPauseController_HoldsTimeAndCountsDown(t *t
 	states := state0(withFlag(ctrl("VarSet", "v", "1", "value", "1"), "1"))
 	result := tickFrozenP1(t, attackerPause, states)
 	rt := result.Fighters[match.SideP1]
-	if rt.Context.Time != 5 || rt.Context.AnimTime != 7 {
-		t.Errorf("Time, AnimTime = %d, %d, want 5, 7 (held)", rt.Context.Time, rt.Context.AnimTime)
+	if rt.Context.Time != 5 || rt.Context.AnimElapsed != 7 {
+		t.Errorf("Time, AnimTime = %d, %d, want 5, 7 (held)", rt.Context.Time, rt.Context.AnimElapsed)
 	}
 	if rt.HitPause != 2 {
 		t.Errorf("HitPause = %d, want 2", rt.HitPause)

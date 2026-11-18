@@ -53,13 +53,15 @@ func TestEval_Time_SupportsTheTimeEqualsZeroIdiom(t *testing.T) {
 }
 
 func TestEval_AnimAndAnimTime_ReadFromContext(t *testing.T) {
-	ctx := Context{Anim: 190, AnimTime: 3}
+	ctx := Context{Anim: 190, AnimElapsed: 3}
 
 	if got := mustEval(t, "Anim = 190", ctx); !got.Bool() {
 		t.Errorf("Anim = 190 evaluated to %v, want true", got.Bool())
 	}
-	if got := mustEval(t, "AnimTime = 0", ctx); got.Bool() {
-		t.Errorf("AnimTime = 0 evaluated to %v, want false", got.Bool())
+	// No animation table: Ikemen GO's nil c.anim reads 0 (char.go:5604-5609),
+	// whatever the elapsed counter holds.
+	if got := mustEval(t, "AnimTime = 0", ctx); !got.Bool() {
+		t.Errorf("AnimTime = 0 without an animation evaluated to %v, want true", got.Bool())
 	}
 }
 
@@ -255,12 +257,12 @@ func TestEval_LooseTyping_ComparesIntAndFloatByNumericValue(t *testing.T) {
 }
 
 func TestEval_ReturnsError_OnUnknownTriggerName(t *testing.T) {
-	e, err := Parse("P2StateNo = 100")
+	e, err := Parse("BackEdgeBodyDist = 100")
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 	if _, err := e.Eval(Context{}); err == nil {
-		t.Error("expected error for unsupported trigger name P2StateNo, got nil")
+		t.Error("expected error for unsupported trigger name BackEdgeBodyDist, got nil")
 	}
 }
 
@@ -546,7 +548,10 @@ func TestIsKnownTrigger_GetHitVarVariable_FollowsEvalGetHitVar(t *testing.T) {
 	if !IsKnownTrigger("gethitvar(hittime)", false) {
 		t.Error("gethitvar(hittime) reported unknown, evalGetHitVar handles it")
 	}
-	if IsKnownTrigger("gethitvar(yvel)", false) {
-		t.Error("gethitvar(yvel) reported known, evalGetHitVar rejects it")
+	if !IsKnownTrigger("gethitvar(yvel)", false) {
+		t.Error("gethitvar(yvel) reported unknown, evalGetHitVar handles it")
+	}
+	if IsKnownTrigger("gethitvar(nosuchvar)", false) {
+		t.Error("gethitvar(nosuchvar) reported known, evalGetHitVar rejects it")
 	}
 }

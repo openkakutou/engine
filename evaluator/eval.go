@@ -200,6 +200,13 @@ func collectTriggerNames(n node, names *[]TriggerName, seen map[TriggerName]bool
 	case animElemNode:
 		add(TriggerName{Name: "animelem"})
 		collectTriggerNames(tn.value, names, seen)
+	case redirectNode:
+		if tn.arg != nil {
+			collectTriggerNames(tn.arg, names, seen)
+		}
+		collectTriggerNames(tn.inner, names, seen)
+	case hitDefAttrNode:
+		add(TriggerName{Name: "hitdefattr"})
 	case unaryNode:
 		collectTriggerNames(tn.operand, names, seen)
 	case assignNode:
@@ -287,6 +294,12 @@ func evalNode(n node, ctx *Context) (Value, error) {
 	case animElemNode:
 		return evalAnimElem(tn, ctx)
 
+	case redirectNode:
+		return evalRedirect(tn, ctx)
+
+	case hitDefAttrNode:
+		return evalHitDefAttr(tn, ctx), nil
+
 	case componentNode:
 		return evalComponent(tn, ctx)
 
@@ -310,7 +323,7 @@ func evalIdentifier(name string, ctx *Context) (Value, error) {
 	case "anim":
 		return intValue(float64(ctx.Anim)), nil
 	case "animtime":
-		return intValue(float64(ctx.AnimTime)), nil
+		return intValue(float64(animTime(ctx))), nil
 	case "animelem":
 		return Value{}, fmt.Errorf("evaluator: AnimElem must be compared to an element number, e.g. AnimElem = 3")
 	case "ctrl":
@@ -321,9 +334,11 @@ func evalIdentifier(name string, ctx *Context) (Value, error) {
 		return boolValue(!ctx.GetHit.Active || ctx.GetHit.HitTime < 0), nil
 	case "command":
 		return Value{}, fmt.Errorf(`evaluator: Command must be compared to a quoted command name, e.g. Command = "holdback"`)
-	case "statetype", "movetype":
+	case "statetype", "movetype", "p2statetype", "p2movetype":
 		return Value{}, fmt.Errorf("evaluator: %s must be compared to a state letter, e.g. StateType = S", name)
-	case "pos", "vel":
+	case "hitdefattr":
+		return Value{}, fmt.Errorf("evaluator: HitDefAttr must be compared to an attribute, e.g. HitDefAttr = SCA, NA")
+	case "pos", "vel", "p2dist", "p2bodydist":
 		return Value{}, fmt.Errorf("evaluator: %s needs an axis, e.g. %s X", name, name)
 	default:
 		if v, ok, err := evalFighterTrigger(name, ctx); ok {
@@ -411,6 +426,24 @@ func evalGetHitVar(n callNode, ctx *Context) (Value, error) {
 		return intValue(float64(g.GroundType)), nil
 	case "airtype":
 		return intValue(float64(g.AirType)), nil
+	case "ctrltime":
+		return intValue(float64(g.CtrlTime)), nil
+	case "yvel":
+		return floatValue(g.Yvel), nil
+	case "yaccel":
+		return floatValue(g.Yaccel), nil
+	case "fall":
+		return boolValue(g.Fall), nil
+	case "fall.yvel":
+		return floatValue(g.FallYvel), nil
+	case "fall.recover":
+		return boolValue(g.FallRecover), nil
+	case "fall.recovertime":
+		return intValue(float64(g.FallRecoverTime)), nil
+	case "isbound":
+		// bytecode.go:3511. shortcut: nothing binds a fighter yet (BindToTarget,
+		// backlog item 029 area), so it is never bound.
+		return boolValue(false), nil
 	default:
 		return Value{}, &unknownGetHitVarError{name: id.name}
 	}

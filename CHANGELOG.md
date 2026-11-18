@@ -11,6 +11,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Float variables: `FVar(n)`, `SysFVar(n)`, and the `fvar`/`sysfvar`/`fv`/`sysfv` forms of `VarSet` and `:=`.
 - The animation triggers `AnimElem` (`AnimElem = n` and `AnimElem = n, op t`), `AnimElemTime(n)`, `AnimElemNo(t)`, `AnimExist(n)` and `SelfAnimExist(n)`, timed as Ikemen GO does.
 - The triggers `AILevel`, `AILevelF`, `PalNo`, `NumHelper` and `NumExplod`.
+- Characters can read their opponent: `P2Dist`, `P2BodyDist` (from the size boxes), `P2StateNo`, `P2MoveType`, `P2StateType`, `P2Life`, `NumEnemy`, `NumTarget`, and the redirections `p2,`, `enemy,`, `enemyNear,` and `target,` (`root,`, `parent,` and the helper ones fail with "not supported yet").
+- Hit contacts: `MoveContact`, `MoveHit`, `MoveGuarded`, `MoveReversed`, `HitDefAttr = SCA, NA`, `HitFall` and `CanRecover`, and the rest of `GetHitVar` (`yvel`, `yaccel`, `fall`, `fall.yvel`, `fall.recover`, `fall.recovertime`, `ctrltime`, `isbound`), recorded from the HitDef when a hit lands.
+
+### Changed
+- `AnimTime` now reads as in Ikemen GO: the animation's time so far minus its total time, so 0 on its last tick and negative before (a held last element reads one more than the ticks played). The context's elapsed-ticks counter is now `Context.AnimElapsed`; the WebAssembly `animTime` field is unchanged.
 
 ## [2.14.0] - 2026-11-18
 

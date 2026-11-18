@@ -8,7 +8,7 @@ import (
 
 // The animation triggers follow Ikemen GO's Animation (anim.go, commit
 // 54d4148a) and the Char methods over it (char.go:5566-5602). The fighter's
-// playback is the pair (Context.Anim, Context.AnimTime); Ikemen's curelem,
+// playback is the pair (Context.Anim, Context.AnimElapsed); Ikemen's curelem,
 // curelemtime and curtime are derived from it on demand rather than stored.
 //
 // shortcut: a held (-1) or zero-length element before the last one is taken
@@ -39,18 +39,31 @@ func ElementAt(anim air.Animation, animTime int) (elem, elapsed int) {
 	}
 }
 
+// totalTime is Ikemen GO's Animation.totaltime (anim.go:443-462): the sum of
+// the elements' durations, and -1 for an animation ending in a held (-1)
+// element, which never wraps. anim must have at least one frame.
+func totalTime(anim air.Animation) int {
+	if anim.Frames[len(anim.Frames)-1].Time == -1 {
+		return -1
+	}
+	total := 0
+	for _, f := range anim.Frames {
+		total += f.Time
+	}
+	return total
+}
+
 // curTime is Ikemen GO's Animation.curtime after animTime ticks of Action
 // (anim.go:960-964): it counts ticks, and once it reaches the total time it
 // is held for that tick, then restarts from total-looptime+1. An animation
 // ending in a -1 element never wraps (totaltime -1, anim.go:445).
 func curTime(anim air.Animation, animTime int) int {
-	last := len(anim.Frames) - 1
-	if anim.Frames[last].Time == -1 {
+	total := totalTime(anim)
+	if total == -1 {
 		return animTime
 	}
-	total, loop := 0, 0
+	loop := 0
 	for i, f := range anim.Frames {
-		total += f.Time
 		if i >= anim.LoopStart {
 			loop += f.Time
 		}
@@ -59,6 +72,16 @@ func curTime(anim air.Animation, animTime int) int {
 		return animTime
 	}
 	return total - loop + 1 + (animTime-total-1)%loop
+}
+
+// animTime is Char.animTime (char.go:5604) over Animation.AnimTime
+// (anim.go:617): curtime minus totaltime, 0 for a fighter without animation.
+func animTime(ctx *Context) int {
+	anim, ok := currentAnimation(ctx)
+	if !ok {
+		return 0
+	}
+	return curTime(anim, ctx.AnimElapsed) - totalTime(anim)
 }
 
 // currentAnimation returns the fighter's current animation, read from the
@@ -78,7 +101,7 @@ func animElemTime(ctx *Context, elem int) (t int, ok bool) {
 	if !ok || elem < 1 || elem > len(anim.Frames) {
 		return 0, false
 	}
-	t = curTime(anim, ctx.AnimTime)
+	t = curTime(anim, ctx.AnimElapsed)
 	for _, f := range anim.Frames[:elem-1] {
 		t -= max(0, f.Time)
 	}
@@ -91,12 +114,12 @@ func animElemTime(ctx *Context, elem int) (t int, ok bool) {
 // ok is false for an offset before the animation began.
 func animElemNo(ctx *Context, offset int) (no int, ok bool) {
 	anim, ok := currentAnimation(ctx)
-	if !ok || offset < -curTime(anim, ctx.AnimTime) {
+	if !ok || offset < -curTime(anim, ctx.AnimElapsed) {
 		return 0, false
 	}
 	frames := anim.Frames
 	last := len(frames) - 1
-	cur, elapsed := ElementAt(anim, ctx.AnimTime)
+	cur, elapsed := ElementAt(anim, ctx.AnimElapsed)
 	i, oldt := cur, 0
 	time := offset + elapsed
 	if offset <= 0 {

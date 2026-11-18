@@ -44,7 +44,7 @@ func kfmAnimations(t *testing.T) map[int]air.Animation {
 // total wraps to total-looptime+1.
 func animCtx(t *testing.T, anim, animTime int) Context {
 	t.Helper()
-	return Context{Anim: anim, AnimTime: animTime, Anims: kfmAnimations(t)}
+	return Context{Anim: anim, AnimElapsed: animTime, Anims: kfmAnimations(t)}
 }
 
 func TestEval_AnimElemTime_MeasuresFromTheStartOfThatElement(t *testing.T) {
@@ -91,7 +91,7 @@ func TestEval_AnimElemTime_ElementOutOfRangeOrNoAnimation_ReadsZeroLikeIkemenUnd
 		}
 	}
 	// 9999 is no animation of kfm.air; a nil table has none either.
-	for _, ctx := range []Context{animCtx(t, 9999, 3), {Anim: 200, AnimTime: 3}} {
+	for _, ctx := range []Context{animCtx(t, 9999, 3), {Anim: 200, AnimElapsed: 3}} {
 		if got := mustEval(t, "AnimElemTime(1)", ctx); got.Number != 0 {
 			t.Errorf("AnimElemTime(1) with no animation = %v, want 0", got.Number)
 		}
@@ -273,5 +273,40 @@ func TestEval_AnimTriggersWarmPath_AllocateNothing(t *testing.T) {
 	}
 	if allocs := testing.AllocsPerRun(100, func() { _, _ = EvaluateMut(expr, &ctx) }); allocs != 0 {
 		t.Errorf("allocated %v times per call, want 0", allocs)
+	}
+}
+
+// AnimTime is Ikemen GO's curtime minus totaltime (anim.go:617, OC_animtime
+// bytecode.go:2526): negative while the animation plays, 0 on the tick it has
+// played all its time (the tick before it wraps), and for an animation ending
+// in a held (-1) element totaltime is -1 (anim.go:445) so it reads curtime+1.
+func TestEval_AnimTime_IsCurtimeMinusTotaltime(t *testing.T) {
+	cases := []struct {
+		name           string
+		anim, animTime int
+		want           float64
+	}{
+		{"first tick of a 12-tick animation", 200, 0, -12},
+		{"mid animation", 200, 5, -7},
+		{"the last tick, curtime reaches the total", 200, 12, 0},
+		{"the tick after the wrap restarts from total-looptime+1", 200, 13, -11},
+		{"held last element, first tick", 600, 0, 1},
+		{"held last element, long after", 600, 100, 101},
+		{"loopstart animation, second pass", 41, 40, -7},
+		{"loopstart animation, its last tick", 41, 39, 0},
+	}
+	for _, tc := range cases {
+		got := mustEval(t, "AnimTime", animCtx(t, tc.anim, tc.animTime))
+		if got.Kind != KindInt || got.Number != tc.want {
+			t.Errorf("%s: AnimTime at anim %d elapsed %d = %v (kind %v), want int %v", tc.name, tc.anim, tc.animTime, got.Number, got.Kind, tc.want)
+		}
+	}
+}
+
+func TestEval_AnimTime_NoAnimation_ReadsZero(t *testing.T) {
+	for _, ctx := range []Context{animCtx(t, 9999, 3), {Anim: 200, AnimElapsed: 3}} {
+		if got := mustEval(t, "AnimTime", ctx); got.Number != 0 {
+			t.Errorf("AnimTime with no animation = %v, want 0", got.Number)
+		}
 	}
 }

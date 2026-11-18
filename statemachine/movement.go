@@ -222,7 +222,7 @@ func applyChangeAnim(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Cont
 		anim = 0
 	}
 	ctx.Anim = anim
-	ctx.AnimTime = 0
+	ctx.AnimElapsed = 0
 	ctx.AnimElem, ctx.AnimElemTime = 0, 0
 	if hasElem || hasElemTime {
 		ctx.AnimElem, ctx.AnimElemTime = int(elem), int(elemTime)

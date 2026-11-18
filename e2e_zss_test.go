@@ -223,22 +223,25 @@ func scenarioJump(t *testing.T, prog FighterProgram) error {
 	return fmt.Errorf("never back in state 0 after the jump (StateNo %d, saw jump up: %v, peak Y %v)", stateNo, sawJumpUp, peak)
 }
 
-// What stops the scenarios today, first cause met on the way in (each is a
-// trigger or grammar Ikemen GO has and the engine does not; checked by
-// running): both characters' state -1 reach an interval first, `stateNo =
-// [200, 299]` (kfm_zss's Function Combo, kfm's state -1 controller 3): item
-// 041 (expression grammar). Past it comes `moveContact`: item 042 (its animation family, AnimElem and
-// the like, landed first and is not a blocker any more). kfm_zss's
-// first trigger, `roundState = 2 && !aiLevelF`, evaluates since item 042's
-// "Other" family (AILevel, Const, FVar, PalNo, NumHelper) landed.
+// What stops the scenarios today, first cause met on the way in (a grammar
+// Ikemen GO has and the engine does not; checked by running): both characters'
+// state -1 reach an interval first, `stateNo = [200, 299]` (kfm_zss's Function
+// Combo, kfm's state -1 controller 3): item 041 (expression grammar). The
+// opponent and hit-contact triggers (`moveContact`, `P2BodyDist`, ...) and the
+// animation ones evaluate since item 042 landed; kfm_zss's first trigger,
+// `roundState = 2 && !aiLevelF`, since its "Other" family.
+//
+// Checked with a throwaway interval stub (reverted), what comes after 041:
+// kfm_zss stops on `cond(...)`, an unknown function, in common1.cns.zss state
+// 0 (all three scenarios); kfm (.cns) stands still (the stand-idle scenario
+// passes), holding forward ends in the run state 100 instead of walk state 20,
+// and pressing up never leaves state 0 (no change to the jump start).
 var (
 	zssCauses = []knownCause{
 		{"041 (intervals)", "unexpected character '['"},
-		{"042 (moveContact)", `unknown trigger "movecontact"`},
 	}
 	cnsCauses = []knownCause{
 		{"041 (intervals)", "unexpected character '['"},
-		{"042 (moveContact)", `unknown trigger "movecontact"`},
 	}
 )
 

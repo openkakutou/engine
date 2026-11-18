@@ -151,7 +151,7 @@ type newMatchRequest struct {
 // FighterAnimState is one fighter's currently resolved animation number and
 // elapsed frame timing -- additive-only, response-side data (see this
 // item's own ADR, .vibe/decisions/012): sourced from the session's
-// Go-resident FighterRuntime (Context.Anim/AnimTime, kept out of JSON on
+// Go-resident FighterRuntime (Context.Anim/AnimElapsed, kept out of JSON on
 // the request side per .vibe/decisions/011), never round-tripped back in.
 // Named AnimNo, not Anim, to read unambiguously next to FighterState's own
 // StateNo in the same response -- a fighter's animation number and its
@@ -169,8 +169,8 @@ type FighterAnimState struct {
 // responses populate this field identically.
 func animState(sess *session) [2]FighterAnimState {
 	var out [2]FighterAnimState
-	out[match.SideP1] = FighterAnimState{AnimNo: sess.runtimes[match.SideP1].Context.Anim, AnimTime: sess.runtimes[match.SideP1].Context.AnimTime}
-	out[match.SideP2] = FighterAnimState{AnimNo: sess.runtimes[match.SideP2].Context.Anim, AnimTime: sess.runtimes[match.SideP2].Context.AnimTime}
+	out[match.SideP1] = FighterAnimState{AnimNo: sess.runtimes[match.SideP1].Context.Anim, AnimTime: sess.runtimes[match.SideP1].Context.AnimElapsed}
+	out[match.SideP2] = FighterAnimState{AnimNo: sess.runtimes[match.SideP2].Context.Anim, AnimTime: sess.runtimes[match.SideP2].Context.AnimElapsed}
 	return out
 }
 

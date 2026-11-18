@@ -8,6 +8,7 @@ import (
 	"github.com/openkakutou/character/air"
 	"github.com/openkakutou/character/cmd"
 	"github.com/openkakutou/character/cns"
+	"github.com/openkakutou/engine/evaluator"
 	"github.com/openkakutou/engine/input"
 	"github.com/openkakutou/engine/match"
 )
@@ -188,14 +189,14 @@ func TestTickFighter_StateEnteredFromState1_UsesNewAnimationsFirstFrameThisTick(
 		t.Fatalf("NewFighterRuntime: %v", err)
 	}
 
-	out, err := tickFighter(prog, runtime, fighter, input.TickInput{}, 1, 0, 1, 0)
+	out, err := tickFighter(prog, runtime, fighter, evaluator.Opponent{}, input.TickInput{}, 1, 0, 1, 0)
 	if err != nil {
 		t.Fatalf("tickFighter: %v", err)
 	}
 	if out.Frame.Group != 200 || out.Frame.Image != 0 {
 		t.Errorf("frame this tick = %d,%d, want 200,0 (the entered animation's first frame)", out.Frame.Group, out.Frame.Image)
 	}
-	next, err := tickFighter(prog, out.Runtime, fighter, input.TickInput{}, 2, 0, 1, 0)
+	next, err := tickFighter(prog, out.Runtime, fighter, evaluator.Opponent{}, input.TickInput{}, 2, 0, 1, 0)
 	if err != nil {
 		t.Fatalf("tickFighter: %v", err)
 	}

@@ -72,23 +72,23 @@ func TestExposureOf_HitDef_CountedAsSupported(t *testing.T) {
 }
 
 func TestInspectController_UnsupportedGetHitVarVariable_IsUnknownTrigger(t *testing.T) {
-	ctrl := cns.Controller{Type: "ChangeState", Triggers: []string{"GetHitVar(yvel) > 0 && GetHitVar(hittime) > 0"}}
+	ctrl := cns.Controller{Type: "ChangeState", Triggers: []string{"GetHitVar(xvel) > 0 && GetHitVar(hittime) > 0"}}
 	unknown, unparsable := inspectController(ctrl)
-	if unparsable || !reflect.DeepEqual(unknown, []string{"gethitvar(yvel)"}) {
-		t.Errorf("unknown = %v unparsable = %v, want [gethitvar(yvel)] false", unknown, unparsable)
+	if unparsable || !reflect.DeepEqual(unknown, []string{"gethitvar(xvel)"}) {
+		t.Errorf("unknown = %v unparsable = %v, want [gethitvar(xvel)] false", unknown, unparsable)
 	}
 }
 
 func TestInspectController_PlaySndHalves_AreInspectedSeparately(t *testing.T) {
-	ctrl := cns.Controller{Type: "PlaySnd", Triggers: []string{"1"}, Parameters: map[string]string{"value": "0, P2StateNo % 3"}}
+	ctrl := cns.Controller{Type: "PlaySnd", Triggers: []string{"1"}, Parameters: map[string]string{"value": "0, NumProj % 3"}}
 	unknown, _ := inspectController(ctrl)
-	if !reflect.DeepEqual(unknown, []string{"p2stateno"}) {
-		t.Errorf("unknown = %v, want [p2stateno]", unknown)
+	if !reflect.DeepEqual(unknown, []string{"numproj"}) {
+		t.Errorf("unknown = %v, want [numproj]", unknown)
 	}
-	ctrl.Parameters["value"] = "MoveContact, 1"
+	ctrl.Parameters["value"] = "BackEdgeDist, 1"
 	unknown, _ = inspectController(ctrl)
-	if !reflect.DeepEqual(unknown, []string{"movecontact"}) {
-		t.Errorf("unknown = %v, want [movecontact]", unknown)
+	if !reflect.DeepEqual(unknown, []string{"backedgedist"}) {
+		t.Errorf("unknown = %v, want [backedgedist]", unknown)
 	}
 }
 
@@ -106,5 +106,18 @@ func TestNeutralize_UnknownTriggerInMovementParameter_NeutralizesTheController(t
 		if !reflect.DeepEqual(got[0].Controllers[i].Triggers, want) {
 			t.Errorf("controller %d Triggers = %v, want %v", i, got[0].Controllers[i].Triggers, want)
 		}
+	}
+}
+
+func TestInspectController_OpponentAndContactTriggers_AreNoLongerUnknown(t *testing.T) {
+	ctrl := cns.Controller{Type: "ChangeState", Triggers: []string{
+		"P2BodyDist X < 40 && P2Dist Y > -5 && P2StateNo = 5000 && P2MoveType = H && P2StateType != A && P2Life > 0",
+		"MoveContact && MoveHit && !MoveGuarded && !MoveReversed && HitFall && CanRecover && NumEnemy && NumTarget",
+		"HitDefAttr = SCA, NA && p2,time > 1 && enemy,life && enemyNear(0),anim = 5120 && target,getHitVar(hittime)",
+		"GetHitVar(yvel) != 0 || GetHitVar(fall) || GetHitVar(fall.yvel) = 0 || GetHitVar(ctrltime) || GetHitVar(yaccel)",
+	}}
+	unknown, unparsable := inspectController(ctrl)
+	if unparsable || len(unknown) != 0 {
+		t.Errorf("unknown = %v unparsable = %v, want none", unknown, unparsable)
 	}
 }
