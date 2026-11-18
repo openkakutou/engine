@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.10.0] - 2026-11-18
+
 ### Added
 
 - Characters can now move and change state with the controllers every real character relies on: VelSet, VelAdd, VelMul, PosSet, PosAdd, ChangeAnim (including its starting element), CtrlSet, StateTypeSet, Turn, LifeAdd, LifeSet, Gravity and Null, in both `.cns` states and `.zss` scripts, following Ikemen GO's own rules.
@@ -178,7 +180,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.9.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.10.0...HEAD
+[2.10.0]: https://github.com/openkakutou/engine/compare/v2.9.0...v2.10.0
 [2.9.0]: https://github.com/openkakutou/engine/compare/v2.8.0...v2.9.0
 [2.8.0]: https://github.com/openkakutou/engine/compare/v2.7.0...v2.8.0
 [2.7.0]: https://github.com/openkakutou/engine/compare/v2.6.1...v2.7.0
