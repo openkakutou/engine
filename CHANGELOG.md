@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.11.1] - 2026-11-18
+
 ### Fixed
 - Characters that set their variables with the `var(N) = value` form, or the `sysvar`/`sysv` forms, no longer stop with an error; float variable forms now report a clear "not supported yet" error.
 
@@ -189,7 +191,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.11.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.11.1...HEAD
+[2.11.1]: https://github.com/openkakutou/engine/compare/v2.11.0...v2.11.1
 [2.11.0]: https://github.com/openkakutou/engine/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/openkakutou/engine/compare/v2.9.0...v2.10.0
 [2.9.0]: https://github.com/openkakutou/engine/compare/v2.8.0...v2.9.0
