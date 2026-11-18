@@ -3,13 +3,11 @@ package engine
 import (
 	"fmt"
 	"math"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/openkakutou/character"
-	"github.com/openkakutou/character/cns"
 	"github.com/openkakutou/character/zss"
 	"github.com/openkakutou/engine/input"
 	"github.com/openkakutou/engine/match"
@@ -32,49 +30,20 @@ const (
 	e2eGravity = 0.44
 )
 
-// loadReferenceProgram loads a reference character with its state files in
-// Ikemen GO's order -- the .def's states, then the .cmd's, then stcommon,
-// resolved in the character's directory and then in testdata/reference
-// standing for Ikemen GO's data/ (src/compiler.go:8778-8793, LoadFile dirs
-// {def, "", motif, "data/"}) -- and its animations and commands.
-func loadReferenceProgram(t *testing.T, defPath, stcommon string) FighterProgram {
+// loadReferenceProgram loads a reference character through LoadFighterProgram,
+// with testdata/reference standing for Ikemen GO's data/ (src/compiler.go:8793,
+// LoadFile dirs {def, "", motif, "data/"}) where stcommon lives.
+func loadReferenceProgram(t *testing.T, defPath string) FighterProgram {
 	t.Helper()
-	ch, err := character.Load(filepath.Join(referenceDir, defPath))
+	path := filepath.Join(referenceDir, defPath)
+	prog, missing, err := LoadFighterProgram(loadChar(t, path), path, referenceDir)
 	if err != nil {
-		t.Fatalf("character.Load(%s): %v", defPath, err)
+		t.Fatalf("LoadFighterProgram(%s): %v", defPath, err)
 	}
-	var files []StateFile
-	for _, script := range ch.Scripts {
-		if script.Error != "" && script.File == ch.StateCommonFile {
-			continue // not in the character's directory: read from data/ below
-		}
-		if script.Error != "" {
-			t.Fatalf("%s: %s", script.File, script.Error)
-		}
-		files = append(files, StateFile{Script: ptr(script.Script)})
+	if len(missing) != 0 {
+		t.Fatalf("LoadFighterProgram(%s): state files not found: %v", defPath, missing)
 	}
-	files = append(files, StateFile{States: ch.StateDefs}, StateFile{States: ch.Commands.States})
-
-	path := filepath.Join(referenceDir, stcommon)
-	data, err := os.Open(path)
-	if err != nil {
-		t.Fatalf("opening %s: %v", path, err)
-	}
-	defer data.Close()
-	if strings.HasSuffix(stcommon, ".zss") {
-		script, err := zss.Parse(data)
-		if err != nil {
-			t.Fatalf("parsing %s: %v", path, err)
-		}
-		files = append(files, StateFile{Script: &script})
-	} else {
-		states, err := cns.Parse(data)
-		if err != nil {
-			t.Fatalf("parsing %s: %v", path, err)
-		}
-		files = append(files, StateFile{States: states})
-	}
-	return NewFighterProgramFromFiles(files, ch.Animations, ch.Commands)
+	return prog
 }
 
 // e2eMatch is a scripted match: P1 plays prog against an idle dummy.
@@ -282,37 +251,35 @@ var landingCause = knownCause{"none yet: landing changes to state 52 (propose ad
 const (
 	kfmZssDef = "chars/kfm_zss/kfm_zss.def"
 	kfmCnsDef = "chars/kfm/kfm.def"
-	zssCommon = "common1.cns.zss"
-	cnsCommon = "common1.cns"
 )
 
 func TestE2E_KfmZss_StandIdle_StaysInStateZero(t *testing.T) {
-	prog := loadReferenceProgram(t, kfmZssDef, zssCommon)
+	prog := loadReferenceProgram(t, kfmZssDef)
 	expectFailure(t, zssCauses, func() error { return scenarioStandIdle(t, prog) })
 }
 
 func TestE2E_KfmZss_HoldForward_WalksAtTheCharactersWalkSpeed(t *testing.T) {
-	prog := loadReferenceProgram(t, kfmZssDef, zssCommon)
+	prog := loadReferenceProgram(t, kfmZssDef)
 	expectFailure(t, zssCauses, func() error { return scenarioWalkForward(t, prog) })
 }
 
 func TestE2E_KfmZss_PressUp_JumpsAndLandsInStateZero(t *testing.T) {
-	prog := loadReferenceProgram(t, kfmZssDef, zssCommon)
+	prog := loadReferenceProgram(t, kfmZssDef)
 	expectFailure(t, append(zssCauses[:len(zssCauses):len(zssCauses)], landingCause), func() error { return scenarioJump(t, prog) })
 }
 
 func TestE2E_KfmCns_StandIdle_StaysInStateZero(t *testing.T) {
-	prog := loadReferenceProgram(t, kfmCnsDef, cnsCommon)
+	prog := loadReferenceProgram(t, kfmCnsDef)
 	expectFailure(t, cnsCauses, func() error { return scenarioStandIdle(t, prog) })
 }
 
 func TestE2E_KfmCns_HoldForward_WalksAtTheCharactersWalkSpeed(t *testing.T) {
-	prog := loadReferenceProgram(t, kfmCnsDef, cnsCommon)
+	prog := loadReferenceProgram(t, kfmCnsDef)
 	expectFailure(t, cnsCauses, func() error { return scenarioWalkForward(t, prog) })
 }
 
 func TestE2E_KfmCns_PressUp_JumpsAndLandsInStateZero(t *testing.T) {
-	prog := loadReferenceProgram(t, kfmCnsDef, cnsCommon)
+	prog := loadReferenceProgram(t, kfmCnsDef)
 	expectFailure(t, append(cnsCauses[:len(cnsCauses):len(cnsCauses)], landingCause), func() error { return scenarioJump(t, prog) })
 }
 

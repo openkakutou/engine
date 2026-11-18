@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Public Character State Loader with Search Dirs
 
@@ -9,10 +9,10 @@ The game builds a fighter from the `.def`'s `cns` file only. It ignores `st`, `s
 🔒 MUST: Ikemen GO behaviour (roadmap decision `038`), commit `54d4148a`.
 
 ## Acceptance Criteria
-- [ ] A public engine function builds a `FighterProgram` from a loaded character and its `.def` path. It follows Ikemen GO's file order and first-definition-wins rule, and searches extra directories after the character folder
-- [ ] With the reference folder as the extra directory, `kfm` (with `common1.cns`) and `kfm_zss` (with `common1.cns.zss`) both get state 0 and the common states
-- [ ] The conformance harness uses it. Its existing tests stay green
-- [ ] A missing state file, or a `.zss` that fails to parse, gives the same result as today: skipped, or an error naming the file
+- [x] A public engine function builds a `FighterProgram` from a loaded character and its `.def` path. It follows Ikemen GO's file order and first-definition-wins rule, and searches extra directories after the character folder
+- [x] With the reference folder as the extra directory, `kfm` (with `common1.cns`) and `kfm_zss` (with `common1.cns.zss`) both get state 0 and the common states
+- [x] The conformance harness uses it. Its existing tests stay green
+- [x] A missing state file, or a `.zss` that fails to parse, gives the same result as today: skipped, or an error naming the file
 
 ## Notes
 Needed by game#053. Found by the fidelity video (2026-11-18).

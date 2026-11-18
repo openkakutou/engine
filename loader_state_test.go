@@ -1,6 +1,8 @@
-package conformance
+package engine
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,7 +14,7 @@ const dupOwnCNS = "[Statedef 0]\nanim = 1\n\n[Statedef 5]\nanim = 5\n"
 const dupStCNS = "[Statedef 0]\nanim = 7\n\n[Statedef 9]\nanim = 9\n\n[Statedef 9]\nanim = 99\n"
 const dupCommonCNS = "[Statedef 0]\nanim = 8\n\n[Statedef 5000]\nanim = 50\n"
 
-func TestBuildProgram_DuplicateStateNumbers_FirstFileInReferenceOrderWins(t *testing.T) {
+func TestLoadFighterProgram_DuplicateStateNumbers_FirstFileInReferenceOrderWins(t *testing.T) {
 	dir := t.TempDir()
 	defPath := writeCharacter(t, dir, "dup", dupOwnCNS, "cns = dup.cns\nst = dup_st.cns\nstcommon = dup_common.cns",
 		map[string]string{"dup_st.cns": dupStCNS, "dup_common.cns": dupCommonCNS})
@@ -21,9 +23,9 @@ func TestBuildProgram_DuplicateStateNumbers_FirstFileInReferenceOrderWins(t *tes
 		t.Fatalf("Load: %v", err)
 	}
 
-	prog, err := buildProgram(ch, defPath)
+	prog, _, err := LoadFighterProgram(ch, defPath)
 	if err != nil {
-		t.Fatalf("buildProgram: %v", err)
+		t.Fatalf("LoadFighterProgram: %v", err)
 	}
 	table := prog.States
 	// st file beats stcommon and the cns file for state 0; within one file
@@ -39,16 +41,16 @@ func TestBuildProgram_DuplicateStateNumbers_FirstFileInReferenceOrderWins(t *tes
 	}
 }
 
-func TestBuildProgram_MissingStcommonFile_IsIgnored(t *testing.T) {
+func TestLoadFighterProgram_MissingStcommonFile_IsIgnored(t *testing.T) {
 	dir := t.TempDir()
 	defPath := writeCharacter(t, dir, "nocommon", dupOwnCNS, "cns = nocommon.cns\nstcommon = common1.cns", nil)
 	ch, err := character.Load(defPath)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	prog, err := buildProgram(ch, defPath)
+	prog, _, err := LoadFighterProgram(ch, defPath)
 	if err != nil {
-		t.Fatalf("buildProgram: %v", err)
+		t.Fatalf("LoadFighterProgram: %v", err)
 	}
 	table := prog.States
 	if len(table) != 2 {
@@ -56,15 +58,15 @@ func TestBuildProgram_MissingStcommonFile_IsIgnored(t *testing.T) {
 	}
 }
 
-func TestBuildProgram_UnparsableStateFile_ReturnsError(t *testing.T) {
+func TestLoadFighterProgram_UnparsableStateFile_ReturnsError(t *testing.T) {
 	dir := t.TempDir()
 	defPath := writeCharacter(t, dir, "bad", dupOwnCNS, "cns = bad.cns\nst = bad_st.cns", map[string]string{"bad_st.cns": "[Statedef abc]\n"})
 	ch, err := character.Load(defPath)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if _, err := buildProgram(ch, defPath); err == nil {
-		t.Fatal("buildProgram returned nil error for an unparsable state file")
+	if _, _, err := LoadFighterProgram(ch, defPath); err == nil {
+		t.Fatal("LoadFighterProgram returned nil error for an unparsable state file")
 	}
 }
 
@@ -79,7 +81,7 @@ value = 200
 trigger1 = Command = "QCF_a"
 `
 
-func TestBuildProgram_CmdFileWithoutStatedefMinusOne_HasState(t *testing.T) {
+func TestLoadFighterProgram_CmdFileWithoutStatedefMinusOne_HasState(t *testing.T) {
 	dir := t.TempDir()
 	defPath := writeCharacter(t, dir, "nohdr", dupOwnCNS, "cns = nohdr.cns\ncmd = nohdr.cmd",
 		map[string]string{"nohdr.cmd": cmdWithoutStatedefCMD})
@@ -87,9 +89,9 @@ func TestBuildProgram_CmdFileWithoutStatedefMinusOne_HasState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	prog, err := buildProgram(ch, defPath)
+	prog, _, err := LoadFighterProgram(ch, defPath)
 	if err != nil {
-		t.Fatalf("buildProgram: %v", err)
+		t.Fatalf("LoadFighterProgram: %v", err)
 	}
 	table := prog.States
 	def, ok := table[-1]
@@ -101,7 +103,7 @@ func TestBuildProgram_CmdFileWithoutStatedefMinusOne_HasState(t *testing.T) {
 const zssFirstSt = "[Statedef 9; type: S;]\nnull{}\n\n[Statedef 30; type: S;]\nnull{}\n"
 const cnsAfterZss = "[Statedef 0]\nanim = 1\n\n[Statedef 9]\nanim = 99\n\n[Statedef 7]\nanim = 7\n"
 
-func TestBuildProgram_ZssFileBeforeCnsFile_ZssWinsTheSharedStateNumber(t *testing.T) {
+func TestLoadFighterProgram_ZssFileBeforeCnsFile_ZssWinsTheSharedStateNumber(t *testing.T) {
 	// Ikemen GO compiles st, stN, cmd, stcommon in that order whatever the
 	// format and keeps the first definition (src/compiler.go:8776-8798,
 	// :7538-7539), so .cns state 9 loses to the earlier .zss one and 7 stays.
@@ -111,9 +113,9 @@ func TestBuildProgram_ZssFileBeforeCnsFile_ZssWinsTheSharedStateNumber(t *testin
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	prog, err := buildProgram(ch, defPath)
+	prog, _, err := LoadFighterProgram(ch, defPath)
 	if err != nil {
-		t.Fatalf("buildProgram: %v", err)
+		t.Fatalf("LoadFighterProgram: %v", err)
 	}
 	if _, ok := prog.States[9]; ok {
 		t.Error(".cns state 9 is in the table, want the earlier .zss one to win")
@@ -127,7 +129,7 @@ func TestBuildProgram_ZssFileBeforeCnsFile_ZssWinsTheSharedStateNumber(t *testin
 	}
 }
 
-func TestBuildProgram_StcommonFallsBackToItsZssFile(t *testing.T) {
+func TestLoadFighterProgram_StcommonFallsBackToItsZssFile(t *testing.T) {
 	// A "stcommon = common1.cns" with no such file but a "common1.cns.zss"
 	// next to the character is loaded as .zss (Ikemen GO stateCompile, :7181).
 	dir := t.TempDir()
@@ -136,29 +138,29 @@ func TestBuildProgram_StcommonFallsBackToItsZssFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	prog, err := buildProgram(ch, defPath)
+	prog, _, err := LoadFighterProgram(ch, defPath)
 	if err != nil {
-		t.Fatalf("buildProgram: %v", err)
+		t.Fatalf("LoadFighterProgram: %v", err)
 	}
 	if _, err := prog.NewRuntime(match.FighterState{StateNo: 5000}); err != nil {
 		t.Errorf("state 5000 of the fallback .zss is missing: %v", err)
 	}
 }
 
-func TestBuildProgram_UnreadableZssFile_ReturnsErrorNamingIt(t *testing.T) {
+func TestLoadFighterProgram_UnreadableZssFile_ReturnsErrorNamingIt(t *testing.T) {
 	dir := t.TempDir()
 	defPath := writeCharacter(t, dir, "bz", dupOwnCNS, "cns = bz.cns\nst = bz_st.zss", map[string]string{"bz_st.zss": "[Statedef 5\nnull{}\n"})
 	ch, err := character.Load(defPath)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	_, err = buildProgram(ch, defPath)
+	_, _, err = LoadFighterProgram(ch, defPath)
 	if err == nil || !strings.Contains(err.Error(), "bz_st.zss") {
 		t.Errorf("err = %v, want one naming bz_st.zss", err)
 	}
 }
 
-func TestBuildProgram_MissingZssStcommonFile_IsIgnoredLikeAMissingCnsOne(t *testing.T) {
+func TestLoadFighterProgram_MissingZssStcommonFile_IsIgnoredLikeAMissingCnsOne(t *testing.T) {
 	// kfm_zss.def says "stcommon = common1.cns.zss", a file of Ikemen GO's
 	// data/ folder: character.Load records it as unreadable, the harness
 	// skips it as it skips a missing common1.cns.
@@ -168,11 +170,39 @@ func TestBuildProgram_MissingZssStcommonFile_IsIgnoredLikeAMissingCnsOne(t *test
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	prog, err := buildProgram(ch, defPath)
+	prog, _, err := LoadFighterProgram(ch, defPath)
 	if err != nil {
-		t.Fatalf("buildProgram returned %v, want the missing common file ignored", err)
+		t.Fatalf("LoadFighterProgram returned %v, want the missing common file ignored", err)
 	}
 	if len(prog.States) != 2 {
 		t.Errorf("table has %d states, want 2 (the cns file's)", len(prog.States))
 	}
+}
+
+// writeCharacter writes a minimal character into dir: base.def with the given
+// [Files] lines, base.cns (when cnsSource is set), the reference kfm's sprite
+// and animation files, and every extra file (name -> content).
+func writeCharacter(t *testing.T, dir, base, cnsSource, filesLines string, extra map[string]string) string {
+	t.Helper()
+	src := filepath.Join(referenceDir, "chars", "kfm")
+	write := func(name string, content []byte) {
+		if err := os.WriteFile(filepath.Join(dir, name), content, 0o644); err != nil {
+			t.Fatalf("test setup: writing %s: %v", name, err)
+		}
+	}
+	for _, name := range []string{"kfm.sff", "kfm.air"} {
+		data, err := os.ReadFile(filepath.Join(src, name))
+		if err != nil {
+			t.Fatalf("test setup: %v", err)
+		}
+		write(name, data)
+	}
+	write(base+".def", []byte("[Info]\nname = \""+base+"\"\n\n[Files]\nsprite = kfm.sff\nanim = kfm.air\n"+filesLines+"\n"))
+	if cnsSource != "" {
+		write(base+".cns", []byte(cnsSource))
+	}
+	for name, content := range extra {
+		write(name, []byte(content))
+	}
+	return filepath.Join(dir, base+".def")
 }

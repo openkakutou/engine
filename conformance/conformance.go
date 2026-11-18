@@ -132,7 +132,7 @@ func runCharacter(defPath, display string, ticks int) CharacterReport {
 			}
 		}
 	}
-	prog, err := buildProgram(ch, defPath)
+	prog, _, err := engine.LoadFighterProgram(ch, defPath)
 	if err != nil {
 		report.Status = StatusLoadError
 		report.Error = err.Error()

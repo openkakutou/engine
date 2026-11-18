@@ -291,10 +291,23 @@ func TestRun_UnknownTriggersInPlaySndHalfAndGetHitVarVariable_AreNeutralizedAndC
 	}
 }
 
+const nohdrCNS = "[Statedef 0]\nanim = 1\n\n[Statedef 5]\nanim = 5\n"
+
+const nohdrCMD = `[Command]
+name = "QCF_a"
+command = ~D, DF, F, a
+time = 15
+
+[State -1, Fireball]
+type = ChangeState
+value = 200
+trigger1 = Command = "QCF_a"
+`
+
 func TestRun_CharacterWithCmdLackingStatedefMinusOne_Runs(t *testing.T) {
 	dir := t.TempDir()
-	defPath := writeCharacter(t, dir, "nohdr", dupOwnCNS, "cns = nohdr.cns\ncmd = nohdr.cmd",
-		map[string]string{"nohdr.cmd": cmdWithoutStatedefCMD})
+	defPath := writeCharacter(t, dir, "nohdr", nohdrCNS, "cns = nohdr.cns\ncmd = nohdr.cmd",
+		map[string]string{"nohdr.cmd": nohdrCMD})
 	report, err := Run([]string{defPath}, Options{Ticks: 3})
 	if err != nil {
 		t.Fatalf("Run: %v", err)

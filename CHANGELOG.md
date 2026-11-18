@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.14.0] - 2026-11-18
+
+### Added
+- Games can load every state file of a character the way Ikemen GO does, `.cns` and `.zss`, including its common states (`stcommon`), which are searched in the character folder and then in folders the game provides; files found nowhere are reported.
+
 ## [2.13.0] - 2026-11-18
 
 ### Added
@@ -201,7 +206,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.13.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.14.0...HEAD
+[2.14.0]: https://github.com/openkakutou/engine/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/openkakutou/engine/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/openkakutou/engine/compare/v2.11.1...v2.12.0
 [2.11.1]: https://github.com/openkakutou/engine/compare/v2.11.0...v2.11.1

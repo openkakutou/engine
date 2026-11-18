@@ -28,12 +28,14 @@ files.
 ## Method
 
 1. **State table.** `character.Load` only parses the `.def` `cns` file into
-   `Character.StateDefs`, so the harness also parses the other state files and
-   merges them the way Ikemen GO does: `st`, `stN`, the `.cmd` file, then
+   `Character.StateDefs`, so the harness calls `engine.LoadFighterProgram`, which also
+   parses the other state files and merges them the way Ikemen GO does: `st`, `stN`, the `.cmd` file, then
    `stcommon`; the first definition of a state number wins (a character's own
    states override its common file's). `Character.StateDefs` is a last
-   fallback. Missing files (typically `stcommon = common1.cns`, which lives in
-   the game's `data/`) are skipped. `.zss` entries are merged into the same
+   fallback. Files are searched in the `.def` folder, then in the extra directories the
+   caller gives (the harness gives none). Missing files (typically
+   `stcommon = common1.cns`, which lives in the game's `data/`) are skipped
+   and returned to the caller. `.zss` entries are merged into the same
    table in the same order, first definition winning whatever the format
    (`engine.NewFighterProgramFromFiles`, decision `024`); a `.zss` that does not
    parse is a `load-error`.
@@ -102,7 +104,7 @@ The roadmap acceptance characters (decision `036`): Ikemen GO's bundled `kfm` wa
 
 | Character | Status | States reached | Supported controllers (reached states) | Controllers with an unparsable trigger | Most exposed unsupported |
 |---|---|---|---|---|---|
-| `kfm` (Ikemen GO bundle, `mugenversion = 1.0`) | load error: no state 0 (its `stcommon` lives in the engine's `data/` folder, not searched) | — | — | 0 | — |
+| `kfm` (Ikemen GO bundle, `mugenversion = 1.0`) | load error: no state 0 (its `stcommon` lives in the engine's `data/` folder, not searched by the harness) | — | — | 0 | — |
 | Kung Fu Man (community edit, `1.0`) | ran | 1 / 156 | 1 / 5 | 313 | `changeanim`, `ctrlset`, `destroyself` |
 | Link (`04.14.2001`) | ran | 1 / 234 | 1 / 6 | 193 | `changeanim`, `removeexplod`, `stopsnd` |
 | Rayman | ran | 2 / 121 | 2 / 5 | 314 | `changeanim`, `velset` |
