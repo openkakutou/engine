@@ -8,6 +8,8 @@ The conformance run found 349,244 controllers with an unparsable trigger across 
 
 🔒 MUST: MUGEN 1.0/1.1 and Ikemen GO compatibility, verified against Ikemen GO (roadmap decision `038`).
 
+Also Ikemen GO's expression functions that common1.cns.zss uses, starting with `cond(a, b, c)` (state 0, first line: the next end-to-end blocker after intervals, found by item 042).
+
 ## Acceptance Criteria
 - [ ] Each grammar form has a test grounded in the cited source
 - [ ] Conformance run: controllers with an unparsable trigger drop to near zero, the rest listed as items
