@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-11-18
+
 ### Added
 - `.zss` state scripts now accept Ikemen GO's full grammar used by its common states: `else if`, statements over several lines, local variables, functions with arguments and return values, `persistent`, and the `:=` assignment, including inside conditions. Ikemen GO's `common1.cns.zss` now reads with no error.
 
@@ -194,7 +196,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.11.1...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.12.0...HEAD
+[2.12.0]: https://github.com/openkakutou/engine/compare/v2.11.1...v2.12.0
 [2.11.1]: https://github.com/openkakutou/engine/compare/v2.11.0...v2.11.1
 [2.11.0]: https://github.com/openkakutou/engine/compare/v2.10.0...v2.11.0
 [2.10.0]: https://github.com/openkakutou/engine/compare/v2.9.0...v2.10.0
