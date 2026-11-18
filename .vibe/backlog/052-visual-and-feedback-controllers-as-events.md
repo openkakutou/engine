@@ -1,5 +1,6 @@
 ---
 status: todo
+depends_on: [054]
 ---
 # Visual and Feedback Controllers as Events
 
