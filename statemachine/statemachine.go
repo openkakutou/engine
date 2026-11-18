@@ -130,6 +130,20 @@ func Step(ctx evaluator.Context, states map[int]cns.StateDef) (Result, error) {
 // state, without becoming ctx's current state. It returns an error when
 // number is not present in states.
 func StepState(ctx evaluator.Context, number int, states map[int]cns.StateDef) (Result, error) {
+	return stepState(ctx, number, states, false)
+}
+
+// StepStateDuringHitPause is StepState for a fighter frozen by a hit pause:
+// only the controllers whose "ignorehitpause" parameter evaluates true are
+// considered (their triggers are evaluated as usual); all others are
+// skipped without evaluating their triggers. MUGEN 1.1 cns doc: a
+// controller without ignorehitpause "will not be checked during a hit
+// pause"; Ikemen GO wraps such blocks in ignoreHitPause{}.
+func StepStateDuringHitPause(ctx evaluator.Context, number int, states map[int]cns.StateDef) (Result, error) {
+	return stepState(ctx, number, states, true)
+}
+
+func stepState(ctx evaluator.Context, number int, states map[int]cns.StateDef, hitPause bool) (Result, error) {
 	def, ok := states[number]
 	if !ok {
 		return Result{}, fmt.Errorf("statemachine: state %d not found in loaded character", number)
@@ -146,6 +160,15 @@ func StepState(ctx evaluator.Context, number int, states map[int]cns.StateDef) (
 	var applied []int
 
 	for i, ctrl := range def.Controllers {
+		if hitPause {
+			run, err := ignoresHitPause(ctrl, &working)
+			if err != nil {
+				return Result{}, fmt.Errorf("statemachine: state %d controller %d (%s): evaluating ignorehitpause: %w", number, i, ctrl.Type, err)
+			}
+			if !run {
+				continue
+			}
+		}
 		pass, err := triggersPass(ctrl.Triggers, &working)
 		if err != nil {
 			return Result{}, fmt.Errorf("statemachine: state %d controller %d (%s): evaluating triggers: %w", number, i, ctrl.Type, err)
@@ -168,6 +191,20 @@ func StepState(ctx evaluator.Context, number int, states map[int]cns.StateDef) (
 	working.Sounds = nil
 	unsupported := TakeUnsupported(&working)
 	return Result{Context: working, Applied: applied, Sounds: sounds, Unsupported: unsupported}, nil
+}
+
+// ignoresHitPause evaluates "ignorehitpause" as an expression, not a
+// literal 0/1.
+func ignoresHitPause(ctrl cns.Controller, ctx *evaluator.Context) (bool, error) {
+	raw, ok := ctrl.Parameters["ignorehitpause"]
+	if !ok {
+		return false, nil
+	}
+	v, err := evaluator.EvaluateMut(raw, ctx)
+	if err != nil {
+		return false, err
+	}
+	return v.Bool(), nil
 }
 
 // triggersPass reports whether every trigger expression in triggers

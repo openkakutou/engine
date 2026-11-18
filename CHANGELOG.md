@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- While frozen by a landed hit, a fighter now still runs the state controllers its character marks to ignore the hit pause (hit sparks, sounds and similar effects), as in MUGEN and Ikemen GO; every other controller stays paused.
+
 ## [2.10.0] - 2026-11-18
 
 ### Added

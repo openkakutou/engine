@@ -2,6 +2,7 @@ package statemachine
 
 import (
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -906,5 +907,51 @@ func TestStepState_MissingState_ReturnsErrorNamingIt(t *testing.T) {
 	_, err := StepState(evaluator.Context{}, -2, map[int]cns.StateDef{0: {Number: 0}})
 	if err == nil || !strings.Contains(err.Error(), "state -2") {
 		t.Fatalf("err = %v, want one naming state -2", err)
+	}
+}
+
+func flaggedVarSet(flag, trigger string, index, value int) cns.Controller {
+	c := varSetController(trigger, index, value)
+	c.Parameters["ignorehitpause"] = flag
+	return c
+}
+
+func TestStepStateDuringHitPause_AppliesOnlyFlaggedControllers(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0: {Number: 0, Controllers: []cns.Controller{
+			varSetController("", 1, 10),    // 0: unflagged
+			flaggedVarSet("1", "", 2, 20),  // 1: flagged
+			flaggedVarSet("0", "", 3, 30),  // 2: flag false
+			flaggedVarSet("1", "0", 4, 40), // 3: flagged, trigger false
+			flaggedVarSet("1", "1", 5, 50), // 4: flagged, trigger true
+		}},
+	}
+	got, err := StepStateDuringHitPause(evaluator.Context{FighterState: match.FighterState{StateNo: 0}}, 0, states)
+	if err != nil {
+		t.Fatalf("StepStateDuringHitPause: %v", err)
+	}
+	if want := []int{1, 4}; !reflect.DeepEqual(got.Applied, want) {
+		t.Errorf("Applied = %v, want %v", got.Applied, want)
+	}
+	if got.Context.Vars[1] != 0 || got.Context.Vars[2] != 20 || got.Context.Vars[5] != 50 {
+		t.Errorf("Vars[1,2,5] = %d, %d, %d, want 0, 20, 50", got.Context.Vars[1], got.Context.Vars[2], got.Context.Vars[5])
+	}
+}
+
+func TestStepStateDuringHitPause_InvalidIgnoreHitPauseExpression_ReturnsErrorNamingController(t *testing.T) {
+	states := map[int]cns.StateDef{
+		7: {Number: 7, Controllers: []cns.Controller{
+			varSetController("", 1, 1),
+			flaggedVarSet("nosuchtrigger +", "", 2, 2),
+		}},
+	}
+	_, err := StepStateDuringHitPause(evaluator.Context{}, 7, states)
+	if err == nil {
+		t.Fatal("expected an error, got nil")
+	}
+	for _, want := range []string{"state 7", "controller 1", "VarSet", "ignorehitpause"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not contain %q", err.Error(), want)
+		}
 	}
 }

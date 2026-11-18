@@ -296,8 +296,8 @@ type fighterTickOutput struct {
 	HitDef    cns.Controller
 	Sounds    []evaluator.SoundEvent
 	// Frozen reports the fighter was in hit pause (attacker freeze or
-	// defender shake) this tick: no controllers ran, Time/AnimTime were
-	// held, and Tick skips its physics.
+	// defender shake) this tick: only controllers flagged ignorehitpause
+	// ran, Time/AnimTime were held, and Tick skips its physics.
 	Frozen bool
 }
 
@@ -332,19 +332,14 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		return fighterTickOutput{}, fmt.Errorf("current state %d not found in loaded character", ctx.StateNo)
 	}
 
-	// A fighter in hit pause (attacker freeze or defender shake) runs no
-	// controllers, advances no Time/AnimTime and moves no physics; only
-	// input recognition above keeps running. See .vibe/decisions/018.
-	if runtime.HitPause > 0 || ctx.GetHit.HitShakeTime > 0 {
-		frozenRuntime := FighterRuntime{Context: ctx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: runtime.Unsupported[:0]}
-		if frozenRuntime.HitPause > 0 {
-			frozenRuntime.HitPause--
-		}
-		if frozenRuntime.Context.GetHit.HitShakeTime > 0 {
-			frozenRuntime.Context.GetHit.HitShakeTime--
-		}
-		frozenRuntime.Context.Sounds = nil
-		return fighterTickOutput{Runtime: frozenRuntime, Frame: frame, Frozen: true}, nil
+	// A fighter in hit pause (attacker freeze or defender shake) runs only
+	// the controllers flagged ignorehitpause, advances no Time/AnimTime and
+	// moves no physics; input recognition above keeps running. See
+	// .vibe/decisions/018 and 021.
+	frozen := runtime.HitPause > 0 || ctx.GetHit.HitShakeTime > 0
+	step := statemachine.StepState
+	if frozen {
+		step = statemachine.StepStateDuringHitPause
 	}
 
 	// Ikemen GO's actionRun (char.go): states -3, -2 then -1 run every
@@ -358,7 +353,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		if _, ok := prog.States[number]; !ok {
 			continue
 		}
-		special, err := statemachine.StepState(ctx, number, prog.States)
+		special, err := step(ctx, number, prog.States)
 		if err != nil {
 			return fighterTickOutput{}, err
 		}
@@ -375,7 +370,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	}
 
 	def = prog.States[ctx.StateNo]
-	result, err := statemachine.Step(ctx, prog.States)
+	result, err := step(ctx, ctx.StateNo, prog.States)
 	if err != nil {
 		return fighterTickOutput{}, err
 	}
@@ -384,6 +379,19 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 
 	newCtx := result.Context
 	resolveAnimElem(&newCtx, findAnimation(prog, newCtx.Anim))
+	if frozen {
+		if newCtx.StateNo != ctx.StateNo {
+			enterState(&newCtx, prog.States[newCtx.StateNo])
+		}
+		frozenRuntime := FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: unsupported}
+		if frozenRuntime.HitPause > 0 {
+			frozenRuntime.HitPause--
+		}
+		if frozenRuntime.Context.GetHit.HitShakeTime > 0 {
+			frozenRuntime.Context.GetHit.HitShakeTime--
+		}
+		return fighterTickOutput{Runtime: frozenRuntime, Frame: frame, Frozen: true, Sounds: sounds}, nil
+	}
 	if newCtx.StateNo != ctx.StateNo {
 		// statemachine's own ChangeState handling already reset Time to 0
 		// (character/cmd data plays no part in that); Anim/AnimTime/Ctrl
