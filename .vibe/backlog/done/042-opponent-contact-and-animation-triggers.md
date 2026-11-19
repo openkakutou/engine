@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 ---
 # Triggers that read the opponent, hit contacts and animation elements
 
@@ -13,9 +13,9 @@ Second slice of item 028 (split by family, 2026-11-18). 028 delivered the trigge
 Ground each trigger in Ikemen GO's source (commit `54d4148a`), file and line, as 028 did. Compat is a MUST (roadmap decision `038`).
 
 ## Acceptance Criteria
-- [ ] Each trigger above evaluates against live state and is covered by a test with an independently derived expected value
-- [ ] AnimElem and the MoveContact family follow MUGEN timing semantics, with a documented Ikemen GO divergence table
-- [ ] Conformance run: the unknown-trigger list no longer names any of them
+- [x] Each trigger above evaluates against live state and is covered by a test with an independently derived expected value
+- [x] AnimElem and the MoveContact family follow MUGEN timing semantics, with a documented Ikemen GO divergence table
+- [x] Conformance run: the unknown-trigger list no longer names any of them
 
 ## Notes
 Found while splitting 028. The conformance run after 028 lists `const()`, `animelem`, `animelemtime()`, `fvar()`, `palno`, `numtarget` among the most exposed names left.
