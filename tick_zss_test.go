@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -204,21 +205,31 @@ func TestTick_ZssBlockWithParseError_FailsNamingTheBlockOnlyWhenEntered(t *testi
 	}
 }
 
-func TestTick_ZssChangeStateToUndefinedState_ReturnsError(t *testing.T) {
+func TestTick_ZssChangeStateToUndefinedState_EntersEmptyStateAndWarns(t *testing.T) {
 	prog := zssProgram(t, "[Statedef 0]\nchangeState{value: 4242}")
-	_, err := tickP1Only(t, prog, newP1Runtime(t, prog))
-	if err == nil || !strings.Contains(err.Error(), "4242") {
-		t.Errorf("err = %v, want one naming state 4242", err)
+	result, err := tickP1Only(t, prog, newP1Runtime(t, prog))
+	if err != nil {
+		t.Fatalf("Tick: %v, want none", err)
+	}
+	if got := result.Fighters[match.SideP1].Context.StateNo; got != 4242 {
+		t.Errorf("StateNo = %d, want 4242", got)
+	}
+	want := []string{"changed to invalid state 4242 (from state 0)"}
+	if !reflect.DeepEqual(result.Warnings[match.SideP1], want) {
+		t.Errorf("Warnings = %q, want %q", result.Warnings[match.SideP1], want)
 	}
 }
 
-func TestTick_CurrentStateInNeitherFormat_ReturnsError(t *testing.T) {
+func TestTick_CurrentStateInNeitherFormat_RunsAsAnEmptyState(t *testing.T) {
 	prog := zssProgram(t, "[Statedef 0]\nnull{}")
 	rt := newP1Runtime(t, prog)
 	rt.Context.StateNo = 31
-	_, err := tickP1Only(t, prog, rt)
-	if err == nil || !strings.Contains(err.Error(), "state 31") {
-		t.Errorf("err = %v, want one naming state 31", err)
+	result, err := tickP1Only(t, prog, rt)
+	if err != nil {
+		t.Fatalf("Tick: %v, want none", err)
+	}
+	if got := result.Fighters[match.SideP1].Context.StateNo; got != 31 {
+		t.Errorf("StateNo = %d, want 31 kept", got)
 	}
 }
 

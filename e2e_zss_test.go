@@ -54,11 +54,18 @@ type e2eMatch struct {
 	runtimes [2]FighterRuntime
 	tick     int
 	sounds   [2][]evaluator.SoundEvent // the last tick's sound events
+	warnings [2][]string               // the last tick's warnings
 }
 
 func newE2EMatch(t *testing.T, prog FighterProgram) *e2eMatch {
 	t.Helper()
-	p1 := match.FighterState{Side: match.SideP1, Position: match.Position{X: e2eP1X}, Facing: match.FacingRight, Health: 1000}
+	return newE2EMatchAt(t, prog, 0)
+}
+
+// newE2EMatchAt starts P1 in state stateNo.
+func newE2EMatchAt(t *testing.T, prog FighterProgram, stateNo int) *e2eMatch {
+	t.Helper()
+	p1 := match.FighterState{Side: match.SideP1, Position: match.Position{X: e2eP1X}, Facing: match.FacingRight, Health: 1000, StateNo: stateNo}
 	p2 := match.FighterState{Side: match.SideP2, Position: match.Position{X: 900}, Facing: match.FacingLeft, Health: 1000}
 	dummy := FighterProgram{States: idleStates()}
 	rt1, err := prog.NewRuntime(p1)
@@ -89,7 +96,7 @@ func (m *e2eMatch) step(in input.TickInput) error {
 	if err != nil {
 		return fmt.Errorf("tick %d: %w", m.tick, err)
 	}
-	m.state, m.runtimes, m.sounds = result.State, result.Fighters, result.Sounds
+	m.state, m.runtimes, m.sounds, m.warnings = result.State, result.Fighters, result.Sounds, result.Warnings
 	return nil
 }
 

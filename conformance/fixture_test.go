@@ -83,7 +83,8 @@ v = 0
 value = 1
 `
 
-// tickErrorCNS fails at runtime: it changes to a state that does not exist.
+// tickErrorCNS fails at runtime: its ChangeState value is not an expression
+// (a change to a missing state is no error: it enters an empty state).
 const tickErrorCNS = `[Statedef 0]
 type = S
 physics = S
@@ -92,5 +93,5 @@ ctrl = 1
 [State 0, Bad]
 type = ChangeState
 trigger1 = Time = 3
-value = 999
+value = 999 +* (
 `

@@ -3,6 +3,7 @@ package zssexec
 import (
 	"maps"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -158,13 +159,17 @@ func TestStep_UnknownCurrentState_ReturnsDescriptiveError(t *testing.T) {
 	}
 }
 
-func TestStep_ChangeStateTargetingNonexistentState_ReturnsDescriptiveError(t *testing.T) {
+func TestStep_ChangeStateTargetingNonexistentState_ChangesStateAndWarns(t *testing.T) {
 	script := mustParseScript(t, "[Statedef 0]\nchangeState{value: 999;}")
 	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
 
-	_, err := Step(ctx, script)
-	if err == nil {
-		t.Fatal("expected a descriptive error for a ChangeState target missing from the loaded script, got nil")
+	got, err := Step(ctx, script)
+	if err != nil {
+		t.Fatalf("Step: %v, want none (Ikemen GO char.go:6880-6887)", err)
+	}
+	want := []string{"changed to invalid state 999 (from state 0)"}
+	if got.Context.StateNo != 999 || !reflect.DeepEqual(got.Warnings, want) {
+		t.Errorf("StateNo, Warnings = %d, %q, want 999, %q", got.Context.StateNo, got.Warnings, want)
 	}
 }
 

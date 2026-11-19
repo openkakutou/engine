@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.25.0] - 2026-11-20
+
+### Fixed
+- A state change to a state the character does not have (a `ChangeState` in `.cns` or `.zss`) no longer stops the match with an error: as in Ikemen GO, the fighter enters an empty state numbered as requested, with its state type, move type and physics unchanged, and `TickResult.Warnings` (and the `warnings` field of the WebAssembly tick response) reports "changed to invalid state N (from state M)". A fighter found in a state the character lacks runs it as an empty state instead of erroring.
+
 ## [2.24.0] - 2026-11-20
 
 ### Changed
@@ -298,7 +303,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.24.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.25.0...HEAD
+[2.25.0]: https://github.com/openkakutou/engine/compare/v2.24.0...v2.25.0
 [2.24.0]: https://github.com/openkakutou/engine/compare/v2.23.0...v2.24.0
 [2.23.0]: https://github.com/openkakutou/engine/compare/v2.22.2...v2.23.0
 [2.22.2]: https://github.com/openkakutou/engine/compare/v2.22.1...v2.22.2

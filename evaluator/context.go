@@ -111,6 +111,12 @@ type Context struct {
 	// triggers unsupported controllers every tick does not allocate a new
 	// one each time (see .vibe/decisions/017 and 020).
 	Unsupported []string
+	// Warnings lists the console warnings Ikemen GO would print during the
+	// current Step call (today: "changed to invalid state N (from state M)").
+	// A per-call log like Sounds: Step resets it to nil before running a
+	// state and moves it into its Result, so nothing allocates on a call
+	// with no warning.
+	Warnings []string
 	// StateType and MoveType are the fighter's current state type (S, C, A
 	// or L) and move type (I, A or H) as upper-case letters, read by the
 	// StateType and MoveType triggers. Zero until the fighter has entered a

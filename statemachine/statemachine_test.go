@@ -181,20 +181,31 @@ func TestStep_UnknownCurrentState_ReturnsDescriptiveError(t *testing.T) {
 	}
 }
 
-func TestStep_ChangeStateTargetingNonexistentState_ReturnsDescriptiveError(t *testing.T) {
+func TestStep_ChangeStateTargetingNonexistentState_ChangesStateAndWarnsLikeIkemen(t *testing.T) {
 	states := map[int]cns.StateDef{
 		0: {
 			Number: 0,
 			Controllers: []cns.Controller{
 				changeStateController("", 999), // 999 is never defined below
+				varSetController("", 0, 7),     // never reached: the change ends the state's run
 			},
 		},
 	}
 	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
 
-	_, err := Step(ctx, states)
-	if err == nil {
-		t.Fatal("expected a descriptive error for a ChangeState target missing from the loaded character, got nil")
+	result, err := Step(ctx, states)
+	if err != nil {
+		t.Fatalf("Step: %v, want no error for a missing target (Ikemen GO char.go:6880-6887)", err)
+	}
+	if result.Context.StateNo != 999 || result.Context.PrevStateNo != 0 || !result.Context.StateChanged {
+		t.Errorf("StateNo, PrevStateNo, StateChanged = %d, %d, %v, want 999, 0, true", result.Context.StateNo, result.Context.PrevStateNo, result.Context.StateChanged)
+	}
+	want := []string{"changed to invalid state 999 (from state 0)"}
+	if !reflect.DeepEqual(result.Warnings, want) {
+		t.Errorf("Warnings = %q, want %q", result.Warnings, want)
+	}
+	if result.Context.Warnings != nil {
+		t.Errorf("Context.Warnings = %q, want it taken into Result.Warnings", result.Context.Warnings)
 	}
 }
 
@@ -998,14 +1009,18 @@ func TestStepStateWith_ChangeStateToAStateKnownOnlyToExists_Applies(t *testing.T
 	}
 }
 
-func TestStepStateWith_ChangeStateToAStateExistsDoesNotKnow_ReturnsError(t *testing.T) {
+func TestStepStateWith_ChangeStateToAStateExistsDoesNotKnow_WarnsAndChanges(t *testing.T) {
 	states := map[int]cns.StateDef{
 		0:   {Number: 0, Controllers: []cns.Controller{changeStateController("", 700)}},
 		700: {Number: 700}, // in the .cns map, but the merged table says no
 	}
-	_, err := StepStateWith(evaluator.Context{}, 0, states, func(int) bool { return false })
-	if err == nil || !strings.Contains(err.Error(), "700") {
-		t.Fatalf("err = %v, want one naming state 700", err)
+	got, err := StepStateWith(evaluator.Context{}, 0, states, func(int) bool { return false })
+	if err != nil {
+		t.Fatalf("StepStateWith: %v", err)
+	}
+	want := []string{"changed to invalid state 700 (from state 0)"}
+	if got.Context.StateNo != 700 || !reflect.DeepEqual(got.Warnings, want) {
+		t.Errorf("StateNo, Warnings = %d, %q, want 700, %q", got.Context.StateNo, got.Warnings, want)
 	}
 }
 

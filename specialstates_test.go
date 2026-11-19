@@ -1,8 +1,8 @@
 package engine
 
 import (
+	"reflect"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/openkakutou/character/air"
@@ -147,14 +147,21 @@ func TestTick_NoSpecialStates_BehavesAsBefore(t *testing.T) {
 	}
 }
 
-func TestTick_ChangeStateInState1_ToMissingState_ReturnsErrorNamingState1(t *testing.T) {
+func TestTick_ChangeStateInState1_ToMissingState_EntersEmptyStateAndWarns(t *testing.T) {
 	states := map[int]cns.StateDef{
 		-1: {Number: -1, Controllers: []cns.Controller{changeStateTo("1", "999")}},
 		0:  {Number: 0, Type: cns.StateTypeStanding, Ctrl: true},
 	}
-	_, err := tickP1(t, states, false)
-	if err == nil || !strings.Contains(err.Error(), "state -1") {
-		t.Fatalf("err = %v, want an error mentioning state -1", err)
+	res, err := tickP1(t, states, false)
+	if err != nil {
+		t.Fatalf("Tick: %v, want none: Ikemen GO enters an empty state", err)
+	}
+	if got := res.Fighters[match.SideP1].Context.StateNo; got != 999 {
+		t.Errorf("StateNo = %d, want 999", got)
+	}
+	want := []string{"changed to invalid state 999 (from state 0)"}
+	if !reflect.DeepEqual(res.Warnings[match.SideP1], want) {
+		t.Errorf("Warnings = %q, want %q", res.Warnings[match.SideP1], want)
 	}
 }
 

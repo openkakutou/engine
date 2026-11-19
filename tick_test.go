@@ -572,7 +572,7 @@ func TestFindAnimation_FallsBackToLinearScan_ForRawStructLiteral(t *testing.T) {
 	}
 }
 
-func TestTick_ReturnsError_WhenAFightersCurrentStateIsNotInItsLoadedStates(t *testing.T) {
+func TestTick_RunsAsAnEmptyState_WhenAFightersCurrentStateIsNotInItsLoadedStates(t *testing.T) {
 	states := idleStates()
 	p1 := FighterProgram{States: states}
 	p2 := FighterProgram{States: states}
@@ -604,8 +604,8 @@ func TestTick_ReturnsError_WhenAFightersCurrentStateIsNotInItsLoadedStates(t *te
 		[2]input.TickInput{},
 		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
 	)
-	if err == nil {
-		t.Fatal("expected an error for a fighter whose current state is not loaded, got nil")
+	if err != nil {
+		t.Fatalf("Tick: %v, want none: a fighter in a state the character lacks runs it as an empty state", err)
 	}
 }
 

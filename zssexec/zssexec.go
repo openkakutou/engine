@@ -51,6 +51,9 @@ type Result struct {
 	// Ikemen GO logs it and runs on (bytecode.go:5050-5069). Fresh per call,
 	// nil when there were none.
 	SkippedCalls []string
+	// Warnings is the Ikemen GO console warnings of the call ("changed to
+	// invalid state N (from state M)"); nil when there were none.
+	Warnings []string
 	// HasHitDef reports whether a HitDef controller ran during this call;
 	// HitDef is the first one, with every parameter that reads a local
 	// ($name) already replaced by its value (see hitDefParams). The root
@@ -199,6 +202,7 @@ func stepState(ctx evaluator.Context, number int, prog CompiledScript, exists fu
 
 	working := ctx
 	working.Sounds = nil
+	working.Warnings = nil
 	working.Unsupported = working.Unsupported[:0]
 	r := runner{ctx: &working, prog: prog, exists: exists, hitPause: hitPause}
 	working.ZSS = true
@@ -220,8 +224,10 @@ func stepState(ctx evaluator.Context, number int, prog CompiledScript, exists fu
 	}
 	sounds := working.Sounds
 	working.Sounds = nil
+	warnings := working.Warnings
+	working.Warnings = nil
 	unsupported := statemachine.TakeUnsupported(&working)
-	return Result{Context: working, Sounds: sounds, Unsupported: unsupported, SkippedCalls: skipped, HasHitDef: hasHitDef, HitDef: hitDef}, nil
+	return Result{Context: working, Sounds: sounds, Warnings: warnings, Unsupported: unsupported, SkippedCalls: skipped, HasHitDef: hasHitDef, HitDef: hitDef}, nil
 }
 
 // maxCallDepth bounds how many nested "call F(...);" statements run will

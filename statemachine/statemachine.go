@@ -97,6 +97,10 @@ type Result struct {
 	// it is only valid until the next call that starts from Context. See
 	// .vibe/decisions/020.
 	Unsupported []string
+	// Warnings lists the Ikemen GO console warnings of this call, in order
+	// ("changed to invalid state N (from state M)", char.go:6880-6887); nil
+	// when there were none.
+	Warnings []string
 }
 
 // Step interprets one simulation tick of ctx's current state (ctx.StateNo)
@@ -170,6 +174,7 @@ func stepState(ctx evaluator.Context, number int, states map[int]cns.StateDef, e
 	// tick-to-tick via FighterRuntime) can never be mistaken for this
 	// call's. See evaluator.Context.Sounds's own doc comment.
 	working.Sounds = nil
+	working.Warnings = nil
 	working.Unsupported = working.Unsupported[:0]
 	var applied []int
 
@@ -203,8 +208,10 @@ func stepState(ctx evaluator.Context, number int, states map[int]cns.StateDef, e
 
 	sounds := working.Sounds
 	working.Sounds = nil
+	warnings := working.Warnings
+	working.Warnings = nil
 	unsupported := TakeUnsupported(&working)
-	return Result{Context: working, Applied: applied, Sounds: sounds, Unsupported: unsupported}, nil
+	return Result{Context: working, Applied: applied, Sounds: sounds, Unsupported: unsupported, Warnings: warnings}, nil
 }
 
 // ignoresHitPause evaluates "ignorehitpause" as an expression, not a
@@ -372,8 +379,11 @@ func applyChangeState(ctrl cns.Controller, ctx *evaluator.Context, exists func(i
 		return fmt.Errorf("ChangeState value %q: %w", raw, err)
 	}
 	target := v.Int()
+	// A target the character does not have is not an error: Ikemen GO warns
+	// and enters an empty state (changeStateEx, char.go:6880-6887); the
+	// caller enters it with unchanged types and physics.
 	if !exists(target) {
-		return fmt.Errorf("ChangeState targets state %d, which does not exist in the loaded character", target)
+		ctx.Warnings = append(ctx.Warnings, fmt.Sprintf("changed to invalid state %d (from state %d)", target, ctx.StateNo))
 	}
 	// Ikemen GO changeStateEx (char.go:6976-6983): an "anim" other than -1
 	// restarts that animation and a non-negative "ctrl" sets the control,

@@ -8,4 +8,4 @@
 package engine
 
 // Version is the current version of the engine module.
-const Version = "2.24.0"
+const Version = "2.25.0"

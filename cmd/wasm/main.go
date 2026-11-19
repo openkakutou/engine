@@ -276,6 +276,10 @@ type tickResponse struct {
 	// field, not part of `unsupported`: those are controller types, these
 	// are statements (decision 012's additive rule, decision 024).
 	SkippedCalls [2][]string `json:"skippedCalls"`
+	// Warnings is each fighter's Ikemen GO console warnings of the tick
+	// (e.g. "changed to invalid state N (from state M)"), indexed by
+	// match.Side, each side always a JSON array. Additive.
+	Warnings [2][]string `json:"warnings"`
 }
 
 // normalizeUnsupported (also used for skippedCalls) returns names unchanged if non-nil, or a non-nil
@@ -359,6 +363,10 @@ func tickJS(args []js.Value) (any, error) {
 		SkippedCalls: [2][]string{
 			match.SideP1: normalizeUnsupported(result.SkippedCalls[match.SideP1]),
 			match.SideP2: normalizeUnsupported(result.SkippedCalls[match.SideP2]),
+		},
+		Warnings: [2][]string{
+			match.SideP1: normalizeUnsupported(result.Warnings[match.SideP1]),
+			match.SideP2: normalizeUnsupported(result.Warnings[match.SideP2]),
 		},
 	}, nil
 }

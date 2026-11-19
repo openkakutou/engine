@@ -130,13 +130,31 @@ type entryHeader struct {
 
 // stateHeader returns the header of state number -- a .zss Statedef's
 // header converted (zssexec.Header) -- and whether the program defines it in
-// either format.
+// either format. A state the program does not define gets the header of
+// Ikemen GO's empty state: state type, move type and physics "unchanged"
+// (ST_U, MT_U, char.go:6884-6887) and nothing else written.
 func (p FighterProgram) stateHeader(number int) (entryHeader, bool) {
 	if def, ok := p.States[number]; ok {
 		return entryHeader{StateDef: def}, true
 	}
 	def, ok := p.script.Header(number)
-	return entryHeader{StateDef: def, script: true}, ok
+	if !ok {
+		return entryHeader{StateDef: emptyStateDef(number)}, false
+	}
+	return entryHeader{StateDef: def, script: true}, true
+}
+
+// emptyStateDef is the header of the empty state a change to state number
+// enters when the character lacks it. Written is non-nil and empty so no
+// field (ctrl, anim) reads as written.
+func emptyStateDef(number int) cns.StateDef {
+	return cns.StateDef{
+		Number:   number,
+		Type:     "U",
+		MoveType: "U",
+		Physics:  "U",
+		Written:  map[string]string{},
+	}
 }
 
 // hasState reports whether number is defined in either format: the check of
@@ -156,6 +174,7 @@ type stateStep struct {
 	Sounds       []evaluator.SoundEvent
 	Unsupported  []string
 	SkippedCalls []string // .zss only
+	Warnings     []string
 }
 
 // step runs the controllers of state number against ctx -- the .cns
@@ -173,7 +192,7 @@ func (p FighterProgram) step(ctx evaluator.Context, number int, frozen bool) (st
 		} else {
 			r, err = statemachine.StepStateWith(ctx, number, p.States, p.hasState)
 		}
-		out := stateStep{Context: r.Context, Sounds: r.Sounds, Unsupported: r.Unsupported}
+		out := stateStep{Context: r.Context, Sounds: r.Sounds, Unsupported: r.Unsupported, Warnings: r.Warnings}
 		controllers := p.States[number].Controllers
 		for _, i := range r.Applied {
 			if strings.EqualFold(controllers[i].Type, statemachine.ControllerTypeHitDef) {
@@ -184,8 +203,10 @@ func (p FighterProgram) step(ctx evaluator.Context, number int, frozen bool) (st
 		}
 		return out, err
 	}
+	// An empty state has no controllers: it runs as nothing, as in Ikemen GO
+	// (the state is a StateBytecode with no controllers, char.go:6884-6887).
 	if !p.hasState(number) {
-		return stateStep{}, fmt.Errorf("state %d not found in loaded character", number)
+		return stateStep{Context: ctx}, nil
 	}
 	var r zssexec.Result
 	var err error
@@ -194,7 +215,7 @@ func (p FighterProgram) step(ctx evaluator.Context, number int, frozen bool) (st
 	} else {
 		r, err = zssexec.StepState(ctx, number, p.script, p.hasState)
 	}
-	return stateStep{Context: r.Context, HasHitDef: r.HasHitDef, HitDef: r.HitDef, Sounds: r.Sounds, Unsupported: r.Unsupported, SkippedCalls: r.SkippedCalls}, err
+	return stateStep{Context: r.Context, HasHitDef: r.HasHitDef, HitDef: r.HitDef, Sounds: r.Sounds, Unsupported: r.Unsupported, SkippedCalls: r.SkippedCalls, Warnings: r.Warnings}, err
 }
 
 // NewFighterProgram builds a FighterProgram with its animation lookup
@@ -317,6 +338,12 @@ type TickResult struct {
 	// (JSON-null-vs-empty-array normalization is cmd/wasm's own
 	// boundary-only responsibility). See .vibe/decisions/017.
 	Sounds [2][]evaluator.SoundEvent
+	// Warnings is each fighter's Ikemen GO console warnings of this tick, in
+	// the order they happened: a state change to a state the character does
+	// not have reads "changed to invalid state N (from state M)"
+	// (char.go:6880-6887), and the fighter enters an empty state. nil for a
+	// side with none; a fresh slice, allocated only when a warning happens.
+	Warnings [2][]string
 	// Unsupported is each fighter's controller types that fired this tick
 	// without an implementation, lower-cased and deduplicated across the
 	// special states and the current state -- nil for a side with none.
@@ -451,6 +478,10 @@ func Tick(
 	sounds[match.SideP1] = p1Out.Sounds
 	sounds[match.SideP2] = p2Out.Sounds
 
+	var warnings [2][]string
+	warnings[match.SideP1] = p1Out.Warnings
+	warnings[match.SideP2] = p2Out.Warnings
+
 	var unsupported [2][]string
 	unsupported[match.SideP1] = nilIfEmpty(p1Out.Runtime.Unsupported)
 	unsupported[match.SideP2] = nilIfEmpty(p2Out.Runtime.Unsupported)
@@ -478,6 +509,7 @@ func Tick(
 		Fighters:     runtimesOut,
 		Round:        result,
 		Sounds:       sounds,
+		Warnings:     warnings,
 		Unsupported:  unsupported,
 		SkippedCalls: skippedCalls,
 	}, nil
@@ -493,6 +525,7 @@ type fighterTickOutput struct {
 	HasHitDef bool
 	HitDef    cns.Controller
 	Sounds    []evaluator.SoundEvent
+	Warnings  []string
 	// Frozen reports the fighter was in hit pause (attacker freeze or
 	// defender shake) this tick: only controllers flagged ignorehitpause
 	// ran, Time/AnimElapsed were held, and Tick skips its physics.
@@ -531,10 +564,6 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	// tick, once AnimElapsed has actually reset -- see this item's own ADR.
 	frame := currentFrame(findAnimation(prog, ctx.Anim), ctx.AnimElapsed)
 
-	if !prog.hasState(ctx.StateNo) {
-		return fighterTickOutput{}, fmt.Errorf("current state %d not found in loaded character", ctx.StateNo)
-	}
-
 	// A fighter in hit pause (attacker freeze or defender shake) runs only
 	// the controllers flagged ignorehitpause, advances no Time/AnimElapsed and
 	// moves no physics; input recognition above keeps running. See
@@ -547,6 +576,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	// new StateNo. A state change made by them is entered (stateChange2)
 	// before the current state -- now the new one -- runs, in this tick.
 	var sounds []evaluator.SoundEvent
+	var warnings []string
 	unsupported := runtime.Unsupported[:0]
 	skippedCalls := runtime.SkippedCalls[:0]
 	ctx.StateChanged = false
@@ -569,6 +599,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		}
 		ctx = special.Context
 		sounds = append(sounds, special.Sounds...)
+		warnings = append(warnings, special.Warnings...)
 		unsupported = appendMissing(unsupported, special.Unsupported)
 		skippedCalls = appendMissing(skippedCalls, special.SkippedCalls)
 	}
@@ -597,7 +628,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	if err != nil {
 		return fighterTickOutput{}, err
 	}
-	runs := stateRuns{sounds: sounds, unsupported: unsupported, skippedCalls: skippedCalls}
+	runs := stateRuns{sounds: sounds, warnings: warnings, unsupported: unsupported, skippedCalls: skippedCalls}
 	newCtx := result.Context
 	resolveAnimElem(&newCtx, findAnimation(prog, newCtx.Anim))
 	runs.add(result, &newCtx, frozen)
@@ -606,7 +637,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	if err := runs.followChanges(prog, &newCtx, frozen); err != nil {
 		return fighterTickOutput{}, err
 	}
-	sounds, unsupported, skippedCalls = runs.sounds, runs.unsupported, runs.skippedCalls
+	sounds, warnings, unsupported, skippedCalls = runs.sounds, runs.warnings, runs.unsupported, runs.skippedCalls
 	if frozen {
 		frozenRuntime := FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: unsupported, SkippedCalls: skippedCalls}
 		if frozenRuntime.HitPause > 0 {
@@ -618,7 +649,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		if runtime.HitPause == 0 { // the defender's shake steps the fall time; an attacker's pause does not
 			stepFall(&frozenRuntime.Context)
 		}
-		return fighterTickOutput{Runtime: frozenRuntime, Frame: frame, Frozen: true, Sounds: sounds}, nil
+		return fighterTickOutput{Runtime: frozenRuntime, Frame: frame, Frozen: true, Sounds: sounds, Warnings: warnings}, nil
 	}
 	// Ikemen GO actionRun moves the fighter after its states (posUpdate,
 	// char.go:12583), then lands it (char.go:12584-12590).
@@ -630,7 +661,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	if err := land(&newCtx, prog, &runs); err != nil {
 		return fighterTickOutput{}, err
 	}
-	sounds, unsupported, skippedCalls = runs.sounds, runs.unsupported, runs.skippedCalls
+	sounds, warnings, unsupported, skippedCalls = runs.sounds, runs.warnings, runs.unsupported, runs.skippedCalls
 	// A state entered this tick shows its first frame to collision detection
 	// (char.go:12608-12610); the animation steps after it (char.go:13055-13061).
 	if runs.entered {
@@ -659,6 +690,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		HasHitDef: runs.hasHitDef,
 		HitDef:    runs.hitDef,
 		Sounds:    sounds,
+		Warnings:  warnings,
 	}, nil
 }
 
@@ -671,6 +703,7 @@ const maxStateLoop = 2500
 // ChangeStates that run a new state at once.
 type stateRuns struct {
 	sounds       []evaluator.SoundEvent
+	warnings     []string
 	unsupported  []string
 	skippedCalls []string
 	hasHitDef    bool
@@ -683,6 +716,7 @@ type stateRuns struct {
 // entering the new state has just reset it (enterState, hitdefpersist).
 func (r *stateRuns) add(step stateStep, ctx *evaluator.Context, frozen bool) {
 	r.sounds = append(r.sounds, step.Sounds...)
+	r.warnings = append(r.warnings, step.Warnings...)
 	r.unsupported = appendMissing(r.unsupported, step.Unsupported)
 	r.skippedCalls = appendMissing(r.skippedCalls, step.SkippedCalls)
 	if !step.HasHitDef {
