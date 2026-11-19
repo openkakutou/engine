@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Support PlaySnd's `S` and `F` prefixed sound groups
 
@@ -9,8 +9,9 @@ status: todo
 🔒 MUST: MUGEN 1.0/1.1 and Ikemen GO compatibility, verified against Ikemen GO (roadmap decision `038`).
 
 ## Acceptance Criteria
-- [ ] `S`/`F` prefixed groups produce a sound event flagged as common
-- [ ] Unprefixed groups unchanged
+- [x] `S`/`F` prefixed groups produce a sound event flagged as common
+- [x] Unprefixed groups unchanged
 
 ## Notes
 Found by the conformance harness (item 030, `docs/conformance.md`, 2026-11-17).
+Corrected on 2026-11-19 against Ikemen GO (char.go:6653-6663): only `F` reads the common sound file (fight.def `common.snd`). `S` and unprefixed groups read the character's own `.snd`, and `M` plays nothing at this commit. The event carries `common`, `channel` and `lowPriority`.

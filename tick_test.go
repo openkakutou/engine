@@ -317,7 +317,7 @@ func TestTick_PlaySndController_RecordsEventForTriggeringFighterOnly(t *testing.
 		t.Fatalf("Tick returned an error: %v", err)
 	}
 
-	wantP1 := []evaluator.SoundEvent{{Group: 1, Sample: 3}}
+	wantP1 := []evaluator.SoundEvent{{Group: 1, Sample: 3, Channel: -1}}
 	if !reflect.DeepEqual(result.Sounds[match.SideP1], wantP1) {
 		t.Errorf("Sounds[SideP1] = %v, want %v", result.Sounds[match.SideP1], wantP1)
 	}
@@ -413,8 +413,8 @@ func TestTick_BothFightersPlaySnd_EventsDoNotCrossSides(t *testing.T) {
 		t.Fatalf("Tick returned an error: %v", err)
 	}
 
-	wantP1 := []evaluator.SoundEvent{{Group: 1, Sample: 0}}
-	wantP2 := []evaluator.SoundEvent{{Group: 9, Sample: 9}}
+	wantP1 := []evaluator.SoundEvent{{Group: 1, Sample: 0, Channel: -1}}
+	wantP2 := []evaluator.SoundEvent{{Group: 9, Sample: 9, Channel: -1}}
 	if !reflect.DeepEqual(result.Sounds[match.SideP1], wantP1) {
 		t.Errorf("Sounds[SideP1] = %v, want %v", result.Sounds[match.SideP1], wantP1)
 	}

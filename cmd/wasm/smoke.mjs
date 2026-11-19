@@ -169,7 +169,7 @@ assert(hitTick.data?.progress?.wins?.[0] === 1, "P1's round win is recorded in p
 assert(hitTick.data?.matchOver === false, "bestOf 3 is not decided after a single round win");
 assert(hitTick.data?.animations?.[0]?.animNo === 200, `hit tick: P1 stays in animNo 200, no further transition (got: ${hitTick.data?.animations?.[0]?.animNo})`);
 assert(hitTick.data?.animations?.[0]?.animTime === 1, `hit tick: P1's animTime advances to 1 within animNo 200 (got: ${hitTick.data?.animations?.[0]?.animTime})`);
-assert(JSON.stringify(hitTick.data?.sounds?.[0]) === JSON.stringify([{ group: 1, sample: 3 }]), `hit tick: P1's PlaySnd controller triggers group 1 sample 3 (got: ${JSON.stringify(hitTick.data?.sounds?.[0])})`);
+assert(JSON.stringify(hitTick.data?.sounds?.[0]) === JSON.stringify([{ group: 1, sample: 3, common: false, channel: -1, lowPriority: false }]), `hit tick: P1's PlaySnd controller triggers group 1 sample 3 (got: ${JSON.stringify(hitTick.data?.sounds?.[0])})`);
 assert(Array.isArray(hitTick.data?.sounds?.[1]) && hitTick.data.sounds[1].length === 0, `hit tick: P2 (no PlaySnd controller of its own) has an empty sounds array, not null (got: ${JSON.stringify(hitTick.data?.sounds?.[1])})`);
 
 assert(JSON.stringify(hitTick.data?.unsupported?.[0]) === JSON.stringify(["explod"]), `hit tick: P1's Explod is reported as unsupported (got: ${JSON.stringify(hitTick.data?.unsupported?.[0])})`);

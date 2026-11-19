@@ -502,3 +502,13 @@ func TestStep_WrongCalls_AreSkippedReportedAndTheStateKeepsRunning(t *testing.T)
 		})
 	}
 }
+
+// kfm_zss's CSnd/SysSnd functions (kfm.zss:24,29): the prefix is spaced from
+// a local, and the channel is a local too.
+func TestStep_PlaySndWithSpacedPrefixAndLocals_RecordsTheEvent(t *testing.T) {
+	r := stepBody(t, evaluator.Context{}, "let b, s, c = 5, 2, 1;", "playSnd{value: F $b, $s; channel: $c}\nplaySnd{value: S $b, $s}")
+	want := []evaluator.SoundEvent{{Group: 5, Sample: 2, Common: true, Channel: 1}, {Group: 5, Sample: 2, Channel: -1}}
+	if len(r.Sounds) != 2 || r.Sounds[0] != want[0] || r.Sounds[1] != want[1] {
+		t.Errorf("Sounds = %v, want %v", r.Sounds, want)
+	}
+}

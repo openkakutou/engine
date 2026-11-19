@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.18.0] - 2026-11-19
+
+### Added
+- `PlaySnd` accepts the `F`, `S` and `M` sound prefixes, glued (`S5, 0`) or spaced (`S $bank, $sound` in `.zss`), as in Ikemen GO. A sound event now says whether it plays from the common sound file (`F`) or the character's own sounds (`S` or no prefix), and carries its `channel` (-1 when absent) and `lowpriority`. The other `PlaySnd` parameters are accepted and ignored.
+
 ## [2.17.0] - 2026-11-19
 
 ### Fixed
@@ -247,7 +252,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.17.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.18.0...HEAD
+[2.18.0]: https://github.com/openkakutou/engine/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/openkakutou/engine/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/openkakutou/engine/compare/v2.15.0...v2.16.0
 [2.15.0]: https://github.com/openkakutou/engine/compare/v2.14.0...v2.15.0

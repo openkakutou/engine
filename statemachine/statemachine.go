@@ -507,9 +507,17 @@ func applyPowerAdd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Contex
 	return ctx, nil
 }
 
+// playSndValue is a PlaySnd "value" parameter split once: its sound-file
+// prefix (0, 'f', 's' or 'm', lower-cased) and its two "group,sample"
+// half-expressions with the prefix removed.
+type playSndValue struct {
+	prefix byte
+	halves [2]string
+}
+
 // playSndValueCache memoizes splitting a PlaySnd controller's raw "value"
-// parameter ("group,sample") into its two half-expressions, keyed by the
-// raw string itself -- the same per-tick reparse-avoidance convention
+// parameter into its prefix and two half-expressions, keyed by the raw
+// string itself -- the same per-tick reparse-avoidance convention
 // evaluator.Evaluate's own parseCache and zssexec's bodyCache already
 // follow (see their doc comments): a controller's raw parameter text is
 // loaded once per character and never changes for the life of a match, so
@@ -518,44 +526,95 @@ func applyPowerAdd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Contex
 // malformed value (missing comma) is deliberately not cached -- see
 // splitPlaySndValue. Safe as a plain, unsynchronized map for the same
 // single-threaded, no-goroutines reason those caches are.
-var playSndValueCache = make(map[string][2]string)
+var playSndValueCache = make(map[string]playSndValue)
 
-// SplitPlaySndValue is splitPlaySndValue for callers outside the package
-// (the conformance harness inspects each half).
-func SplitPlaySndValue(raw string) ([2]string, error) { return splitPlaySndValue(raw) }
+// SplitPlaySndValue is splitPlaySndValue's two half-expressions for callers
+// outside the package (the conformance harness inspects each half).
+func SplitPlaySndValue(raw string) ([2]string, error) {
+	value, err := splitPlaySndValue(raw)
+	return value.halves, err
+}
 
-// splitPlaySndValue splits raw into its two "group,sample" half-expressions
-// (trimmed of surrounding whitespace), reusing playSndValueCache on repeat
-// calls with the same raw string. Returns a descriptive error, never
-// cached, when raw has no comma to split on.
-func splitPlaySndValue(raw string) ([2]string, error) {
-	if parts, ok := playSndValueCache[raw]; ok {
-		return parts, nil
+// splitPlaySndValue removes raw's sound-file prefix (see playSndPrefix) and
+// splits the rest into its two "group,sample" half-expressions (trimmed of
+// surrounding whitespace), reusing playSndValueCache on repeat calls with
+// the same raw string. Returns a descriptive error, never cached, when raw
+// has no comma to split on.
+func splitPlaySndValue(raw string) (playSndValue, error) {
+	if value, ok := playSndValueCache[raw]; ok {
+		return value, nil
 	}
-	idx := strings.IndexByte(raw, ',')
+	prefix, rest := playSndPrefix(strings.TrimSpace(raw))
+	idx := strings.IndexByte(rest, ',')
 	if idx < 0 {
-		return [2]string{}, fmt.Errorf(`PlaySnd value %q must be "group,sample"`, raw)
+		return playSndValue{}, fmt.Errorf(`PlaySnd value %q must be "group,sample"`, raw)
 	}
-	parts := [2]string{strings.TrimSpace(raw[:idx]), strings.TrimSpace(raw[idx+1:])}
-	playSndValueCache[raw] = parts
-	return parts, nil
+	value := playSndValue{prefix: prefix, halves: [2]string{strings.TrimSpace(rest[:idx]), strings.TrimSpace(rest[idx+1:])}}
+	playSndValueCache[raw] = value
+	return value, nil
+}
+
+// playSndPrefix is Ikemen GO's CharCompiler.getDataPrefix (src/compiler.go:
+// 6425-6476, commit 54d4148a, called with ffxDefault false by playSnd,
+// src/compiler_functions.go:363): a value longer than one character that
+// starts with F, S or M (any case) loses that letter when the letters right
+// after it are none ("S5", "S $bank") or a known trigger ("Fvar(0)"), so
+// "StateNo" stays an expression. Returns the lower-cased prefix, or 0, and
+// the rest of value.
+//
+// shortcut: Ikemen GO also matches the prefixes of the extra fightfx files
+// a fight.def or a character declares (sys.ffx); the engine loads none, so
+// only F, S and M are recognized.
+func playSndPrefix(value string) (byte, string) {
+	if len(value) < 2 {
+		return 0, value
+	}
+	prefix := value[0] | 0x20 // ASCII lower case
+	if prefix != 'f' && prefix != 's' && prefix != 'm' {
+		return 0, value
+	}
+	rest := value[1:]
+	end := 0
+	for end < len(rest) && isASCIILetter(rest[end]) {
+		end++
+	}
+	if end > 0 {
+		token := strings.ToLower(rest[:end])
+		if !evaluator.IsKnownTrigger(token, false) && !evaluator.IsKnownTrigger(token, true) {
+			return 0, value
+		}
+	}
+	return prefix, rest
+}
+
+func isASCIILetter(b byte) bool {
+	lower := b | 0x20
+	return lower >= 'a' && lower <= 'z'
 }
 
 // applyPlaySnd applies a PlaySnd controller's effect: its "value" parameter
 // ("group,sample", each half a MUGEN trigger expression, not necessarily a
-// literal) is split and evaluated against ctx, and the resolved
-// evaluator.SoundEvent is appended to ctx.Sounds -- engine only records
-// which sample was triggered; it never decodes or plays the audio itself
-// (see .vibe/decisions/017).
+// literal, optionally prefixed by F, S or M -- see playSndPrefix) is split
+// and evaluated against ctx, and the resolved evaluator.SoundEvent is
+// appended to ctx.Sounds -- engine only records which sample was triggered;
+// it never decodes or plays the audio itself (see .vibe/decisions/017).
+//
+// Of the parameters Ikemen GO's playSnd.Run reads (src/bytecode.go:
+// 5671-5717), the event carries channel and lowpriority, which decide
+// whether the sound stops the one playing on its channel. Ignored for now:
+// redirectid, pan, abspan, volume, volumescale, freqmul, loop, priority,
+// loopstart, loopend, startposition, loopcount, stopongethit,
+// stoponchangestate.
 func applyPlaySnd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
 	raw, ok := ctrl.Parameters["value"]
 	if !ok {
 		return evaluator.Context{}, fmt.Errorf(`PlaySnd is missing its required "value" parameter`)
 	}
-	parts, err := splitPlaySndValue(raw)
+	value, err := splitPlaySndValue(raw)
 	if err != nil {
 		return evaluator.Context{}, err
 	}
+	parts := value.halves
 
 	groupVal, err := evaluator.EvaluateMut(parts[0], &ctx)
 	if err != nil {
@@ -565,7 +624,27 @@ func applyPlaySnd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context
 	if err != nil {
 		return evaluator.Context{}, fmt.Errorf("PlaySnd value sample %q: %w", parts[1], err)
 	}
+	event := evaluator.SoundEvent{Group: groupVal.Int(), Sample: sampleVal.Int(), Common: value.prefix == 'f', Channel: -1}
+	if expr, ok := ctrl.Parameters["channel"]; ok {
+		channel, err := evaluator.EvaluateMut(expr, &ctx)
+		if err != nil {
+			return evaluator.Context{}, fmt.Errorf("PlaySnd channel %q: %w", expr, err)
+		}
+		event.Channel = channel.Int()
+	}
+	if expr, ok := ctrl.Parameters["lowpriority"]; ok {
+		lowPriority, err := evaluator.EvaluateMut(expr, &ctx)
+		if err != nil {
+			return evaluator.Context{}, fmt.Errorf("PlaySnd lowpriority %q: %w", expr, err)
+		}
+		event.LowPriority = lowPriority.Bool()
+	}
+	// The M prefix reads sys.ffx["m"] (Ikemen GO src/char.go:6660), which
+	// nothing sets at commit 54d4148a: no sound plays, so none is recorded.
+	if value.prefix == 'm' {
+		return ctx, nil
+	}
 
-	ctx.Sounds = append(ctx.Sounds, evaluator.SoundEvent{Group: groupVal.Int(), Sample: sampleVal.Int()})
+	ctx.Sounds = append(ctx.Sounds, event)
 	return ctx, nil
 }

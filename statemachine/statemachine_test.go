@@ -453,7 +453,7 @@ func TestStep_PlaySndController_RecordsGroupAndSampleEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Step returned unexpected error: %v", err)
 	}
-	want := []evaluator.SoundEvent{{Group: 1, Sample: 3}}
+	want := []evaluator.SoundEvent{{Group: 1, Sample: 3, Channel: -1}}
 	if !soundEventsEqual(result.Sounds, want) {
 		t.Errorf("Sounds = %v, want %v", result.Sounds, want)
 	}
@@ -478,7 +478,7 @@ func TestStep_PlaySndController_SupportsExpressionValues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Step returned unexpected error: %v", err)
 	}
-	want := []evaluator.SoundEvent{{Group: 2, Sample: 3}}
+	want := []evaluator.SoundEvent{{Group: 2, Sample: 3, Channel: -1}}
 	if !soundEventsEqual(result.Sounds, want) {
 		t.Errorf("Sounds = %v, want %v (value halves must be evaluated, not treated as literals)", result.Sounds, want)
 	}
@@ -500,7 +500,7 @@ func TestStep_MultiplePlaySndControllers_RecordAllEventsInDeclaredOrder(t *testi
 	if err != nil {
 		t.Fatalf("Step returned unexpected error: %v", err)
 	}
-	want := []evaluator.SoundEvent{{Group: 1, Sample: 0}, {Group: 2, Sample: 5}}
+	want := []evaluator.SoundEvent{{Group: 1, Sample: 0, Channel: -1}, {Group: 2, Sample: 5, Channel: -1}}
 	if !soundEventsEqual(result.Sounds, want) {
 		t.Errorf("Sounds = %v, want %v in declared order", result.Sounds, want)
 	}
@@ -1023,5 +1023,79 @@ func TestStepStateDuringHitPauseWith_FlaggedChangeStateToAStateKnownOnlyToExists
 	}
 	if got.Context.StateNo != 700 {
 		t.Errorf("StateNo = %d, want 700", got.Context.StateNo)
+	}
+}
+
+// Ikemen GO (commit 54d4148a) strips an F, S or M prefix off PlaySnd's value
+// when the letters right after it are empty or a known trigger
+// (CharCompiler.getDataPrefix, src/compiler.go:6425-6476, called with
+// ffxDefault false by playSnd, src/compiler_functions.go:363), then compiles
+// the rest as the group and sample expressions. Char.playSound reads "" and
+// "s" from the character's own sounds and "f" from fight.def's common.snd
+// (src/char.go:6653-6663, src/fightscreen.go:4978 and 5401).
+func TestStep_PlaySndController_PrefixSelectsTheSoundFile(t *testing.T) {
+	cases := []struct {
+		value string
+		want  evaluator.SoundEvent
+	}{
+		{"5, 0", evaluator.SoundEvent{Group: 5, Sample: 0, Channel: -1}},
+		{"S5, 0", evaluator.SoundEvent{Group: 5, Sample: 0, Channel: -1}},
+		{"s 5,1", evaluator.SoundEvent{Group: 5, Sample: 1, Channel: -1}},
+		{"F5, 2", evaluator.SoundEvent{Group: 5, Sample: 2, Common: true, Channel: -1}},
+		{"f 5 , 3", evaluator.SoundEvent{Group: 5, Sample: 3, Common: true, Channel: -1}},
+		{"F var(0)+1, 2", evaluator.SoundEvent{Group: 8, Sample: 2, Common: true, Channel: -1}},
+		// "var" is a known trigger, so getDataPrefix strips the F here too.
+		{"Fvar(0), 4", evaluator.SoundEvent{Group: 7, Sample: 4, Common: true, Channel: -1}},
+		// "tateNo" is no trigger: StateNo is an expression, not an S prefix.
+		{"StateNo, 1", evaluator.SoundEvent{Group: 0, Sample: 1, Channel: -1}},
+	}
+	for _, tc := range cases {
+		states := map[int]cns.StateDef{0: {Number: 0, Controllers: []cns.Controller{playSndController("", tc.value)}}}
+		ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+		ctx.Vars[0] = 7
+		result, err := Step(ctx, states)
+		if err != nil {
+			t.Errorf("value %q: Step returned unexpected error: %v", tc.value, err)
+			continue
+		}
+		if want := []evaluator.SoundEvent{tc.want}; !soundEventsEqual(result.Sounds, want) {
+			t.Errorf("value %q: Sounds = %v, want %v", tc.value, result.Sounds, want)
+		}
+	}
+}
+
+// The M prefix reads sys.ffx["m"] (src/char.go:6660), which nothing sets at
+// commit 54d4148a: Ikemen GO plays no sound, so no event is recorded.
+func TestStep_PlaySndController_MPrefix_RecordsNoEvent(t *testing.T) {
+	states := map[int]cns.StateDef{0: {Number: 0, Controllers: []cns.Controller{playSndController("", "M5, 0")}}}
+	result, err := Step(evaluator.Context{FighterState: match.FighterState{StateNo: 0}}, states)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	if len(result.Sounds) != 0 {
+		t.Errorf("Sounds = %v, want none", result.Sounds)
+	}
+}
+
+// playSnd.Run (src/bytecode.go:5679-5685) reads channel and lowpriority;
+// the default channel is -1 (newPlaySndParams, src/sound.go:1468-1476).
+// The other parameters are accepted without error.
+func TestStep_PlaySndController_RecordsChannelAndLowPriority(t *testing.T) {
+	ctrl := playSndController("", "S0, 0")
+	ctrl.Parameters["channel"] = "var(0) - 5"
+	ctrl.Parameters["lowpriority"] = "1"
+	ctrl.Parameters["volume"] = "-40"
+	ctrl.Parameters["freqmul"] = "1.5"
+	ctrl.Parameters["loop"] = "0"
+	states := map[int]cns.StateDef{0: {Number: 0, Controllers: []cns.Controller{ctrl}}}
+	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+	ctx.Vars[0] = 7
+	result, err := Step(ctx, states)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	want := []evaluator.SoundEvent{{Group: 0, Sample: 0, Channel: 2, LowPriority: true}}
+	if !soundEventsEqual(result.Sounds, want) {
+		t.Errorf("Sounds = %v, want %v", result.Sounds, want)
 	}
 }

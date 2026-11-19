@@ -52,6 +52,19 @@ with an error naming the block. See
 undefined or the argument or return count is wrong (Ikemen GO logs them and
 runs on). It is a per-tick log like `sounds`: a skipped response loses it.
 
+### Sound events
+
+Each entry of `tick`'s `sounds` (one array per side) is one `PlaySnd`:
+`{ group, sample, common, channel, lowPriority }`. `common` is `true` when
+the value had the `F` prefix (`F5, 0`): the sample is read from the common
+sound file (Ikemen GO's fight.def `common.snd`), not from the character's
+own `.snd`; no prefix and the `S` prefix both read the character's sounds.
+`channel` is the `channel` parameter, `-1` when absent: a sound on a channel
+`>= 0` stops the fighter's sound still playing on that channel, unless
+`lowPriority` is set, in which case the new sound is dropped while the
+channel is busy (Ikemen GO `SoundChannels.Request`). An `M` prefixed value
+plays nothing, as in Ikemen GO at commit `54d4148a`, and records no event.
+
 ### Example
 
 ```js

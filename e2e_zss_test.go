@@ -9,6 +9,7 @@ import (
 
 	"github.com/openkakutou/character"
 	"github.com/openkakutou/character/zss"
+	"github.com/openkakutou/engine/evaluator"
 	"github.com/openkakutou/engine/input"
 	"github.com/openkakutou/engine/match"
 )
@@ -52,6 +53,7 @@ type e2eMatch struct {
 	state    match.MatchState
 	runtimes [2]FighterRuntime
 	tick     int
+	sounds   [2][]evaluator.SoundEvent // the last tick's sound events
 }
 
 func newE2EMatch(t *testing.T, prog FighterProgram) *e2eMatch {
@@ -87,7 +89,7 @@ func (m *e2eMatch) step(in input.TickInput) error {
 	if err != nil {
 		return fmt.Errorf("tick %d: %w", m.tick, err)
 	}
-	m.state, m.runtimes = result.State, result.Fighters
+	m.state, m.runtimes, m.sounds = result.State, result.Fighters, result.Sounds
 	return nil
 }
 
@@ -220,6 +222,35 @@ func scenarioJump(t *testing.T, prog FighterProgram) error {
 	return fmt.Errorf("never back in state 0 after the jump (StateNo %d, saw jump up: %v, peak Y %v)", stateNo, sawJumpUp, peak)
 }
 
+// scenarioAttackSound: from idle, pressing button for one tick enters the
+// attack state stateNo, and over its first five ticks P1's PlaySnd events
+// are exactly want. A failure names the first mismatch.
+func scenarioAttackSound(t *testing.T, prog FighterProgram, button string, stateNo int, want evaluator.SoundEvent) error {
+	m := newE2EMatch(t, prog)
+	for i := 0; i < 5; i++ {
+		if err := m.step(input.TickInput{}); err != nil {
+			return err
+		}
+	}
+	if err := m.step(input.TickInput{Buttons: map[string]bool{button: true}}); err != nil {
+		return err
+	}
+	if got, _, _ := m.p1(); got != stateNo {
+		return fmt.Errorf("after pressing %s StateNo = %d, want %d", button, got, stateNo)
+	}
+	var heard []evaluator.SoundEvent
+	for i := 0; i < 5; i++ {
+		heard = append(heard, m.sounds[match.SideP1]...)
+		if err := m.step(input.TickInput{}); err != nil {
+			return err
+		}
+	}
+	if len(heard) != 1 || heard[0] != want {
+		return fmt.Errorf("P1 sounds over state %d's first ticks = %v, want exactly [%v]", stateNo, heard, want)
+	}
+	return nil
+}
+
 // What stops the scenarios today (checked by running, after item 058 gave
 // the engine's built-in walk, jump and crouch entries and press semantics to
 // commands): both characters stand idle, and kfm_zss walks, as Ikemen GO
@@ -227,13 +258,23 @@ func scenarioJump(t *testing.T, prog FighterProgram) error {
 // animation: common1.cns's walk ChangeAnim needs "trigger1 OR trigger2"
 // (common1.cns:128-133), and controller triggers are all ANDed (decision
 // 003). Both jumps stop at the landing (landingCause).
-var cnsWalkCause = knownCause{"none yet: OR between trigger groups (decision 003; propose a character + engine item)", "walk Anim = 0, want 20"}
+var cnsWalkCause = knownCause{"061 (OR between trigger groups, needs character#080)", "walk Anim = 0, want 20"}
 
 // landingCause stops the jump: the engine does not change a fighter in
 // physics type A to state 52 when it lands (Ikemen GO char.go:12584-12590), so
 // a jump never returns to state 0. No backlog item covers it yet; item 044
 // (physics order) is the closest home.
 var landingCause = knownCause{"none yet: landing changes to state 52 (propose adding it to 044)", "never back in state 0"}
+
+// zssHeaderCommentCause: kfm.zss's state 200 header spans lines whose "#"
+// comments hold ";" and "]" (kfm.zss:212-222); character's zss.Parse ends
+// the header inside a comment, so state 200's block runs state 210's
+// controllers (its CSnd(0, 4, 1), kfm.zss:293). No backlog item covers it.
+var zssHeaderCommentCause = knownCause{"character#081 (zss.Parse ends a multi-line Statedef header inside a # comment)", "= [{0 4 false 1 false}]"}
+
+// orGroupsAttackCause: kfm.cmd's stand light punch needs "trigger1 OR
+// trigger2" (kfm.cmd:630-637), so with triggers ANDed it never fires.
+var orGroupsAttackCause = knownCause{"061 (OR between trigger groups)", "after pressing x StateNo = 0, want 200"}
 
 const (
 	kfmZssDef = "chars/kfm_zss/kfm_zss.def"
@@ -274,6 +315,36 @@ func TestE2E_KfmCns_HoldForward_WalksAtTheCharactersWalkSpeed(t *testing.T) {
 func TestE2E_KfmCns_PressUp_JumpsAndLandsInStateZero(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmCnsDef)
 	expectFailure(t, []knownCause{landingCause}, func() error { return scenarioJump(t, prog) })
+}
+
+// Stand light kick, state 230 (command.zss:253-259): at Time = 2 it calls
+// CSnd(0, 0, 1) (kfm.zss:339-341), i.e. playSnd{value: S $bank, $sound;
+// channel: $c} (kfm.zss:28-29). S reads the character's own sounds (Ikemen
+// GO src/char.go:6655-6657), so the event is not common, on channel 1.
+func TestE2E_KfmZss_PressA_PlaysTheLightKickSoundFromItsOwnFile(t *testing.T) {
+	prog := loadReferenceProgram(t, kfmZssDef)
+	if err := scenarioAttackSound(t, prog, "a", 230, evaluator.SoundEvent{Group: 0, Sample: 0, Channel: 1}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Stand light punch, state 200 (command.zss:238-243): at Time = 1 it calls
+// CSnd(0, 0, 1) (kfm.zss:253-258).
+func TestE2E_KfmZss_PressX_PlaysTheLightPunchSoundFromItsOwnFile(t *testing.T) {
+	prog := loadReferenceProgram(t, kfmZssDef)
+	expectFailure(t, []knownCause{zssHeaderCommentCause}, func() error {
+		return scenarioAttackSound(t, prog, "x", 200, evaluator.SoundEvent{Group: 0, Sample: 0, Channel: 1})
+	})
+}
+
+// Stand light punch, state 200 (kfm.cmd:630-637): PlaySnd value = 0, 0 at
+// Time = 1 (kfm.cns:295-297), no prefix and no channel (-1, Ikemen GO
+// newPlaySndParams, src/sound.go:1471).
+func TestE2E_KfmCns_PressX_PlaysTheLightPunchSoundFromItsOwnFile(t *testing.T) {
+	prog := loadReferenceProgram(t, kfmCnsDef)
+	expectFailure(t, []knownCause{orGroupsAttackCause}, func() error {
+		return scenarioAttackSound(t, prog, "x", 200, evaluator.SoundEvent{Group: 0, Sample: 0, Channel: -1})
+	})
 }
 
 func TestClassifyFailure_PassingScenarioUnknownAndKnownCause_AreToldApart(t *testing.T) {

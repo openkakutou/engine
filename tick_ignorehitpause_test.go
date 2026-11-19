@@ -257,7 +257,7 @@ func TestTick_ChangeStateWithIgnoreHitPause_ChangesStateWhileFrozen(t *testing.T
 func TestTick_IgnoreHitPausePlaySnd_IsReturnedWhileFrozen(t *testing.T) {
 	states := state0(withFlag(ctrl("PlaySnd", "value", "2, 4"), "1"))
 	result := tickFrozenP1(t, attackerPause, states)
-	want := []evaluator.SoundEvent{{Group: 2, Sample: 4}}
+	want := []evaluator.SoundEvent{{Group: 2, Sample: 4, Channel: -1}}
 	if !reflect.DeepEqual(result.Sounds[match.SideP1], want) {
 		t.Errorf("Sounds = %v, want %v", result.Sounds[match.SideP1], want)
 	}

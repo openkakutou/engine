@@ -342,8 +342,8 @@ func TestStepState_PlaySnd_ReturnsTheSoundAndLeavesNoneInTheContext(t *testing.T
 	if err != nil {
 		t.Fatalf("StepState returned unexpected error: %v", err)
 	}
-	if len(result.Sounds) != 1 || result.Sounds[0] != (evaluator.SoundEvent{Group: 5, Sample: 2}) {
-		t.Errorf("Sounds = %v, want one {5 2}", result.Sounds)
+	if len(result.Sounds) != 1 || result.Sounds[0] != (evaluator.SoundEvent{Group: 5, Sample: 2, Channel: -1}) {
+		t.Errorf("Sounds = %v, want one {5 2} on the default channel -1", result.Sounds)
 	}
 	if result.Context.Sounds != nil {
 		t.Errorf("Context.Sounds = %v, want nil (the log is per call)", result.Context.Sounds)

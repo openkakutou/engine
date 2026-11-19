@@ -237,4 +237,18 @@ type SoundEvent struct {
 	// Sample is the sound sample index within Group the same "value"
 	// parameter resolved to.
 	Sample int `json:"sample"`
+	// Common is true when the sample is read from the common sound file
+	// (fight.def's common.snd: the F prefix, Ikemen GO src/char.go:6653-6663
+	// and src/fightscreen.go:4978), false when it is read from the
+	// character's own sounds (no prefix or the S prefix).
+	Common bool `json:"common"`
+	// Channel is PlaySnd's "channel" parameter, -1 when absent (Ikemen GO
+	// newPlaySndParams, src/sound.go:1471). A sound on a channel >= 0 stops
+	// the fighter's sound still playing on the same channel (SoundChannels.
+	// Request, src/sound.go:1247-1263) unless LowPriority is set.
+	Channel int `json:"channel"`
+	// LowPriority is PlaySnd's "lowpriority" parameter: when set, the sound
+	// does not play if the fighter's channel is still busy instead of
+	// stopping it (src/sound.go:1253-1256).
+	LowPriority bool `json:"lowPriority"`
 }
