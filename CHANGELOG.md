@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.16.0] - 2026-11-19
+
+### Added
+- Interval comparisons in triggers and expressions: `Anim = [5051, 5059]`, `StateNo != [3000, 3050)`, with open or closed bounds, int or float, and after `AnimElem = n,`, as in Ikemen GO.
+- The operators `**` (power), `&`, `|`, `^`, `~` (bitwise) and `^^` (logical exclusive or), with Ikemen GO's precedence.
+- `Cond(condition, a, b)`, which evaluates only the branch it picks.
+- The conformance command takes `-common <folder>` to find a character's common state file.
+
+### Fixed
+- `=` and `!=` now bind more loosely than `<`, `>`, `<=` and `>=`, as in Ikemen GO.
+- Dividing two integers gives a truncated integer, and `%` works on integers, as in Ikemen GO.
+- Kung Fu Man (`.cns` and `.zss`) now stands idle through the end-to-end scenarios instead of stopping on an interval or `Cond`.
+
 ## [2.15.0] - 2026-11-19
 
 ### Added
@@ -224,7 +237,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.15.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.16.0...HEAD
+[2.16.0]: https://github.com/openkakutou/engine/compare/v2.15.0...v2.16.0
 [2.15.0]: https://github.com/openkakutou/engine/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/openkakutou/engine/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/openkakutou/engine/compare/v2.12.0...v2.13.0

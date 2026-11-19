@@ -40,14 +40,15 @@ type callNode struct {
 }
 
 // unaryNode is a prefix operator applied to a single operand: "!" (logical
-// not) or "-" (numeric negation).
+// not), "-" (numeric negation) or "~" (bitwise not).
 type unaryNode struct {
 	op      string
 	operand node
 }
 
 // binaryNode is an infix operator applied to two operands: comparison
-// (=, !=, <, >, <=, >=), logical (&&, ||), or arithmetic (+, -, *, /, %).
+// (=, !=, <, >, <=, >=), logical (&&, ||, ^^), bitwise (&, |, ^), or
+// arithmetic (+, -, *, /, %, **).
 type binaryNode struct {
 	op          string
 	left, right node
@@ -81,13 +82,30 @@ type assignNode struct {
 // animElemNode is "AnimElem = n" or "AnimElem = n, op t": the AnimElemTime(n)
 // comparison Ikemen GO compiles it to. op is "=" when the source has no
 // comparison after the comma, and value is t, 0 when there is no comma.
+//
+// With interval set it is "AnimElem = n, = [lo, hi]" (or "!=", not set):
+// AnimElemTime(n) checked against integer bounds, op and value unused.
 type animElemNode struct {
 	elem  int
 	op    string
 	value node
+
+	interval       bool
+	not            bool
+	lo, hi         int
+	loOpen, hiOpen bool
+}
+
+// intervalNode is "value = [lo, hi]" or "value != [lo, hi]", each bound
+// included with "[" "]" and excluded with "(" ")"; not is set for !=.
+type intervalNode struct {
+	value, lo, hi  node
+	loOpen, hiOpen bool
+	not            bool
 }
 
 func (animElemNode) isNode()   {}
+func (intervalNode) isNode()   {}
 func (localNode) isNode()      {}
 func (assignNode) isNode()     {}
 func (componentNode) isNode()  {}

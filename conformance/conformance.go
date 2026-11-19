@@ -43,6 +43,10 @@ const (
 type Options struct {
 	// Ticks is the number of ticks to simulate per character.
 	Ticks int
+	// SearchDirs are the extra folders a character's state files are looked
+	// for in, after its .def's folder (engine.LoadFighterProgram), such as
+	// the game's data/ folder holding the common state file.
+	SearchDirs []string
 }
 
 // Run runs every character found under paths, each a character .def file or
@@ -58,7 +62,7 @@ func Run(paths []string, opts Options) (Report, error) {
 			return Report{}, err
 		}
 		for _, f := range found {
-			c := runCharacter(f.full, f.display, opts.Ticks)
+			c := runCharacter(f.full, f.display, opts)
 			report.Characters = append(report.Characters, c)
 			unsupported = append(unsupported, c.UnsupportedControllers)
 			unknown = append(unknown, c.UnknownTriggers)
@@ -106,7 +110,7 @@ func discover(arg string) ([]defFile, error) {
 	return found, nil
 }
 
-func runCharacter(defPath, display string, ticks int) CharacterReport {
+func runCharacter(defPath, display string, opts Options) CharacterReport {
 	report := CharacterReport{
 		Path:                   display,
 		UnsupportedControllers: []Count{},
@@ -132,7 +136,7 @@ func runCharacter(defPath, display string, ticks int) CharacterReport {
 			}
 		}
 	}
-	prog, _, err := engine.LoadFighterProgram(ch, defPath)
+	prog, _, err := engine.LoadFighterProgram(ch, defPath, opts.SearchDirs...)
 	if err != nil {
 		report.Status = StatusLoadError
 		report.Error = err.Error()
@@ -143,7 +147,7 @@ func runCharacter(defPath, display string, ticks int) CharacterReport {
 		report.Error = "no state 0 in the character's state files"
 		return report
 	}
-	simulate(&report, ch, prog, ticks)
+	simulate(&report, ch, prog, opts.Ticks)
 	return report
 }
 

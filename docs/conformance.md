@@ -8,13 +8,13 @@ tracked over time and picks the next controllers to build (backlog item 030).
 ## Running it
 
 ```
-go run ./cmd/conformance [-ticks N] [-json] <path>...
+go run ./cmd/conformance [-ticks N] [-json] [-common DIR] <path>...
 ```
 
 Each path is a character `.def` file or a folder searched recursively for
 `.def` files. A `.def` that is not a character (no `[Files]` section, e.g. a
 storyboard) is reported as `skipped`. `-ticks` defaults to 3600 per character;
-`-json` writes JSON instead of text. A path that cannot be read stops the
+`-json` writes JSON instead of text; `-common` adds a folder searched for state files after the `.def` folder (the game's `data/`, where `stcommon = common1.cns` lives). A path that cannot be read stops the
 command with exit code 1; any other per-character failure is recorded in the
 report and the run goes on.
 
@@ -33,7 +33,7 @@ files.
    `stcommon`; the first definition of a state number wins (a character's own
    states override its common file's). `Character.StateDefs` is a last
    fallback. Files are searched in the `.def` folder, then in the extra directories the
-   caller gives (the harness gives none). Missing files (typically
+   caller gives (the harness gives the `-common` folder, none by default). Missing files (typically
    `stcommon = common1.cns`, which lives in the game's `data/`) are skipped
    and returned to the caller. `.zss` entries are merged into the same
    table in the same order, first definition winning whatever the format
@@ -133,3 +133,5 @@ Load failures (158): no state 0 (81), `.air` frame line with fewer than 5 fields
 Backlog items opened from these figures: engine 037 (special states), 038 (command matcher crash), 039 (`VarSet` form), 040 (`PlaySnd` common sounds), 041 (expression grammar); character 074 (`[Statedef]` header text), 075 (`.air` tolerance), 076 (`[State]` before `[Statedef]`), 077 (every state file in `Load`, `stcommon` fallback). Missing files and the truncated sprite are content defects, not tracked.
 
 **Update, movement and state controllers (item 027).** `VelSet`, `VelAdd`, `VelMul`, `PosSet`, `PosAdd`, `ChangeAnim`, `CtrlSet`, `StateTypeSet`, `Turn`, `LifeAdd`, `LifeSet`, `Gravity` and `Null` are supported, so they no longer appear as unsupported types, and their `x`, `y`, `elem`, `elemtime` and `kill` parameters are checked for unknown triggers like `value` and `v`. A type the engine skips is also reported live, by name, in each tick's result (`unsupported`), see `.vibe/decisions/020`.
+
+**Update, expression grammar (item 041).** The evaluator now accepts intervals, `**`, the bitwise operators, `^^` and `Cond`, after Ikemen GO's expression compiler. On the reference fixtures with `-common testdata/reference`: `kfm.def` went from 36 controllers with an unparsable trigger to 0; `kfm_zss.def` went from a tick error at tick 0 (an interval in `Function Combo`) to running its 3600 ticks. Every trigger of `common1.cns`, `kfm.cns`, `kfm.cmd` and every expression of the reference `.zss` files now parses (tests `TestParse_ReferenceStateFileTriggers_AllParse`, `TestCompile_ReferenceScriptExpressions_AllParse`). Trigger names they use that the engine still does not know: `BackEdgeBodyDist`, `BackEdgeDist`, `FrontEdgeBodyDist`, `GameTime`, `InGuardDist`, `MatchOver`, `MugenVersion()`, `Map()`, `Name`, `RoundsExisted`, `StateTime`, `TeamSide`, and the names `aiw` and `major` read inside calls. The collection-wide figure (349,244) has not been re-measured.

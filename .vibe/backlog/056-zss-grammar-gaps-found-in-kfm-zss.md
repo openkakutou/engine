@@ -18,3 +18,4 @@ Three forms in Ikemen GO's `kfm_zss` still fail to parse:
 
 ## Notes
 Found by item 054 (2026-11-18). See decision 024.
+Item 041 (2026-11-19) confirmed both parse failures: AI.zss `let nojug = p2,anim = 5120 || …` is cut at the redirection commas by the statement splitter, and kfm.zss's `reversalDef` has an empty `reversal.attr`.

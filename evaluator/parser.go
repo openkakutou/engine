@@ -19,8 +19,9 @@ type Expression struct {
 }
 
 // Parse parses a raw MUGEN CNS expression string into an Expression,
-// honoring MUGEN's operator precedence (lowest to highest: ||, &&,
-// comparisons, +/-, */÷/%, unary !/-). It returns a descriptive error —
+// honoring Ikemen GO's operator precedence (lowest to highest: ||, ^^, &&,
+// |, ^, &, = and != (with intervals), < > <= >=, + -, * / %, **, unary
+// ! - ~). It returns a descriptive error —
 // never a panic — for an empty, unbalanced, or otherwise malformed
 // expression.
 func Parse(expr string) (*Expression, error) {
@@ -41,7 +42,7 @@ func parse(expr string, shortCircuit bool) (*Expression, error) {
 		return nil, err
 	}
 
-	p := &parser{toks: toks, shortCircuit: shortCircuit}
+	p := &parser{toks: toks, src: expr, shortCircuit: shortCircuit}
 	if p.peek().kind == tokEOF {
 		return nil, fmt.Errorf("evaluator: empty expression")
 	}
@@ -60,6 +61,8 @@ func parse(expr string, shortCircuit bool) (*Expression, error) {
 type parser struct {
 	toks []token
 	pos  int
+	// src is the expression text, named in interval errors.
+	src string
 	// shortCircuit marks the && and || nodes it builds as short-circuiting
 	// (see binaryNode.shortCircuit).
 	shortCircuit bool
@@ -92,77 +95,87 @@ func (p *parser) peekIsOp(ops ...string) bool {
 }
 
 func (p *parser) parseOr() (node, error) {
-	left, err := p.parseAnd()
-	if err != nil {
-		return nil, err
-	}
-	for p.peekIsOp("||") {
-		op := p.next().text
-		right, err := p.parseAnd()
-		if err != nil {
-			return nil, err
-		}
-		left = binaryNode{op: op, left: left, right: right, shortCircuit: p.shortCircuit}
-	}
-	return left, nil
+	return p.parseBinaryLevel(p.parseLogicalXor, "||")
+}
+
+func (p *parser) parseLogicalXor() (node, error) {
+	return p.parseBinaryLevel(p.parseAnd, "^^")
 }
 
 func (p *parser) parseAnd() (node, error) {
-	left, err := p.parseComparison()
-	if err != nil {
-		return nil, err
-	}
-	for p.peekIsOp("&&") {
-		op := p.next().text
-		right, err := p.parseComparison()
-		if err != nil {
-			return nil, err
-		}
-		left = binaryNode{op: op, left: left, right: right, shortCircuit: p.shortCircuit}
-	}
-	return left, nil
+	return p.parseBinaryLevel(p.parseBitOr, "&&")
 }
 
-func (p *parser) parseComparison() (node, error) {
-	left, err := p.parseAdditive()
-	if err != nil {
-		return nil, err
-	}
-	for p.peekIsOp("=", "!=", "<", ">", "<=", ">=") {
-		op := p.next().text
-		right, err := p.parseAdditive()
-		if err != nil {
-			return nil, err
-		}
-		left = binaryNode{op: op, left: left, right: right}
-	}
-	return left, nil
+func (p *parser) parseBitOr() (node, error) {
+	return p.parseBinaryLevel(p.parseBitXor, "|")
+}
+
+func (p *parser) parseBitXor() (node, error) {
+	return p.parseBinaryLevel(p.parseBitAnd, "^")
+}
+
+func (p *parser) parseBitAnd() (node, error) {
+	return p.parseBinaryLevel(p.parseEquality, "&")
+}
+
+func (p *parser) parseRelational() (node, error) {
+	return p.parseBinaryLevel(p.parseAdditive, "<", ">", "<=", ">=")
 }
 
 func (p *parser) parseAdditive() (node, error) {
-	left, err := p.parseMultiplicative()
-	if err != nil {
-		return nil, err
-	}
-	for p.peekIsOp("+", "-") {
-		op := p.next().text
-		right, err := p.parseMultiplicative()
-		if err != nil {
-			return nil, err
-		}
-		left = binaryNode{op: op, left: left, right: right}
-	}
-	return left, nil
+	return p.parseBinaryLevel(p.parseMultiplicative, "+", "-")
 }
 
 func (p *parser) parseMultiplicative() (node, error) {
-	left, err := p.parseUnary()
+	return p.parseBinaryLevel(p.parsePow, "*", "/", "%")
+}
+
+// parsePow is left-associative, as Ikemen GO's expPow loops
+// (compiler.go:5739-5769): 2 ** 3 ** 2 is (2 ** 3) ** 2.
+func (p *parser) parsePow() (node, error) {
+	return p.parseBinaryLevel(p.parseUnary, "**")
+}
+
+// parseBinaryLevel parses one left-associative level of Ikemen GO's
+// precedence ladder (compiler.go:5739-6127): operands from next, joined by
+// any of ops. Only && and || nodes get the parser's shortCircuit flag.
+func (p *parser) parseBinaryLevel(next func() (node, error), ops ...string) (node, error) {
+	left, err := next()
 	if err != nil {
 		return nil, err
 	}
-	for p.peekIsOp("*", "/", "%") {
+	for p.peekIsOp(ops...) {
 		op := p.next().text
-		right, err := p.parseUnary()
+		right, err := next()
+		if err != nil {
+			return nil, err
+		}
+		shortCircuit := p.shortCircuit && (op == "&&" || op == "||")
+		left = binaryNode{op: op, left: left, right: right, shortCircuit: shortCircuit}
+	}
+	return left, nil
+}
+
+// parseEquality parses = and !=, whose right side may be an interval, as
+// Ikemen GO's expEqne does (compiler.go:5945-5985).
+func (p *parser) parseEquality() (node, error) {
+	left, err := p.parseRelational()
+	if err != nil {
+		return nil, err
+	}
+	for p.peekIsOp("=", "!=") {
+		op := p.next().text
+		if p.peekIsOp("[") || p.peek().kind == tokLParen {
+			interval, ok, err := p.parseInterval(left, op == "!=")
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				left = interval
+				continue
+			}
+		}
+		right, err := p.parseRelational()
 		if err != nil {
 			return nil, err
 		}
@@ -171,8 +184,59 @@ func (p *parser) parseMultiplicative() (node, error) {
 	return left, nil
 }
 
+// parseInterval parses "[lo, hi]", "[lo, hi)", "(lo, hi]" or "(lo, hi)"
+// compared to value, each bound a full expression (Ikemen GO expRange,
+// compiler.go:5855-5943). A "(" with no comma after its first expression is
+// a parenthesized operand instead: ok is false and nothing is consumed.
+func (p *parser) parseInterval(value node, not bool) (node, bool, error) {
+	start := p.pos
+	loOpen := p.next().kind == tokLParen
+	lo, err := p.parseOr()
+	if err != nil {
+		return nil, false, p.intervalError(err.Error())
+	}
+	if p.peek().kind != tokComma {
+		if loOpen {
+			p.pos = start
+			return nil, false, nil
+		}
+		return nil, false, p.intervalError("missing ','")
+	}
+	p.next()
+	hi, err := p.parseOr()
+	if err != nil {
+		return nil, false, p.intervalError(err.Error())
+	}
+	hiOpen, err := p.intervalClose()
+	if err != nil {
+		return nil, false, err
+	}
+	return intervalNode{value: value, lo: lo, hi: hi, loOpen: loOpen, hiOpen: hiOpen, not: not}, true, nil
+}
+
+// intervalClose consumes an interval's closing "]" or ")" and reports
+// whether it excludes the bound.
+func (p *parser) intervalClose() (bool, error) {
+	if p.peek().kind == tokRParen {
+		p.next()
+		return true, nil
+	}
+	if p.peekIsOp("]") {
+		p.next()
+		return false, nil
+	}
+	return false, p.intervalError("missing ']' or ')'")
+}
+
+func (p *parser) intervalError(reason string) error {
+	return fmt.Errorf("evaluator: malformed interval in %q: %s", p.src, reason)
+}
+
+// parseUnary parses the prefix operators of Ikemen GO's expValue (!, - and
+// ~, compiler.go:1765-1823): each applies to the value right after it, so
+// they bind tighter than every binary operator, ** included.
 func (p *parser) parseUnary() (node, error) {
-	if p.peekIsOp("!", "-") {
+	if p.peekIsOp("!", "-", "~") {
 		op := p.next().text
 		operand, err := p.parseUnary()
 		if err != nil {
@@ -278,7 +342,7 @@ func (p *parser) parseIdentifierOrCall(name string) (node, error) {
 	p.next() // consume ':='
 	// The right side is Ikemen GO's expEqne (compiler.go:1331-1340): a
 	// comparison or tighter, not && or ||.
-	value, err := p.parseComparison()
+	value, err := p.parseEquality()
 	if err != nil {
 		return nil, err
 	}
@@ -353,11 +417,54 @@ func (p *parser) parseAnimElem() (node, error) {
 	if p.peekIsOp("=", "!=", "<", ">", "<=", ">=") {
 		op = p.next().text
 	}
+	if (op == "=" || op == "!=") && (p.peekIsOp("[") || p.peek().kind == tokLParen) {
+		return p.parseAnimElemInterval(elem, op == "!=")
+	}
 	value, err := p.parseAdditive()
 	if err != nil {
 		return nil, err
 	}
 	return animElemNode{elem: elem, op: op, value: value}, nil
+}
+
+// parseAnimElemInterval parses the "[lo, hi]" after AnimElem's comma: unlike
+// a general interval, its bounds are integer literals (Ikemen GO intRange,
+// compiler.go:973-1041, via evaluateComparison :1096-1121).
+func (p *parser) parseAnimElemInterval(elem int, not bool) (node, error) {
+	n := animElemNode{elem: elem, interval: true, not: not}
+	n.loOpen = p.next().kind == tokLParen
+	lo, err := p.intervalInt()
+	if err != nil {
+		return nil, err
+	}
+	if p.peek().kind != tokComma {
+		return nil, p.intervalError("missing ','")
+	}
+	p.next()
+	hi, err := p.intervalInt()
+	if err != nil {
+		return nil, err
+	}
+	if n.hiOpen, err = p.intervalClose(); err != nil {
+		return nil, err
+	}
+	n.lo, n.hi = lo, hi
+	return n, nil
+}
+
+// intervalInt reads an integer literal bound, optionally negative.
+func (p *parser) intervalInt() (int, error) {
+	sign := 1
+	if p.peekIsOp("-") {
+		p.next()
+		sign = -1
+	}
+	tok := p.next()
+	v, err := strconv.Atoi(tok.text)
+	if tok.kind != tokNumber || err != nil {
+		return 0, p.intervalError(fmt.Sprintf("expected an integer bound, got %q", tok.text))
+	}
+	return sign * v, nil
 }
 
 // parseHitDefAttr parses what follows the HitDefAttr trigger: "= attr" or

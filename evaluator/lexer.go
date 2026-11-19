@@ -32,10 +32,13 @@ type token struct {
 }
 
 // multiCharOps must be tried before single-character operators so that,
-// e.g., "!=" lexes as one token rather than "!" followed by "=".
-var multiCharOps = []string{"!=", "<=", ">=", "&&", "||", ":="}
+// e.g., "!=" lexes as one token rather than "!" followed by "=" (Ikemen GO's
+// tokenizer, compiler.go:494-600).
+var multiCharOps = []string{"!=", "<=", ">=", "&&", "||", ":=", "**", "^^"}
 
-const singleCharOps = "=<>!+-*/%"
+// singleCharOps also holds the interval brackets "[" and "]"; "(" and ")"
+// have their own token kinds.
+const singleCharOps = "=<>!+-*/%&|^~[]"
 
 // lex turns a raw MUGEN CNS expression string into a flat token stream,
 // terminated by a single tokEOF, or returns a descriptive error for an

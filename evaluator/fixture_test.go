@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/openkakutou/character/cns"
 	"github.com/openkakutou/engine/match"
 )
 
@@ -92,5 +93,41 @@ func TestEval_RealTriggerStringsFromCNSFixture_EvaluateToExpectedValues(t *testi
 	}
 	if evaluated != len(wantTrue) {
 		t.Fatalf("evaluated %d of the %d expected fixture triggers -- fixture extraction likely missed a line", evaluated, len(wantTrue))
+	}
+}
+
+// TestParse_ReferenceStateFileTriggers_AllParse parses every trigger of the
+// reference .cns and .cmd files (MUGEN's common1.cns and Kung Fu Man's), as
+// character/cns hands them to the engine: the grammar must accept them all,
+// as Ikemen GO does.
+func TestParse_ReferenceStateFileTriggers_AllParse(t *testing.T) {
+	for _, path := range []string{
+		"../testdata/reference/common1.cns",
+		"../testdata/reference/chars/kfm/kfm.cns",
+		"../testdata/reference/chars/kfm/kfm.cmd",
+	} {
+		f, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		states, err := cns.Parse(f)
+		f.Close()
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		count := 0
+		for _, def := range states {
+			for _, ctrl := range def.Controllers {
+				for _, trig := range ctrl.Triggers {
+					count++
+					if _, err := Parse(trig); err != nil {
+						t.Errorf("%s, state %d: %v", path, def.Number, err)
+					}
+				}
+			}
+		}
+		if count == 0 {
+			t.Errorf("%s: no trigger found", path)
+		}
 	}
 }

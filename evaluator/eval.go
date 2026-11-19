@@ -1,10 +1,10 @@
 // Package evaluator parses and evaluates MUGEN CNS trigger/parameter
 // expressions — the strings character/cns's Controller deliberately leaves
 // unevaluated (Controller.Triggers []string, Controller.Parameters
-// map[string]string; see that package's decision 011). It supports
-// comparisons (=, !=, <, >, <=, >=), boolean/arithmetic operators (&&, ||,
-// +, -, *, /, %, unary !), and a growing set of built-in trigger names and
-// functions: var(), sysvar(), IfElse(), Time, StateNo, Anim, AnimTime,
+// map[string]string; see that package's decision 011). It supports Ikemen
+// GO's operators (comparisons and intervals, logical, bitwise, arithmetic
+// and **; see Parse), and a growing set of built-in trigger names and
+// functions: var(), sysvar(), IfElse(), Cond(), Time, StateNo, Anim, AnimTime,
 // Command, Ctrl, HitShakeOver, HitOver and GetHitVar(). Later engine items are expected to extend the
 // built-in set incrementally as they need more of MUGEN's trigger
 // vocabulary — this package deliberately does not attempt to implement it
@@ -207,6 +207,10 @@ func collectTriggerNames(n node, names *[]TriggerName, seen map[TriggerName]bool
 		collectTriggerNames(tn.inner, names, seen)
 	case hitDefAttrNode:
 		add(TriggerName{Name: "hitdefattr"})
+	case intervalNode:
+		collectTriggerNames(tn.value, names, seen)
+		collectTriggerNames(tn.lo, names, seen)
+		collectTriggerNames(tn.hi, names, seen)
 	case unaryNode:
 		collectTriggerNames(tn.operand, names, seen)
 	case assignNode:
@@ -293,6 +297,9 @@ func evalNode(n node, ctx *Context) (Value, error) {
 
 	case animElemNode:
 		return evalAnimElem(tn, ctx)
+
+	case intervalNode:
+		return evalInterval(tn, ctx)
 
 	case redirectNode:
 		return evalRedirect(tn, ctx)
@@ -385,6 +392,8 @@ func evalCall(n callNode, ctx *Context) (Value, error) {
 			return then, nil
 		}
 		return otherwise, nil
+	case "cond":
+		return evalCond(n, ctx)
 	default:
 		if v, ok, err := evalFighterCall(n, ctx); ok {
 			return v, err
@@ -575,6 +584,9 @@ func evalUnary(n unaryNode, ctx *Context) (Value, error) {
 			return floatValue(-operand.Number), nil
 		}
 		return intValue(-operand.Number), nil
+	case "~":
+		// bytecode.go:1684 bwnot: on the value as an int32.
+		return intValue(float64(^toInt32(operand))), nil
 	default:
 		return Value{}, fmt.Errorf("evaluator: internal error: unhandled unary operator %q", n.op)
 	}
@@ -641,13 +653,17 @@ func evalComparisonOrLogical(op string, left, right Value) (v Value, ok bool, er
 		return boolValue(left.Bool() && right.Bool()), true, nil
 	case "||":
 		return boolValue(left.Bool() || right.Bool()), true, nil
+	case "^^":
+		return boolValue(left.Bool() != right.Bool()), true, nil
 	default:
 		return Value{}, false, nil
 	}
 }
 
-// evalArithmetic handles op's arithmetic form (+, -, *, /, %) -- every
-// binary operator evalComparisonOrLogical does not recognize.
+// evalArithmetic handles op's arithmetic (+, -, *, /, %, **) and bitwise (&,
+// |, ^) forms -- every binary operator evalComparisonOrLogical does not
+// recognize -- with Ikemen GO's typing (bytecode.go:1709-2000): / and **
+// stay ints between ints, % and the bitwise operators always work on int32.
 func evalArithmetic(op string, left, right Value) (Value, error) {
 	switch op {
 	case "+":
@@ -660,15 +676,106 @@ func evalArithmetic(op string, left, right Value) (Value, error) {
 		if right.Float() == 0 {
 			return Value{}, fmt.Errorf("evaluator: division by zero")
 		}
-		return floatValue(left.Float() / right.Float()), nil
+		if left.Kind == KindFloat || right.Kind == KindFloat {
+			return floatValue(left.Float() / right.Float()), nil
+		}
+		return intValue(float64(toInt32(left) / toInt32(right))), nil
 	case "%":
-		if right.Float() == 0 {
+		if toInt32(right) == 0 {
 			return Value{}, fmt.Errorf("evaluator: modulo by zero")
 		}
-		return arithResult(left, right, math.Mod(left.Float(), right.Float())), nil
+		return intValue(float64(toInt32(left) % toInt32(right))), nil
+	case "**":
+		return power(left, right), nil
+	case "&":
+		return intValue(float64(toInt32(left) & toInt32(right))), nil
+	case "|":
+		return intValue(float64(toInt32(left) | toInt32(right))), nil
+	case "^":
+		return intValue(float64(toInt32(left) ^ toInt32(right))), nil
 	default:
 		return Value{}, fmt.Errorf("evaluator: internal error: unhandled binary operator %q", op)
 	}
+}
+
+// toInt32 is Ikemen GO's BytecodeValue.ToI: the value truncated to an int32.
+func toInt32(v Value) int32 {
+	return int32(v.Number)
+}
+
+// power is Ikemen GO's pow (bytecode.go:1709-1757): a float power when an
+// operand is a float or the exponent is negative, else an int32 power by
+// squaring that wraps on overflow.
+//
+// shortcut: Ikemen GO reverses the bit order for a WinMugen character
+// (no ikemenversion, mugenversion not 1.x); not reproduced, the reference
+// characters are MUGEN 1.x or Ikemen GO ones.
+func power(base, exponent Value) Value {
+	if base.Kind == KindFloat || exponent.Kind == KindFloat || exponent.Number < 0 {
+		return floatValue(math.Pow(base.Float(), exponent.Float()))
+	}
+	result, square := int32(1), toInt32(base)
+	for bits := uint32(toInt32(exponent)); bits != 0; bits >>= 1 {
+		if bits&1 != 0 {
+			result *= square
+		}
+		square *= square
+	}
+	return intValue(float64(result))
+}
+
+// evalInterval checks an interval comparison (Ikemen GO bytecode.go:1863
+// rangeCheck): value, then the bounds, are evaluated in order.
+func evalInterval(n intervalNode, ctx *Context) (Value, error) {
+	v, err := evalNode(n.value, ctx)
+	if err != nil {
+		return Value{}, err
+	}
+	lo, err := evalNode(n.lo, ctx)
+	if err != nil {
+		return Value{}, err
+	}
+	hi, err := evalNode(n.hi, ctx)
+	if err != nil {
+		return Value{}, err
+	}
+	return boolValue(inInterval(v, lo, hi, n.loOpen, n.hiOpen) != n.not), nil
+}
+
+// inInterval reports whether v lies between lo and hi, each excluded when
+// its open flag is set. The check is in floats when one of the three is a
+// float, else in int32 (rangeCheck).
+func inInterval(v, lo, hi Value, loOpen, hiOpen bool) bool {
+	x, a, b := v.Number, lo.Number, hi.Number
+	if v.Kind != KindFloat && lo.Kind != KindFloat && hi.Kind != KindFloat {
+		x, a, b = float64(toInt32(v)), float64(toInt32(lo)), float64(toInt32(hi))
+	}
+	above := x >= a
+	if loOpen {
+		above = x > a
+	}
+	below := x <= b
+	if hiOpen {
+		below = x < b
+	}
+	return above && below
+}
+
+// evalCond evaluates Cond(c, a, b): the condition, then only the branch it
+// picks, as Ikemen GO compiles it with jumps (compiler.go:1888-1940), so a
+// Random or := in the other branch does not run. IfElse evaluates all three.
+func evalCond(n callNode, ctx *Context) (Value, error) {
+	if len(n.args) != 3 {
+		return Value{}, fmt.Errorf("evaluator: Cond() expects 3 arguments, got %d", len(n.args))
+	}
+	c, err := evalNode(n.args[0], ctx)
+	if err != nil {
+		return Value{}, err
+	}
+	if c.Bool() {
+		return evalNode(n.args[1], ctx)
+	}
+	return evalNode(n.args[2], ctx)
 }
 
 // arithResult applies MUGEN's type-propagation rule for arithmetic: the

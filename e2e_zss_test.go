@@ -223,25 +223,17 @@ func scenarioJump(t *testing.T, prog FighterProgram) error {
 	return fmt.Errorf("never back in state 0 after the jump (StateNo %d, saw jump up: %v, peak Y %v)", stateNo, sawJumpUp, peak)
 }
 
-// What stops the scenarios today, first cause met on the way in (a grammar
-// Ikemen GO has and the engine does not; checked by running): both characters'
-// state -1 reach an interval first, `stateNo = [200, 299]` (kfm_zss's Function
-// Combo, kfm's state -1 controller 3): item 041 (expression grammar). The
-// opponent and hit-contact triggers (`moveContact`, `P2BodyDist`, ...) and the
-// animation ones evaluate since item 042 landed; kfm_zss's first trigger,
-// `roundState = 2 && !aiLevelF`, since its "Other" family.
-//
-// Checked with a throwaway interval stub (reverted), what comes after 041:
-// kfm_zss stops on `cond(...)`, an unknown function, in common1.cns.zss state
-// 0 (all three scenarios); kfm (.cns) stands still (the stand-idle scenario
-// passes), holding forward ends in the run state 100 instead of walk state 20,
-// and pressing up never leaves state 0 (no change to the jump start).
+// What stops the scenarios today (checked by running, after item 041 gave
+// the evaluator intervals and Cond): both characters stand idle as Ikemen GO
+// does. Holding forward ends in the run state 100 instead of walk state 20,
+// and pressing up never leaves state 0, for kfm and kfm_zss alike: item 058
+// (walk and jump entry).
 var (
-	zssCauses = []knownCause{
-		{"041 (intervals)", "unexpected character '['"},
+	walkCauses = []knownCause{
+		{"058 (walk entry)", "StateNo = 100, want 20"},
 	}
-	cnsCauses = []knownCause{
-		{"041 (intervals)", "unexpected character '['"},
+	jumpCauses = []knownCause{
+		{"058 (jump entry)", "StateNo = 0, want 40 (jump start)"},
 	}
 )
 
@@ -258,32 +250,36 @@ const (
 
 func TestE2E_KfmZss_StandIdle_StaysInStateZero(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmZssDef)
-	expectFailure(t, zssCauses, func() error { return scenarioStandIdle(t, prog) })
+	if err := scenarioStandIdle(t, prog); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestE2E_KfmZss_HoldForward_WalksAtTheCharactersWalkSpeed(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmZssDef)
-	expectFailure(t, zssCauses, func() error { return scenarioWalkForward(t, prog) })
+	expectFailure(t, walkCauses, func() error { return scenarioWalkForward(t, prog) })
 }
 
 func TestE2E_KfmZss_PressUp_JumpsAndLandsInStateZero(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmZssDef)
-	expectFailure(t, append(zssCauses[:len(zssCauses):len(zssCauses)], landingCause), func() error { return scenarioJump(t, prog) })
+	expectFailure(t, append(jumpCauses[:len(jumpCauses):len(jumpCauses)], landingCause), func() error { return scenarioJump(t, prog) })
 }
 
 func TestE2E_KfmCns_StandIdle_StaysInStateZero(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmCnsDef)
-	expectFailure(t, cnsCauses, func() error { return scenarioStandIdle(t, prog) })
+	if err := scenarioStandIdle(t, prog); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestE2E_KfmCns_HoldForward_WalksAtTheCharactersWalkSpeed(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmCnsDef)
-	expectFailure(t, cnsCauses, func() error { return scenarioWalkForward(t, prog) })
+	expectFailure(t, walkCauses, func() error { return scenarioWalkForward(t, prog) })
 }
 
 func TestE2E_KfmCns_PressUp_JumpsAndLandsInStateZero(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmCnsDef)
-	expectFailure(t, append(cnsCauses[:len(cnsCauses):len(cnsCauses)], landingCause), func() error { return scenarioJump(t, prog) })
+	expectFailure(t, append(jumpCauses[:len(jumpCauses):len(jumpCauses)], landingCause), func() error { return scenarioJump(t, prog) })
 }
 
 func TestClassifyFailure_PassingScenarioUnknownAndKnownCause_AreToldApart(t *testing.T) {
@@ -311,7 +307,7 @@ func TestClassifyFailure_PassingScenarioUnknownAndKnownCause_AreToldApart(t *tes
 // 20, jump 40/50/52) driven by a state -1 on the real kfm_zss commands: the
 // scenarios above must pass on a character the engine can run, or they would
 // assert nothing. The landing in state 50 is spelled out because the engine
-// does not do Ikemen GO's change to state 52 on landing yet (see jumpCauses).
+// does not do Ikemen GO's change to state 52 on landing yet (see landingCause).
 const miniZss = `
 [StateDef 0; type: S; physics: S;]
 velSet{x: 0}

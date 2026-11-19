@@ -555,3 +555,241 @@ func TestIsKnownTrigger_GetHitVarVariable_FollowsEvalGetHitVar(t *testing.T) {
 		t.Error("gethitvar(nosuchvar) reported known, evalGetHitVar rejects it")
 	}
 }
+
+// evalCases checks each expression's value and kind against ctx.
+func evalCases(t *testing.T, ctx Context, cases []struct {
+	expr string
+	want float64
+	kind Kind
+}) {
+	t.Helper()
+	for _, c := range cases {
+		e, err := Parse(c.expr)
+		if err != nil {
+			t.Errorf("Parse(%q): %v", c.expr, err)
+			continue
+		}
+		got, err := e.Eval(ctx)
+		if err != nil {
+			t.Errorf("Eval(%q): %v", c.expr, err)
+			continue
+		}
+		if got.Number != c.want || got.Kind != c.kind {
+			t.Errorf("%s = %v (kind %v), want %v (kind %v)", c.expr, got.Number, got.Kind, c.want, c.kind)
+		}
+	}
+}
+
+// Ikemen GO compiler.go:5855-5943 expRange and bytecode.go:1863 rangeCheck
+// (commit 54d4148a): after = or !=, "[" or "(" opens an interval whose bounds
+// are full expressions; "[" "]" include the bound, "(" ")" exclude it; the
+// comparison is in floats when one of the three values is a float, else in
+// ints; != negates.
+func TestEval_Interval_AfterEqualOrNotEqual_ChecksTheBoundsLikeIkemen(t *testing.T) {
+	ctx := Context{Anim: 5055}
+	evalCases(t, ctx, []struct {
+		expr string
+		want float64
+		kind Kind
+	}{
+		{"anim = [5051, 5059]", 1, KindBool},
+		{"anim = [5055, 5055]", 1, KindBool},
+		{"anim = (5055, 5059]", 0, KindBool},
+		{"anim = [5051, 5055)", 0, KindBool},
+		{"anim = (5054, 5056)", 1, KindBool},
+		{"anim != [5051, 5059]", 0, KindBool},
+		{"anim != [5000, 5050]", 1, KindBool},
+		{"5.5 = (5, 6)", 1, KindBool},
+		{"2 = [1.5, 2.5]", 1, KindBool},
+		{"6 = [1.5, 2.5]", 0, KindBool},
+		{"anim = [5050 + 1, 5060 - 1]", 1, KindBool},
+		{"1 + 2 = [3, 3]", 1, KindBool},
+		{"anim = [5051, 5059] || anim = [5061, 5069]", 1, KindBool},
+		{"(anim = [5081, 5089]) || (anim = [5111, 5119])", 0, KindBool},
+		// "(" with no comma is a parenthesized operand (expRange's fallback).
+		{"3 = (3)", 1, KindBool},
+		{"3 = (1 + 2) && 1", 1, KindBool},
+		{"IfElse(anim = (5055), 4, 5)", 4, KindInt},
+	})
+}
+
+func TestEval_Interval_OnARedirectionAndAnAnimElemComparison(t *testing.T) {
+	ctx := duel(t, 0, match.FacingRight, 10, match.FacingLeft)
+	ctx.P2.Anim = 5120
+	evalCases(t, ctx, []struct {
+		expr string
+		want float64
+		kind Kind
+	}{
+		{"p2, anim = [5110, 5120]", 1, KindBool},
+		{"p2, anim != [5110, 5120)", 1, KindBool},
+	})
+	// compiler.go:1057-1121 evaluateComparison + intRange: after AnimElem's
+	// comma the interval follows "=", "!=" or no operator. Action 200's
+	// element 3 starts at tick 3 (see animCtx).
+	for _, c := range []struct {
+		expr string
+		at   int
+		want bool
+	}{
+		{"AnimElem = 3, = [0, 2]", 5, true},
+		{"AnimElem = 3, = [0, 2]", 6, false},
+		{"AnimElem = 3, [1, 2)", 5, false},
+		{"AnimElem = 3, (1, 2]", 5, true},
+		{"AnimElem = 3, != [0, 2]", 6, true},
+		{"AnimElem = 3, [-1, 0]", 3, true},
+	} {
+		if got := mustEval(t, c.expr, animCtx(t, 200, c.at)).Bool(); got != c.want {
+			t.Errorf("%s at tick %d = %v, want %v", c.expr, c.at, got, c.want)
+		}
+	}
+}
+
+func TestParse_MalformedInterval_IsAnErrorNamingTheExpression(t *testing.T) {
+	for _, c := range []struct{ expr, want string }{
+		{"anim = [5051 5059]", "','"},
+		{"anim = [5051]", "','"},
+		{"anim = [5051, 5059", "']' or ')'"},
+		{"anim = (5051, 5059", "']' or ')'"},
+		{"anim = [5051, ]", "unexpected"},
+		{"AnimElem = 3, = [1, x]", "integer"},
+		{"AnimElem = 3, = [1 2]", "','"},
+	} {
+		_, err := Parse(c.expr)
+		if err == nil || !strings.Contains(err.Error(), c.want) || !strings.Contains(err.Error(), c.expr) {
+			t.Errorf("Parse(%q) error = %v, want one containing %q and the expression", c.expr, err, c.want)
+		}
+	}
+}
+
+// Ikemen GO's precedence ladder, lowest first (compiler.go:6030-6127 and
+// isOperator 645-666): || ^^ && | ^ & (= !=) (< > <= >=) (+ -) (* / %) ** and
+// the unary operators of expValue (! - ~, compiler.go:1765-1823), which bind
+// to the value right after them.
+func TestEval_OperatorPrecedence_FollowsIkemenLadder(t *testing.T) {
+	evalCases(t, Context{}, []struct {
+		expr string
+		want float64
+		kind Kind
+	}{
+		// = is looser than <: 2 = (1 < 3) is 2 = 1.
+		{"2 = 1 < 3", 0, KindBool},
+		{"1 | 2 = 2", 1, KindInt},
+		{"6 & 3 = 2", 0, KindInt},
+		{"1 | 2 ^ 3 & 1", 3, KindInt},
+		{"0 ^^ 1 && 0", 0, KindBool},
+		{"1 || 1 ^^ 1", 1, KindBool},
+		{"2 * 3 ** 2", 18, KindInt},
+		{"!0 = 1", 1, KindBool},
+		{"!2 + 1", 1, KindInt},
+		{"-2 ** 2", 4, KindInt},
+		{"-(2 + 3)", -5, KindInt},
+		{"--2", 2, KindInt},
+		{"~5 + 1", -5, KindInt},
+	})
+}
+
+// bytecode.go:1709-1757 pow: float when an operand is a float or the exponent
+// is negative, else an int32 power (wrapping); expPow (compiler.go:5739)
+// loops, so ** is left-associative.
+func TestEval_Power_IntFloatAndLeftAssociativity(t *testing.T) {
+	evalCases(t, Context{}, []struct {
+		expr string
+		want float64
+		kind Kind
+	}{
+		{"2 ** 10", 1024, KindInt},
+		{"2 ** 3 ** 2", 64, KindInt},
+		{"2 ** -1", 0.5, KindFloat},
+		{"2.0 ** 2", 4, KindFloat},
+		{"3 ** 0", 1, KindInt},
+		{"2 ** 31", -2147483648, KindInt},
+	})
+}
+
+// bytecode.go:1759-1789: int / int truncates, a float operand divides in
+// floats; % works on the operands truncated to ints, whatever their kind.
+func TestEval_DivisionAndModulo_FollowIkemenIntRules(t *testing.T) {
+	evalCases(t, Context{}, []struct {
+		expr string
+		want float64
+		kind Kind
+	}{
+		{"7 / 2", 3, KindInt},
+		{"-7 / 2", -3, KindInt},
+		{"7.0 / 2", 3.5, KindFloat},
+		{"7.5 % 2", 1, KindInt},
+		{"-7 % 3", -1, KindInt},
+	})
+}
+
+// bytecode.go:1960-2000 bwand/bwxor/bwor/blxor, 1684 bwnot: bitwise
+// operators work on int32, ^^ is a logical exclusive or.
+func TestEval_BitwiseAndLogicalXor(t *testing.T) {
+	evalCases(t, Context{}, []struct {
+		expr string
+		want float64
+		kind Kind
+	}{
+		{"6 & 3", 2, KindInt},
+		{"6 | 3", 7, KindInt},
+		{"6 ^ 3", 5, KindInt},
+		{"~5", -6, KindInt},
+		{"~0", -1, KindInt},
+		{"7.9 & 3", 3, KindInt},
+		{"1 ^^ 1", 0, KindBool},
+		{"2 ^^ 0", 1, KindBool},
+		{"0 ^^ 0", 0, KindBool},
+	})
+}
+
+// compiler.go:1888-1940: Cond evaluates its condition, then only the branch
+// it picks (jz/jmp), unlike IfElse, which evaluates all three
+// (compiler.go:1852-1886).
+func TestEval_Cond_EvaluatesOnlyTheChosenBranch(t *testing.T) {
+	evalCases(t, Context{Ctrl: true}, []struct {
+		expr string
+		want float64
+		kind Kind
+	}{
+		{"cond(1, 5, var(99))", 5, KindInt},
+		{"Cond(0, var(99), 7.5)", 7.5, KindFloat},
+		{"cond(ctrl, 1, 2) + 1", 2, KindInt},
+	})
+	if _, err := Evaluate("ifelse(1, 5, var(99))", Context{}); err == nil {
+		t.Error("ifelse(1, 5, var(99)) succeeded, want the out-of-range error: IfElse evaluates every branch")
+	}
+	ctx := Context{}
+	v, err := EvaluateMut("cond(0, var(1) := 5, var(2) := 7)", &ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Number != 7 || ctx.Vars[1] != 0 || ctx.Vars[2] != 7 {
+		t.Errorf("cond(0, var(1) := 5, var(2) := 7) = %v with var(1)=%d var(2)=%d, want 7, 0, 7", v.Number, ctx.Vars[1], ctx.Vars[2])
+	}
+}
+
+func TestEval_Cond_WrongArgumentCount_IsAnError(t *testing.T) {
+	for _, expr := range []string{"cond(1, 2)", "cond(1, 2, 3, 4)"} {
+		_, err := Evaluate(expr, Context{})
+		if err == nil || !strings.Contains(err.Error(), "3 arguments") {
+			t.Errorf("Evaluate(%q) error = %v, want one about 3 arguments", expr, err)
+		}
+	}
+	if !IsKnownTrigger("cond", true) {
+		t.Error("IsKnownTrigger(cond, call) = false, want true")
+	}
+}
+
+func TestEvaluate_IntervalAndCond_AllocateNothingOnTheCachedPath(t *testing.T) {
+	ctx := Context{Anim: 5055, Ctrl: true}
+	for _, expr := range []string{"Anim = [5051, 5059]", "Anim != (5051, 5059]", "cond(Ctrl, 1, var(99))"} {
+		if _, err := Evaluate(expr, ctx); err != nil {
+			t.Fatalf("Evaluate(%q): %v", expr, err)
+		}
+		allocs := testing.AllocsPerRun(100, func() { _, _ = Evaluate(expr, ctx) })
+		if allocs != 0 {
+			t.Errorf("Evaluate(%q) allocated %v times per call, want 0", expr, allocs)
+		}
+	}
+}

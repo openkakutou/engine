@@ -459,3 +459,65 @@ func TestCompile_SymbolicStatedefNumber_DoesNotDefineStateZero(t *testing.T) {
 		t.Errorf("Header(0) = %+v, %v, want the real state 0 (type S)", def, ok)
 	}
 }
+
+// blockExpressions calls f with every expression of stmts a .zss runs through
+// the evaluator whole: block conditions, let values, call arguments and
+// assigning statements. Controller parameters are left out: many hold
+// several comma-separated values the controller splits itself.
+func blockExpressions(stmts []stmt, f func(expr string)) {
+	for _, s := range stmts {
+		switch st := s.(type) {
+		case *blockStmt:
+			for b := st; b != nil; b = b.els {
+				if b.hasCond {
+					f(b.cond)
+				}
+				blockExpressions(b.body, f)
+			}
+		case letStmt:
+			for _, e := range st.exprs {
+				f(e)
+			}
+		case callStmt:
+			for _, e := range st.args {
+				f(e)
+			}
+		case exprStmt:
+			f(st.expr)
+		}
+	}
+}
+
+// TestCompile_ReferenceScriptExpressions_AllParse parses every expression of
+// Ikemen GO's common1.cns.zss and kfm_zss's scripts with the evaluator.
+func TestCompile_ReferenceScriptExpressions_AllParse(t *testing.T) {
+	for _, path := range []string{
+		"../testdata/reference/common1.cns.zss",
+		"../testdata/reference/chars/kfm_zss/kfm.zss",
+		"../testdata/reference/chars/kfm_zss/AI.zss",
+		"../testdata/reference/chars/kfm_zss/command.zss",
+		"../testdata/reference/chars/kfm_zss/hits.zss",
+	} {
+		f, err := os.Open(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		script, err := zss.Parse(f)
+		f.Close()
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		count := 0
+		for _, cb := range Compile(script).entries {
+			blockExpressions(cb.stmts, func(expr string) {
+				count++
+				if _, err := evaluator.ParseShortCircuit(expr); err != nil {
+					t.Errorf("%s, %s: %v", path, cb.desc, err)
+				}
+			})
+		}
+		if count == 0 {
+			t.Errorf("%s: no expression found", path)
+		}
+	}
+}

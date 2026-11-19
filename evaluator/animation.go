@@ -204,6 +204,10 @@ func evalAnimElem(n animElemNode, ctx *Context) (Value, error) {
 	if !ok {
 		return boolValue(false), nil
 	}
+	if n.interval {
+		in := inInterval(intValue(float64(t)), intValue(float64(n.lo)), intValue(float64(n.hi)), n.loOpen, n.hiOpen)
+		return boolValue(in != n.not), nil
+	}
 	right, err := evalNode(n.value, ctx)
 	if err != nil {
 		return Value{}, err

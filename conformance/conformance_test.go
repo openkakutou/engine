@@ -317,3 +317,21 @@ func TestRun_CharacterWithCmdLackingStatedefMinusOne_Runs(t *testing.T) {
 		t.Errorf("status = %q error = %q, want ran", c.Status, c.Error)
 	}
 }
+
+// The reference kfm's stcommon (common1.cns) lives in testdata/reference, not
+// in its folder: with that folder as a search dir its common states count.
+func TestRun_SearchDirs_FindTheCommonStateFile(t *testing.T) {
+	defPath := "../testdata/reference/chars/kfm/kfm.def"
+	without, err := Run([]string{defPath}, Options{Ticks: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	with, err := Run([]string{defPath}, Options{Ticks: 5, SearchDirs: []string{"../testdata/reference"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, b := without.Characters[0], with.Characters[0]
+	if b.Status != StatusRan || b.StatesTotal <= a.StatesTotal {
+		t.Errorf("with the common dir: status %s, %d states; without: %d states, want ran and more states", b.Status, b.StatesTotal, a.StatesTotal)
+	}
+}
