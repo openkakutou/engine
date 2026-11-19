@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 ---
 # Accept the full trigger expression grammar
 
@@ -11,8 +11,8 @@ The conformance run found 349,244 controllers with an unparsable trigger across 
 Also Ikemen GO's expression functions that common1.cns.zss uses, starting with `cond(a, b, c)` (state 0, first line: the next end-to-end blocker after intervals, found by item 042).
 
 ## Acceptance Criteria
-- [ ] Each grammar form has a test grounded in the cited source
-- [ ] Conformance run: controllers with an unparsable trigger drop to near zero, the rest listed as items
+- [x] Each grammar form has a test grounded in the cited source
+- [x] Conformance run: controllers with an unparsable trigger drop to near zero, the rest listed as items
 
 ## Notes
 Found by the conformance harness (item 030, `docs/conformance.md`, 2026-11-17).
