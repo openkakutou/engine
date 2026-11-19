@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 ---
 # A change to a state that does not exist continues as Ikemen GO does
 
@@ -9,6 +9,6 @@ status: in_progress
 🔒 MUST: as Ikemen GO.
 
 ## Acceptance Criteria
-- [ ] A ChangeState (and any other state change: SelfState, a hit's p2stateno, `.zss` changes) to a missing state enters an empty state with unchanged state type, move type and physics, as Ikemen GO; no error
-- [ ] The warning is reported to the caller (Tick result), naming the target and the previous state
-- [ ] An end-to-end scenario through `Tick` on the reference fixtures pins it
+- [x] A ChangeState (and any other state change: SelfState, a hit's p2stateno, `.zss` changes) to a missing state enters an empty state with unchanged state type, move type and physics, as Ikemen GO; no error
+- [x] The warning is reported to the caller (Tick result), naming the target and the previous state
+- [x] An end-to-end scenario through `Tick` on the reference fixtures pins it
