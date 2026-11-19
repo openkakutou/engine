@@ -535,3 +535,29 @@ func TestE2E_KfmZssVsKfm_WalkIntoTheOpponent_StopsAtTheSizeBoxes(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Item 060: walking (common1.cns state 20, no ctrl in its header) keeps
+// control, so after a walk kfm can still punch: x enters state 200
+// (kfm.cmd:630-637), as in Ikemen GO.
+func TestE2E_KfmCns_WalkThenPressX_StillPunches(t *testing.T) {
+	m := newE2EMatch(t, loadReferenceProgram(t, kfmCnsDef))
+	for i := 0; i < 15; i++ {
+		if err := m.step(input.TickInput{Right: true}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if s, _, _ := m.p1(); s != 20 {
+		t.Fatalf("StateNo = %d after walking, want 20", s)
+	}
+	for i := 0; i < 3; i++ {
+		if err := m.step(input.TickInput{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := m.step(input.TickInput{Buttons: map[string]bool{"x": true}}); err != nil {
+		t.Fatal(err)
+	}
+	if s, _, _ := m.p1(); s != 200 {
+		t.Errorf("StateNo = %d after pressing x, want 200 (stand light punch)", s)
+	}
+}

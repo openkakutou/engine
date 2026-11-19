@@ -918,7 +918,7 @@ func enterState(ctx *evaluator.Context, def entryHeader) (animRestarted bool, er
 	// velset: facing-relative X, Y down in Ikemen GO (bytecode.go:5493-5500).
 	// Only a .zss header carries it (zssexec.Header): character's .cns
 	// StateDef drops the field.
-	x, hasX, err := headerExpr(ctx, def, "velset.x")
+	x, hasX, err := headerVelSet(ctx, def, "velset.x", 0)
 	if err != nil {
 		return false, err
 	}
@@ -928,7 +928,7 @@ func enterState(ctx *evaluator.Context, def entryHeader) (animRestarted bool, er
 	if hasX && ctx.Facing == match.FacingLeft {
 		ctx.Velocity.X = 0 - x.Float()
 	}
-	y, hasY, err := headerExpr(ctx, def, "velset.y")
+	y, hasY, err := headerVelSet(ctx, def, "velset.y", 1)
 	if err != nil {
 		return false, err
 	}
@@ -943,7 +943,7 @@ func enterState(ctx *evaluator.Context, def entryHeader) (animRestarted bool, er
 		return false, err
 	}
 	animNo := anim.Int()
-	if !hasAnim && def.Anim != 0 {
+	if !hasAnim && cnsWrote(def, "anim", def.Anim != 0) {
 		animNo, hasAnim = def.Anim, true
 	}
 	if hasAnim && animNo != -1 {
@@ -961,10 +961,7 @@ func enterState(ctx *evaluator.Context, def entryHeader) (animRestarted bool, er
 	if hasCtrl {
 		ctx.Ctrl = ctrl.Bool()
 	}
-	if !hasCtrl && !def.script {
-		// shortcut: a .cns StateDef cannot tell an omitted ctrl from
-		// "ctrl = 0", so its typed value applies; upgrade when character
-		// records which header fields are written.
+	if !hasCtrl && !def.script && cnsWrote(def, "ctrl", true) {
 		ctx.Ctrl = def.Ctrl
 	}
 
@@ -992,6 +989,45 @@ func headerExpr(ctx *evaluator.Context, def entryHeader, name string) (v evaluat
 	v, err = evaluator.EvaluateMut(raw, ctx)
 	if err != nil {
 		return evaluator.Value{}, false, fmt.Errorf("state %d header %s %q: %w", def.Number, name, raw, err)
+	}
+	return v, true, nil
+}
+
+// cnsWrote reports whether a .cns header writes field, from the written
+// fields character records (cns.StateDef.Written): an omitted field keeps
+// the fighter's current value (Ikemen GO bytecode.go:5444-5512). A StateDef
+// built without them (Written nil, e.g. by hand) falls back to fallback.
+func cnsWrote(def entryHeader, field string, fallback bool) bool {
+	if def.Written == nil {
+		return fallback
+	}
+	_, ok := def.Written[field]
+	return ok
+}
+
+// headerVelSet is one component of the header's velset: a .zss header's
+// expression under name, or the index-th comma-separated part of a .cns
+// header's written "velset = x, y" (Ikemen GO compiler.go, commit 54d4148a),
+// evaluated on entry.
+func headerVelSet(ctx *evaluator.Context, def entryHeader, name string, index int) (v evaluator.Value, ok bool, err error) {
+	if def.script {
+		return headerExpr(ctx, def, name)
+	}
+	raw, ok := def.Written["velset"]
+	if !ok {
+		return evaluator.Value{}, false, nil
+	}
+	part, rest, _ := strings.Cut(raw, ",")
+	if index == 1 {
+		part = rest
+	}
+	part = strings.TrimSpace(part)
+	if part == "" {
+		return evaluator.Value{}, false, nil
+	}
+	v, err = evaluator.EvaluateMut(part, ctx)
+	if err != nil {
+		return evaluator.Value{}, false, fmt.Errorf("state %d header velset %q: %w", def.Number, raw, err)
 	}
 	return v, true, nil
 }
@@ -1079,6 +1115,9 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 	if def, ok := defender.stateHeader(target); ok && target != 0 {
 		ctx.PrevStateNo = ctx.StateNo
 		ctx.StateNo = target
+		// The get-hit change passes ctrl 0 (changeStateEx(5000, pn, -1, 0),
+		// char.go:13176-13197), which removes control (char.go:6981-6982).
+		ctx.Ctrl = false
 		if _, err := enterState(ctx, def); err != nil {
 			return err
 		}
