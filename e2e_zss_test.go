@@ -444,6 +444,7 @@ null{}
 
 [StateDef 52; type: S; physics: S; anim: 47; ctrl: 0;]
 velSet{y: 0}
+posSet{y: 0}
 if time = 3 {
 	changeState{value: 0}
 }

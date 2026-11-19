@@ -529,10 +529,11 @@ func TestTick_GroundSlideTime_DrivesAGetHitStateControllerThroughGetHitVar(t *te
 			for tick := 2; tick <= 10; tick++ {
 				s.step() // frozen (2..9), then the 5000 -> 5001 change on tick 10
 			}
-			// 5001's controllers first run on tick 11 with Time = 0, so the
-			// marker is set on the tick where Time = slidetime.
-			for n := 0; n <= want+1; n++ {
-				s.step() // tick 11 + n sees Time = n
+			// 5001's controllers first run on tick 10, the change tick, with
+			// Time = 0 (item 064), so the marker is set on the tick where
+			// Time = slidetime.
+			for n := 1; n <= want+1; n++ {
+				s.step() // tick 10 + n sees Time = n
 				flipped := s.ctx(match.SideP2).Vars[5] == 1
 				if flipped != (n >= want) {
 					t.Fatalf("Time %d (slidetime %d): marker var(5) set = %v, want %v", n, want, flipped, n >= want)

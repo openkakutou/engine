@@ -405,8 +405,8 @@ func TestTick_ChangeAnimThenChangeState_StateEntryWins(t *testing.T) {
 	prog := changeAnimProgram()
 	prog.States = states
 	got := tickWithP1Program(t, prog, match.FighterState{Health: 1000}, 0).Fighters[match.SideP1].Context
-	if got.StateNo != 200 || got.Anim != 210 || got.AnimElapsed != 0 || got.AnimElem != 0 {
-		t.Errorf("StateNo, Anim, AnimTime, AnimElem = %d, %d, %d, %d, want 200, 210, 0, 0", got.StateNo, got.Anim, got.AnimElapsed, got.AnimElem)
+	if got.StateNo != 200 || got.Anim != 210 || got.AnimElapsed != 1 || got.AnimElem != 0 {
+		t.Errorf("StateNo, Anim, AnimTime, AnimElem = %d, %d, %d, %d, want 200, 210, 1, 0 (the new state ran in the change tick, then the animation stepped)", got.StateNo, got.Anim, got.AnimElapsed, got.AnimElem)
 	}
 }
 

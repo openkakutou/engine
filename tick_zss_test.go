@@ -96,9 +96,9 @@ func TestTick_CnsStateChangesToZssStateAndBack_BothEntered(t *testing.T) {
 	// Ikemen GO changes state in one table (char.go changeState), whatever
 	// the file format of the source and target states.
 	cnsStates := map[int]cns.StateDef{
-		0: {Number: 0, Type: cns.StateTypeStanding, Ctrl: true, Controllers: []cns.Controller{changeStateTo("Time = 0", "7")}},
+		0: {Number: 0, Type: cns.StateTypeStanding, Ctrl: true, Controllers: []cns.Controller{changeStateTo("Time = 0 && PrevStateNo != 7", "7")}},
 	}
-	script := mustScript(t, "[Statedef 7; type: C; physics: C; anim: 77; ctrl: 0;]\nchangeState{value: 0}")
+	script := mustScript(t, "[Statedef 7; type: C; physics: C; anim: 77; ctrl: 0;]\nif time = 1 {\nchangeState{value: 0}\n}")
 	prog := NewFighterProgram(cnsStates, nil, cmd.CommandFile{}).WithScripts([]zss.Script{script})
 
 	rt := newP1Runtime(t, prog)

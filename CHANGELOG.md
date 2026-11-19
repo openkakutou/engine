@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- A state change made by a state now runs the new state in the same tick, as in Ikemen GO, instead of one tick later: every transition is no longer a tick late, chained changes run one after the other (bounded at 2500 like Ikemen GO), and the landing is done by the character's own landing state.
+
 ## [2.22.0] - 2026-11-19
 
 ### Fixed

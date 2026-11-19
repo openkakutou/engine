@@ -54,7 +54,14 @@ func landingStates() map[int]cns.StateDef {
 // (vel y down) at or below the ground, outside state 105, changes to state 52.
 // From Y 1 falling 2 per tick with yaccel 0.5: Y -1, then the landing.
 func TestTick_PhysicsA_FallingThroughTheGround_EntersState52OnTheGround(t *testing.T) {
-	prog := FighterProgram{States: landingStates()}
+	// State 52 runs at once and, like common1.cns:273-281, grounds the fighter
+	// at Time 0.
+	states := landingStates()
+	states[52] = cns.StateDef{Number: 52, Type: cns.StateTypeStanding, Physics: cns.PhysicsStanding, Anim: 47, Controllers: []cns.Controller{
+		{Type: "VelSet", Triggers: []string{"Time = 0"}, Parameters: map[string]string{"y": "0"}},
+		{Type: "PosSet", Triggers: []string{"Time = 0"}, Parameters: map[string]string{"y": "0"}},
+	}}
+	prog := FighterProgram{States: states}
 	res := tickWithP1Program(t, prog, match.FighterState{Position: match.Position{X: 5, Y: 1}, Velocity: match.Velocity{X: 2, Y: -2}, Health: 1000}, 0.5)
 	got := res.State.Fighters[match.SideP1]
 	ctx := res.Fighters[match.SideP1].Context
@@ -67,8 +74,8 @@ func TestTick_PhysicsA_FallingThroughTheGround_EntersState52OnTheGround(t *testi
 	if got.Position.X != 7 || got.Velocity.X != 2 {
 		t.Errorf("X, Vel X = %v, %v, want 7, 2 (the landing keeps the horizontal velocity)", got.Position.X, got.Velocity.X)
 	}
-	if ctx.Physics != 'S' || ctx.Anim != 47 || ctx.Time != 0 || ctx.PrevStateNo != 0 {
-		t.Errorf("Physics, Anim, Time, PrevStateNo = %c, %d, %d, %d, want S, 47, 0, 0 (state 52 entered)", ctx.Physics, ctx.Anim, ctx.Time, ctx.PrevStateNo)
+	if ctx.Physics != 'S' || ctx.Anim != 47 || ctx.Time != 1 || ctx.PrevStateNo != 0 {
+		t.Errorf("Physics, Anim, Time, PrevStateNo = %c, %d, %d, %d, want S, 47, 1, 0 (state 52 entered and run at Time 0, then Time grew)", ctx.Physics, ctx.Anim, ctx.Time, ctx.PrevStateNo)
 	}
 }
 

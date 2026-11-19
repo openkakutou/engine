@@ -1,6 +1,6 @@
 ---
 date: 2026-11-19
-status: accepted
+status: superseded by 033
 ---
 # Each fighter moves right after its states, then lands; hit detection after both (item 044)
 

@@ -597,18 +597,17 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	if err != nil {
 		return fighterTickOutput{}, err
 	}
-	sounds = append(sounds, result.Sounds...)
-	unsupported = appendMissing(unsupported, result.Unsupported)
-	skippedCalls = appendMissing(skippedCalls, result.SkippedCalls)
-
+	runs := stateRuns{sounds: sounds, unsupported: unsupported, skippedCalls: skippedCalls}
 	newCtx := result.Context
 	resolveAnimElem(&newCtx, findAnimation(prog, newCtx.Anim))
-	changed := newCtx.StateChanged
-	newCtx.StateChanged = false
+	runs.add(result, &newCtx, frozen)
+	// A ChangeState made by the current state enters the new state and runs
+	// it in this same tick (Ikemen GO changeStateEx, char.go:6966-6994).
+	if err := runs.followChanges(prog, &newCtx, frozen); err != nil {
+		return fighterTickOutput{}, err
+	}
+	sounds, unsupported, skippedCalls = runs.sounds, runs.unsupported, runs.skippedCalls
 	if frozen {
-		if changed {
-			newCtx.StateEntryPending = true
-		}
 		frozenRuntime := FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: unsupported, SkippedCalls: skippedCalls}
 		if frozenRuntime.HitPause > 0 {
 			frozenRuntime.HitPause--
@@ -621,24 +620,6 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		}
 		return fighterTickOutput{Runtime: frozenRuntime, Frame: frame, Frozen: true, Sounds: sounds}, nil
 	}
-	if changed {
-		// statemachine's own ChangeState handling already reset Time to 0
-		// (character/cmd data plays no part in that); Anim/AnimElapsed/Ctrl
-		// are enterState's responsibility, since statemachine has no
-		// character-loadout knowledge of the target state's declared
-		// values.
-		entered, _ := prog.stateHeader(newCtx.StateNo)
-		restarted, err := enterState(&newCtx, entered)
-		if err != nil {
-			return fighterTickOutput{}, err
-		}
-		if !restarted {
-			newCtx.AnimElapsed++ // a header without anim keeps the animation running
-		}
-	} else {
-		newCtx.Time++
-		newCtx.AnimElapsed++
-	}
 	// Ikemen GO actionRun moves the fighter after its states (posUpdate,
 	// char.go:12583), then lands it (char.go:12584-12590).
 	moved, err := physics.Step(newCtx.FighterState, bounds, gravityFor(&newCtx, gravity))
@@ -646,9 +627,19 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		return fighterTickOutput{}, fmt.Errorf("physics: %w", err)
 	}
 	newCtx.FighterState = moved
-	if err := land(&newCtx, prog); err != nil {
+	if err := land(&newCtx, prog, &runs); err != nil {
 		return fighterTickOutput{}, err
 	}
+	sounds, unsupported, skippedCalls = runs.sounds, runs.unsupported, runs.skippedCalls
+	// A state entered this tick shows its first frame to collision detection
+	// (char.go:12608-12610); the animation steps after it (char.go:13055-13061).
+	if runs.entered {
+		frame = currentFrame(findAnimation(prog, newCtx.Anim), newCtx.AnimElapsed)
+	}
+	// Time grows once, at the end of the tick, after the new state's run
+	// (char.go:12592).
+	newCtx.Time++
+	newCtx.AnimElapsed++
 	// After every unfrozen action, a state change included, the contact
 	// counter grows (char.go:12594-12596); a state entered without
 	// movehitpersist has just reset it to 0.
@@ -662,48 +653,102 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		newCtx.GetHit.HitTime--
 	}
 
-	// The HitDef that just applied becomes the one HitDefAttr reads, unless
-	// the state changed in the same tick: entering the new state has just
-	// reset it (enterState, hitdefpersist).
-	if result.HasHitDef && !changed {
-		if attr, err := evaluator.ParseAttr(result.HitDef.Parameters["attr"], true); err == nil {
-			newCtx.HitDefAttr = attr
-		}
-	}
-
 	return fighterTickOutput{
 		Runtime:   FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, Unsupported: unsupported, SkippedCalls: skippedCalls},
 		Frame:     frame,
-		HasHitDef: result.HasHitDef,
-		HitDef:    result.HitDef,
+		HasHitDef: runs.hasHitDef,
+		HitDef:    runs.hitDef,
 		Sounds:    sounds,
 	}, nil
 }
 
+// maxStateLoop is Ikemen GO's MaxLoop (bytecode.go:15): the most states one
+// tick enters and runs after a ChangeState; the ChangeState of the last one
+// is refused (stateChange1, char.go:6803-6807).
+const maxStateLoop = 2500
+
+// stateRuns collects what the states run in one tick produce, across the
+// ChangeStates that run a new state at once.
+type stateRuns struct {
+	sounds       []evaluator.SoundEvent
+	unsupported  []string
+	skippedCalls []string
+	hasHitDef    bool
+	hitDef       cns.Controller
+	entered      bool // a state was entered (not left pending) after the tick began
+}
+
+// add records the output of one state run. The HitDef that just applied
+// becomes the one HitDefAttr reads, unless the state changed in the same run:
+// entering the new state has just reset it (enterState, hitdefpersist).
+func (r *stateRuns) add(step stateStep, ctx *evaluator.Context, frozen bool) {
+	r.sounds = append(r.sounds, step.Sounds...)
+	r.unsupported = appendMissing(r.unsupported, step.Unsupported)
+	r.skippedCalls = appendMissing(r.skippedCalls, step.SkippedCalls)
+	if !step.HasHitDef {
+		return
+	}
+	r.hasHitDef, r.hitDef = true, step.HitDef
+	if frozen || ctx.StateChanged {
+		return
+	}
+	if attr, err := evaluator.ParseAttr(step.HitDef.Parameters["attr"], true); err == nil {
+		ctx.HitDefAttr = attr
+	}
+}
+
+// followChanges enters the state a ChangeState just named and runs it, again
+// for every ChangeState that run makes, up to maxStateLoop runs (Ikemen GO
+// changeStateEx, char.go:6966-6994). During a hit pause the entry waits
+// (char.go:6943): the state is only left pending, but its ignorehitpause
+// controllers still run.
+func (r *stateRuns) followChanges(prog FighterProgram, ctx *evaluator.Context, frozen bool) error {
+	for loops := 1; ctx.StateChanged; loops++ {
+		ctx.StateChanged = false
+		if frozen {
+			ctx.StateEntryPending = true
+		} else {
+			ctx.StateEntryPending = false
+			entered, _ := prog.stateHeader(ctx.StateNo)
+			if _, err := enterState(ctx, entered); err != nil {
+				return err
+			}
+			r.entered = true
+		}
+		stateNo, prevStateNo, time, persistent := ctx.StateNo, ctx.PrevStateNo, ctx.Time, ctx.Persistent
+		step, err := prog.step(*ctx, ctx.StateNo, frozen)
+		if err != nil {
+			return err
+		}
+		*ctx = step.Context
+		resolveAnimElem(ctx, findAnimation(prog, ctx.Anim))
+		r.add(step, ctx, frozen)
+		if loops == maxStateLoop && ctx.StateChanged {
+			ctx.StateNo, ctx.PrevStateNo, ctx.Time, ctx.Persistent = stateNo, prevStateNo, time, persistent
+			ctx.StateChanged = false
+		}
+	}
+	return nil
+}
+
 // land is Ikemen GO's hard-coded landing (char.go:12584-12590): a fighter in
 // physics A falling (velocity down) at or below the ground, outside state
-// 105, changes to state 52, entered like any ChangeState (enterState).
-// Ikemen GO runs state 52 at once (changeStateEx, char.go:6987-6994), whose
-// VelSet y = 0 and PosSet y = 0 at Time = 0 put it on the ground on this tick
-// (common1.cns:273-281); the engine runs a newly entered state's controllers
-// on the next tick, so it puts the fighter on the ground here, horizontal
-// velocity kept, for the landing tick's position to be Ikemen GO's.
+// 105, changes to state 52, entered and run at once like any ChangeState
+// (changeStateEx, char.go:6987-6994): common1's state 52 puts it on the
+// ground itself (common1.cns:273-281).
 // shortcut: a character without state 52 is left falling, as basicChangeState
 // does, where Ikemen GO enters an empty state.
-func land(ctx *evaluator.Context, prog FighterProgram) error {
+func land(ctx *evaluator.Context, prog FighterProgram, runs *stateRuns) error {
 	if ctx.Physics != 'A' || ctx.Velocity.Y >= 0 || ctx.Position.Y > 0 || ctx.StateNo == 105 {
 		return nil
 	}
-	def, ok := prog.stateHeader(52)
-	if !ok {
+	if !prog.hasState(52) {
 		return nil
 	}
 	ctx.PrevStateNo = ctx.StateNo
 	ctx.StateNo = 52
-	ctx.Position.Y = 0
-	ctx.Velocity.Y = 0
-	_, err := enterState(ctx, def)
-	return err
+	ctx.StateChanged = true
+	return runs.followChanges(prog, ctx, false)
 }
 
 // basicActions are the walk, jump and crouch a fighter with control gets

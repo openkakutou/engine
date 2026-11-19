@@ -56,8 +56,8 @@ func TestTick_ChangeStateIntoTheCurrentState_RestartsItsAnimationAndClearsMoveCo
 	// Ticks 1-3 run at Time 0, 1, 2; tick 4 runs at Time 3 and re-enters.
 	rt = stepP1(t, prog, rt, 4)
 	ctx := rt.Context
-	if ctx.StateNo != 200 || ctx.Time != 0 || ctx.AnimElapsed != 0 {
-		t.Errorf("StateNo, Time, AnimElapsed = %d, %d, %d, want 200, 0, 0 (state re-entered, animation restarted)", ctx.StateNo, ctx.Time, ctx.AnimElapsed)
+	if ctx.StateNo != 200 || ctx.Time != 1 || ctx.AnimElapsed != 1 {
+		t.Errorf("StateNo, Time, AnimElapsed = %d, %d, %d, want 200, 1, 1 (state re-entered and run at Time 0, animation restarted)", ctx.StateNo, ctx.Time, ctx.AnimElapsed)
 	}
 	if ctx.MoveContactTime != 0 {
 		t.Errorf("MoveContactTime = %d, want 0: re-entering clears it (no movehitpersist)", ctx.MoveContactTime)
