@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.17.0] - 2026-11-19
+
 ### Fixed
 - Fighters have control when the round starts, as in Ikemen GO, so a character whose standing state does not give control can still move.
 - Entering a state whose header does not set control or an animation keeps the current control and lets the current animation run on; a `.cns` header that writes `ctrl = 0` still takes control away.
@@ -245,7 +247,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.16.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.17.0...HEAD
+[2.17.0]: https://github.com/openkakutou/engine/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/openkakutou/engine/compare/v2.15.0...v2.16.0
 [2.15.0]: https://github.com/openkakutou/engine/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/openkakutou/engine/compare/v2.13.0...v2.14.0
