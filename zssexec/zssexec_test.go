@@ -527,3 +527,65 @@ func TestCompile_ReferenceScriptExpressions_AllParse(t *testing.T) {
 		}
 	}
 }
+
+func TestStep_HitDef_ReportsTheAppliedHitDefParameters(t *testing.T) {
+	script := mustParseScript(t, "[Statedef 0]\nif time = 0 {\n\thitDef{attr: S, NA; damage: 26; pausetime: 12, 12}\n}")
+	result, err := Step(evaluator.Context{}, script)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	if !result.HasHitDef {
+		t.Fatal("HasHitDef = false, want true")
+	}
+	want := map[string]string{"attr": "S, NA", "damage": "26", "pausetime": "12, 12"}
+	if !maps.Equal(result.HitDef.Parameters, want) {
+		t.Errorf("HitDef.Parameters = %v, want %v", result.HitDef.Parameters, want)
+	}
+}
+
+func TestStep_HitDefNotReached_ReportsNoHitDef(t *testing.T) {
+	script := mustParseScript(t, "[Statedef 0]\nif time = 1 {\n\thitDef{damage: 26}\n}")
+	result, err := Step(evaluator.Context{}, script)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	if result.HasHitDef {
+		t.Errorf("HasHitDef = true, want false (its block did not run)")
+	}
+}
+
+func TestStep_HitDefReadingLocals_ReportsTheirValuesAtTheTimeItRuns(t *testing.T) {
+	// Ikemen GO evaluates every HitDef parameter when the controller runs
+	// (hitDef.Run, bytecode.go:8631-8650), so a local's later value is not seen.
+	script := mustParseScript(t, "[Statedef 0]\nlet d = 30;\nlet p = 4;\n"+
+		"hitDef{attr: S, NA; damage: $d * 2, $p; pausetime: $p, 7}\nlet d = 1;")
+	result, err := Step(evaluator.Context{}, script)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	want := map[string]string{"attr": "S, NA", "damage": "60,4", "pausetime": "4, 7"}
+	if !maps.Equal(result.HitDef.Parameters, want) {
+		t.Errorf("HitDef.Parameters = %v, want %v", result.HitDef.Parameters, want)
+	}
+}
+
+func TestStep_HitDefLocalWithInvalidExpression_ReturnsDescriptiveError(t *testing.T) {
+	script := mustParseScript(t, "[Statedef 0]\nlet d = 3;\nhitDef{damage: $d + nosuchtrigger}")
+	_, err := Step(evaluator.Context{}, script)
+	if err == nil || !strings.Contains(err.Error(), "damage") {
+		t.Errorf("err = %v, want one naming the damage parameter", err)
+	}
+}
+
+func TestStep_HitDefInACalledFunction_IsReportedWithTheFunctionsLocals(t *testing.T) {
+	script := mustParseScript(t,
+		"[Function Hit(dmg)]\nhitDef{damage: $dmg}",
+		"[Statedef 0]\ncall Hit(17);")
+	result, err := Step(evaluator.Context{}, script)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	if !result.HasHitDef || result.HitDef.Parameters["damage"] != "17" {
+		t.Errorf("HasHitDef, damage = %v, %q, want true, \"17\"", result.HasHitDef, result.HitDef.Parameters["damage"])
+	}
+}

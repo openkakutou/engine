@@ -148,8 +148,11 @@ func (p FighterProgram) hasState(number int) bool {
 
 // stateStep is the outcome of running one state of either format.
 type stateStep struct {
-	Context      evaluator.Context
-	Applied      []int // .cns only: the controllers that applied
+	Context evaluator.Context
+	// HasHitDef reports whether a HitDef controller applied; HitDef is the
+	// first one, the same shape for both formats.
+	HasHitDef    bool
+	HitDef       cns.Controller
 	Sounds       []evaluator.SoundEvent
 	Unsupported  []string
 	SkippedCalls []string // .zss only
@@ -170,7 +173,16 @@ func (p FighterProgram) step(ctx evaluator.Context, number int, frozen bool) (st
 		} else {
 			r, err = statemachine.StepStateWith(ctx, number, p.States, p.hasState)
 		}
-		return stateStep{Context: r.Context, Applied: r.Applied, Sounds: r.Sounds, Unsupported: r.Unsupported}, err
+		out := stateStep{Context: r.Context, Sounds: r.Sounds, Unsupported: r.Unsupported}
+		controllers := p.States[number].Controllers
+		for _, i := range r.Applied {
+			if strings.EqualFold(controllers[i].Type, statemachine.ControllerTypeHitDef) {
+				out.HitDef = controllers[i]
+				out.HasHitDef = true
+				break
+			}
+		}
+		return out, err
 	}
 	if !p.hasState(number) {
 		return stateStep{}, fmt.Errorf("state %d not found in loaded character", number)
@@ -182,7 +194,7 @@ func (p FighterProgram) step(ctx evaluator.Context, number int, frozen bool) (st
 	} else {
 		r, err = zssexec.StepState(ctx, number, p.script, p.hasState)
 	}
-	return stateStep{Context: r.Context, Sounds: r.Sounds, Unsupported: r.Unsupported, SkippedCalls: r.SkippedCalls}, err
+	return stateStep{Context: r.Context, HasHitDef: r.HasHitDef, HitDef: r.HitDef, Sounds: r.Sounds, Unsupported: r.Unsupported, SkippedCalls: r.SkippedCalls}, err
 }
 
 // NewFighterProgram builds a FighterProgram with its animation lookup
@@ -637,24 +649,11 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		newCtx.GetHit.HitTime--
 	}
 
-	// Only a .cns state reports applied controllers; a HitDef inside a .zss
-	// block is not acted on yet (decision 024).
-	def := prog.States[ctx.StateNo]
-	var hasHitDef bool
-	var hitDef cns.Controller
-	for _, i := range result.Applied {
-		if strings.EqualFold(def.Controllers[i].Type, statemachine.ControllerTypeHitDef) {
-			hitDef = def.Controllers[i]
-			hasHitDef = true
-			break
-		}
-	}
-
 	// The HitDef that just applied becomes the one HitDefAttr reads, unless
 	// the state changed in the same tick: entering the new state has just
 	// reset it (enterState, hitdefpersist).
-	if hasHitDef && !changed {
-		if attr, err := evaluator.ParseAttr(hitDef.Parameters["attr"], true); err == nil {
+	if result.HasHitDef && !changed {
+		if attr, err := evaluator.ParseAttr(result.HitDef.Parameters["attr"], true); err == nil {
 			newCtx.HitDefAttr = attr
 		}
 	}
@@ -662,8 +661,8 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	return fighterTickOutput{
 		Runtime:   FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, Unsupported: unsupported, SkippedCalls: skippedCalls},
 		Frame:     frame,
-		HasHitDef: hasHitDef,
-		HitDef:    hitDef,
+		HasHitDef: result.HasHitDef,
+		HitDef:    result.HitDef,
 		Sounds:    sounds,
 	}, nil
 }

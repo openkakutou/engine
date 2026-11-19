@@ -363,6 +363,51 @@ func TestE2E_KfmCns_PressX_PlaysTheLightPunchSoundFromItsOwnFile(t *testing.T) {
 	})
 }
 
+// scenarioLightKickHitsKfm: kfm_zss (P1) presses a next to the .cns kfm (P2)
+// standing idle. State 230's hitDef (animElem = 3, kfm.zss:343-359) lands:
+// P2 loses its damage, 26, once, and enters a get-hit state (5000-series,
+// common1.cns:873; get-hit entry, decision 018). P2 stands 40 units ahead.
+func scenarioLightKickHitsKfm(t *testing.T, attacker, defender FighterProgram) error {
+	m := newE2EMatch(t, attacker)
+	p2 := match.FighterState{Side: match.SideP2, Position: match.Position{X: e2eP1X + 40}, Facing: match.FacingLeft, Health: 1000}
+	rt2, err := defender.NewRuntime(p2)
+	if err != nil {
+		return fmt.Errorf("NewRuntime(P2): %w", err)
+	}
+	m.programs[match.SideP2] = defender
+	m.runtimes[match.SideP2] = rt2
+	m.state.Fighters[match.SideP2] = p2
+	if err := m.step(input.TickInput{Buttons: map[string]bool{"a": true}}); err != nil {
+		return err
+	}
+	if got, _, _ := m.p1(); got != 230 {
+		return fmt.Errorf("after pressing a StateNo = %d, want 230", got)
+	}
+	for i := 0; i < 30; i++ {
+		if err := m.step(input.TickInput{}); err != nil {
+			return err
+		}
+		p2 := m.state.Fighters[match.SideP2]
+		if p2.Health == 1000 {
+			continue
+		}
+		if p2.Health != 1000-26 {
+			return fmt.Errorf("tick %d: P2 life = %d, want %d (state 230 damage 26)", m.tick, p2.Health, 1000-26)
+		}
+		if p2.StateNo < 5000 || p2.StateNo > 5999 {
+			return fmt.Errorf("tick %d: P2 StateNo = %d on the hit, want a 5000-series get-hit state", m.tick, p2.StateNo)
+		}
+		return nil
+	}
+	return fmt.Errorf("P2 life still 1000 after state 230 ran 30 ticks: the light kick never hit")
+}
+
+func TestE2E_KfmZssVsKfm_PressA_LightKickDamagesTheOpponent(t *testing.T) {
+	if err := scenarioLightKickHitsKfm(t, loadReferenceProgram(t, kfmZssDef), loadReferenceProgram(t, kfmCnsDef)); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestClassifyFailure_PassingScenarioUnknownAndKnownCause_AreToldApart(t *testing.T) {
 	causes := []knownCause{{"041", "bracket"}, {"042", "trigger x"}}
 	for _, tc := range []struct {

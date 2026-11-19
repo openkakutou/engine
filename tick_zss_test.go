@@ -329,3 +329,102 @@ func TestTick_ZssFighter_WarmTickAddsNoAllocationBeyondInputRecognition(t *testi
 		t.Errorf("Tick with .zss fighters allocated %v times per call, want 4 (input recognition only)", allocs)
 	}
 }
+
+// zssKfmHitDef is kfm_hitdef.cns's [State 200, 1] HitDef written as .zss.
+const zssKfmHitDef = "hitDef{attr: S, NA; damage: 23, 0; animtype: Light; pausetime: 8, 8; ground.type: High;\n" +
+	"\tground.slidetime: 5; ground.hittime: 11; air.type: High; air.hittime: 15}"
+
+// newZssHitScenario is newHitScenario with the attacker's state 200 written
+// in .zss as body (its header kept), P1 starting in it.
+func newZssHitScenario(t *testing.T, body string) *hitScenario {
+	t.Helper()
+	s := newHitScenario(t, nil)
+	states := make(map[int]cns.StateDef)
+	for n, def := range s.programs[match.SideP1].States {
+		if n != 200 {
+			states[n] = def
+		}
+	}
+	script := mustScript(t, "[Statedef 200; type: S; movetype: A; physics: S; anim: 200; ctrl: 0;]\n"+body)
+	prog := NewFighterProgram(states, s.programs[match.SideP1].Animations, cmd.CommandFile{}).WithScripts([]zss.Script{script})
+	rt, err := prog.NewRuntime(s.state.Fighter(match.SideP1))
+	if err != nil {
+		t.Fatalf("NewRuntime: %v", err)
+	}
+	s.programs[match.SideP1] = prog
+	s.runtimes[match.SideP1] = rt
+	return s
+}
+
+func TestTick_ZssHitDef_LandsExactlyAsTheSameCnsHitDef(t *testing.T) {
+	cnsRun := newHitScenario(t, nil)
+	zssRun := newZssHitScenario(t, "varSet{v: 0; value: var(0) + 1}\nif time = 0 {\n\t"+zssKfmHitDef+"\n}")
+
+	for tick := 1; tick <= 14; tick++ {
+		cnsRun.step()
+		zssRun.step()
+		for _, side := range []match.Side{match.SideP1, match.SideP2} {
+			c, z := cnsRun.ctx(side), zssRun.ctx(side)
+			if c.Health != z.Health || c.StateNo != z.StateNo || c.GetHit != z.GetHit || c.Vars != z.Vars ||
+				c.MoveContactTime != z.MoveContactTime || c.HitDefAttr != z.HitDefAttr || c.HasTarget != z.HasTarget ||
+				cnsRun.runtimes[side].HitPause != zssRun.runtimes[side].HitPause {
+				t.Fatalf("tick %d side %v: .zss run differs from .cns run:\n cns %+v hitpause %d\n zss %+v hitpause %d",
+					tick, side, c, cnsRun.runtimes[side].HitPause, z, zssRun.runtimes[side].HitPause)
+			}
+		}
+		if tick == 1 {
+			// The anchor the comparison stands on: the hit lands on tick 1.
+			if got := zssRun.state.Fighter(match.SideP2).Health; got != 1000-23 {
+				t.Fatalf("tick 1: defender health = %d, want %d", got, 1000-23)
+			}
+			if got := zssRun.ctx(match.SideP2).StateNo; got != 5000 {
+				t.Fatalf("tick 1: defender StateNo = %d, want 5000", got)
+			}
+			if got := zssRun.ctx(match.SideP1).HitDefAttr; got == 0 {
+				t.Fatalf("tick 1: attacker HitDefAttr = 0, want the HitDef's S, NA")
+			}
+		}
+	}
+}
+
+func TestTick_ZssHitDefReadingLocals_UsesTheirValues(t *testing.T) {
+	s := newZssHitScenario(t, "let d = 40;\nlet p = 6;\nif time = 0 {\n\thitDef{damage: $d, 0; pausetime: $p, $p + 1}\n}")
+	s.step()
+	if got := s.state.Fighter(match.SideP2).Health; got != 1000-40 {
+		t.Errorf("defender health = %d, want %d (damage $d = 40)", got, 1000-40)
+	}
+	if got := s.runtimes[match.SideP1].HitPause; got != 6 {
+		t.Errorf("attacker HitPause = %d, want 6 (pausetime $p)", got)
+	}
+	if got := s.ctx(match.SideP2).GetHit.HitShakeTime; got != 7 {
+		t.Errorf("defender HitShakeTime = %d, want 7 (pausetime $p + 1)", got)
+	}
+}
+
+func TestTick_ZssHitDefInACalledFunction_Lands(t *testing.T) {
+	s := newZssHitScenario(t, "if time = 0 {\n\tcall Attack(31);\n}\n\n[Function Attack(dmg)]\nhitDef{damage: $dmg; pausetime: 8, 8}")
+	s.step()
+	if got := s.state.Fighter(match.SideP2).Health; got != 1000-31 {
+		t.Errorf("defender health = %d, want %d", got, 1000-31)
+	}
+	if got := s.ctx(match.SideP2).StateNo; got != 5000 {
+		t.Errorf("defender StateNo = %d, want 5000", got)
+	}
+}
+
+func TestTick_ZssIgnoreHitPauseHitDef_StartsNoHitWhileFrozenButLandsOnceUnfrozen(t *testing.T) {
+	// Decision 021 point 3, as for .cns: a frozen tick starts no hit.
+	body := "ignoreHitPause {\n\thitDef{damage: 50; pausetime: 8, 8}\n}"
+	frozen := newZssHitScenario(t, body)
+	frozen.runtimes[match.SideP1].HitPause = 3
+	frozen.step()
+	if got := frozen.state.Fighter(match.SideP2).Health; got != 1000 {
+		t.Errorf("frozen attacker: defender health = %d, want 1000 (no hit while frozen)", got)
+	}
+
+	unfrozen := newZssHitScenario(t, body)
+	unfrozen.step()
+	if got := unfrozen.state.Fighter(match.SideP2).Health; got != 1000-50 {
+		t.Errorf("unfrozen attacker: defender health = %d, want %d", got, 1000-50)
+	}
+}

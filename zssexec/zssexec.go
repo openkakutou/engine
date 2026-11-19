@@ -22,7 +22,9 @@ package zssexec
 
 import (
 	"fmt"
+	"maps"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/openkakutou/character/cns"
@@ -49,6 +51,12 @@ type Result struct {
 	// Ikemen GO logs it and runs on (bytecode.go:5050-5069). Fresh per call,
 	// nil when there were none.
 	SkippedCalls []string
+	// HasHitDef reports whether a HitDef controller ran during this call;
+	// HitDef is the first one, with every parameter that reads a local
+	// ($name) already replaced by its value (see hitDefParams). The root
+	// package acts on it as on a .cns HitDef.
+	HasHitDef bool
+	HitDef    cns.Controller
 }
 
 // CompiledScript is a character's full parsed .zss Script (zss.Script):
@@ -196,6 +204,7 @@ func stepState(ctx evaluator.Context, number int, prog CompiledScript, exists fu
 	working.ZSS = true
 	localTop = 0
 	skippedCalls = skippedCalls[:0]
+	hasHitDef, hitDef = false, cns.Controller{}
 	root := frame{base: pushFrame(len(block.names)), names: block.names}
 	working.Locals = root.locals()
 	_, err := r.stmts(block.stmts, root, 0, !hitPause)
@@ -212,7 +221,7 @@ func stepState(ctx evaluator.Context, number int, prog CompiledScript, exists fu
 	sounds := working.Sounds
 	working.Sounds = nil
 	unsupported := statemachine.TakeUnsupported(&working)
-	return Result{Context: working, Sounds: sounds, Unsupported: unsupported, SkippedCalls: skipped}, nil
+	return Result{Context: working, Sounds: sounds, Unsupported: unsupported, SkippedCalls: skipped, HasHitDef: hasHitDef, HitDef: hitDef}, nil
 }
 
 // maxCallDepth bounds how many nested "call F(...);" statements run will
@@ -277,6 +286,14 @@ type runner struct {
 // pointer makes the Context behind it escape to the heap on every Step.
 var skippedCalls []string
 
+// hitDef is the first HitDef that ran during a Step (hasHitDef), reported in
+// Result. Package-level for skippedCalls' reason: read back through the
+// runner, it would carry the Context to the heap with it.
+var (
+	hasHitDef bool
+	hitDef    cns.Controller
+)
+
 // stmts runs stmts in order in frame fr (ctx.Locals is fr.locals() on entry
 // and on exit), and reports whether a state change happened -- the caller
 // must stop running any further statements at its own level (and every
@@ -327,6 +344,14 @@ func (r *runner) stmt(s stmt, fr frame, depth int) (bool, error) {
 		return r.call(st, fr, depth)
 
 	case ctrlStmt:
+		if !hasHitDef && strings.EqualFold(st.ctrl.Type, statemachine.ControllerTypeHitDef) {
+			params, err := hitDefParams(st.ctrl.Parameters, r.ctx)
+			if err != nil {
+				return false, fmt.Errorf("applying %s: %w", st.ctrl.Type, err)
+			}
+			hitDef = cns.Controller{Type: st.ctrl.Type, Triggers: st.ctrl.Triggers, Parameters: params}
+			hasHitDef = true
+		}
 		changed, err := statemachine.ApplyController(st.ctrl, r.ctx, r.exists)
 		if err != nil {
 			return false, fmt.Errorf("applying %s: %w", st.ctrl.Type, err)
@@ -432,4 +457,38 @@ func (r *runner) call(st callStmt, fr frame, depth int) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// hitDefParams returns params with every comma-separated value that reads a
+// local ($name) replaced by its value, evaluated now with ctx's locals:
+// Ikemen GO evaluates a HitDef's parameters when the controller runs
+// (hitDef.Run, src/bytecode.go:8631-8650, runSub :8242), and a local exists
+// only while its block runs. Any other value stays raw text, read later by
+// combat.ParseHitDef as for a .cns HitDef (decision 030). params itself is
+// returned, nothing allocated, when no value reads a local.
+func hitDefParams(params map[string]string, ctx *evaluator.Context) (map[string]string, error) {
+	resolved := params
+	cloned := false
+	for key, raw := range params {
+		if !strings.Contains(raw, "$") {
+			continue
+		}
+		parts := strings.Split(raw, ",")
+		for i, part := range parts {
+			if !strings.Contains(part, "$") {
+				continue
+			}
+			v, err := evaluator.EvaluateMutShortCircuit(part, ctx)
+			if err != nil {
+				return nil, fmt.Errorf("parameter %q value %q: %w", key, part, err)
+			}
+			parts[i] = strconv.FormatFloat(v.Number, 'f', -1, 64)
+		}
+		if !cloned {
+			resolved = maps.Clone(params)
+			cloned = true
+		}
+		resolved[key] = strings.Join(parts, ",")
+	}
+	return resolved, nil
 }

@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # HitDef in .zss Blocks
 
@@ -9,8 +9,8 @@ A `HitDef` written in a `.zss` state does nothing (decision 024: only `.cns` sta
 🔒 MUST: Ikemen GO behaviour (roadmap decision `038`), commit `54d4148a`.
 
 ## Acceptance Criteria
-- [ ] A `.zss` HitDef lands like the same `.cns` HitDef, in a test that compares the two
-- [ ] End-to-end: the `.zss` Kung Fu Man's light kick (state 230) damages the opponent by the HitDef's damage
+- [x] A `.zss` HitDef lands like the same `.cns` HitDef, in a test that compares the two
+- [x] End-to-end: the `.zss` Kung Fu Man's light kick (state 230) damages the opponent by the HitDef's damage
 
 ## Notes
 Found by the fidelity video after engine#040 (2026-11-19).

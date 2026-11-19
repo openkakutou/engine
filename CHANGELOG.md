@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.20.0] - 2026-11-19
+
+### Fixed
+- A `HitDef` written in a `.zss` state now lands like the same `.cns` one: the opponent loses life, enters its get-hit state and both fighters pause. Its parameters may read the state's local variables (`damage: $d`). The `.zss` Kung Fu Man's attacks now hit.
+
 ## [2.19.0] - 2026-11-19
 
 ### Fixed
@@ -258,7 +263,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.19.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.20.0...HEAD
+[2.20.0]: https://github.com/openkakutou/engine/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/openkakutou/engine/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/openkakutou/engine/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/openkakutou/engine/compare/v2.16.0...v2.17.0
