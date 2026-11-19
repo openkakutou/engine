@@ -129,23 +129,24 @@ func physicsState(physics cns.PhysicsType, controllers ...cns.Controller) map[in
 
 // Ikemen GO char.go posUpdate applies gravity automatically only for
 // ss.physics == ST_A; elsewhere gravity comes from the Gravity controller.
-// With yaccel 0.5 and a fighter at rest at Y = 10, one tick of gravity
-// leaves Velocity.Y = -0.5 and, integrated, Position.Y = 9.5.
+// With yaccel 0.5 and a fighter at rest at Y = 10, posUpdate moves it first
+// (by 0) then adds gravity (char.go:10102-10139): Velocity.Y = -0.5, Y = 10.
+// A Gravity controller runs with the states, before the movement.
 
 func TestTick_PhysicsA_Airborne_FallsByYAccelOnceWithoutGravityController(t *testing.T) {
 	prog := FighterProgram{States: physicsState(cns.PhysicsAir)}
 	got := p1After(t, prog, match.FighterState{Position: match.Position{Y: 10}, Health: 1000}, 0.5)
-	if got.Velocity.Y != -0.5 || got.Position.Y != 9.5 {
-		t.Errorf("Velocity.Y, Position.Y = %v, %v, want -0.5, 9.5", got.Velocity.Y, got.Position.Y)
+	if got.Velocity.Y != -0.5 || got.Position.Y != 10 {
+		t.Errorf("Velocity.Y, Position.Y = %v, %v, want -0.5, 10", got.Velocity.Y, got.Position.Y)
 	}
 }
 
 func TestTick_PhysicsA_WithGravityController_FallsByTwiceYAccel(t *testing.T) {
 	prog := FighterProgram{States: physicsState(cns.PhysicsAir, ctrl("Gravity"))}
 	got := p1After(t, prog, match.FighterState{Position: match.Position{Y: 10}, Health: 1000}, 0.5)
-	// Both are asked for, as in Ikemen GO: -0.5 from the controller, -0.5 from physics A, then integrated.
-	if got.Velocity.Y != -1 || got.Position.Y != 9 {
-		t.Errorf("Velocity.Y, Position.Y = %v, %v, want -1, 9", got.Velocity.Y, got.Position.Y)
+	// Both are asked for, as in Ikemen GO: -0.5 from the controller, integrated, then -0.5 from physics A.
+	if got.Velocity.Y != -1 || got.Position.Y != 9.5 {
+		t.Errorf("Velocity.Y, Position.Y = %v, %v, want -1, 9.5", got.Velocity.Y, got.Position.Y)
 	}
 }
 
@@ -176,8 +177,8 @@ func TestTick_OmittedPhysics_IsNone_SoNoAutomaticGravity(t *testing.T) {
 func TestTick_StateTypeSetPhysicsA_TurnsAutomaticGravityOnForTheSameTick(t *testing.T) {
 	prog := FighterProgram{States: physicsState(cns.PhysicsNone, ctrl("StateTypeSet", "physics", "A"))}
 	got := p1After(t, prog, match.FighterState{Position: match.Position{Y: 10}, Health: 1000}, 0.5)
-	if got.Velocity.Y != -0.5 || got.Position.Y != 9.5 {
-		t.Errorf("Velocity.Y, Position.Y = %v, %v, want -0.5, 9.5", got.Velocity.Y, got.Position.Y)
+	if got.Velocity.Y != -0.5 || got.Position.Y != 10 {
+		t.Errorf("Velocity.Y, Position.Y = %v, %v, want -0.5, 10", got.Velocity.Y, got.Position.Y)
 	}
 }
 

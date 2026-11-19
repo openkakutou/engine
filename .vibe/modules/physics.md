@@ -1,5 +1,5 @@
 # Module: engine/physics
-**Role:** Advances a fighter's position and vertical velocity by one simulation tick — gravity while airborne, landing on the ground plane, and clamping horizontal position to the current stage's boundaries.
+**Role:** Ikemen GO's `posUpdate` for one fighter and one tick: position += velocity, horizontal position clamped to the current stage's boundaries, then gravity subtracted from the vertical velocity. No ground stop: the landing (state 52) is `Tick`'s. See `.vibe/decisions/029`.
 **Files:** `physics/physics.go`
 **Exports:** `Step(f match.FighterState, bounds *stage.StageBoundaries, gravity float64) (match.FighterState, error)`
 **Depends on:** `modules/match.md`, `github.com/openkakutou/stage` (external, tagged module — `StageBoundaries`)

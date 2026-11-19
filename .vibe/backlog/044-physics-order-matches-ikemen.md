@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Physics, gravity and hit detection in Ikemen GO's order
 
@@ -9,10 +9,10 @@ In the engine, `physics.Step` runs after hit detection, and adds gravity before 
 🔒 MUST: Ikemen GO behaviour, verified against its source and, once available, the differential traces (item 036).
 
 ## Acceptance Criteria
-- [ ] Position update, gravity and hit detection run in Ikemen GO's order within a tick, cited
-- [ ] A VelSet takes effect on the position on the same tick as in Ikemen GO
+- [x] Position update, gravity and hit detection run in Ikemen GO's order within a tick, cited
+- [x] A VelSet takes effect on the position on the same tick as in Ikemen GO
 
-- [ ] A physics-A fighter that touches the ground enters state 52 (landing), as Ikemen GO does (char.go:12584-12590), so a jump returns to state 0
+- [x] A physics-A fighter that touches the ground enters state 52 (landing), as Ikemen GO does (char.go:12584-12590), so a jump returns to state 0
 
 ## Notes
 Raised by item 027 (2026-11-18).

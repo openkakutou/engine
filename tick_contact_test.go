@@ -31,8 +31,8 @@ func standing(number int, ctrls ...cns.Controller) cns.StateDef {
 // Ikemen GO runs the fighters one after the other inside charList.action
 // (char.go:14066-14090): fighter 2 sees what fighter 1's controllers did in
 // this very tick (its new state number), fighter 1 sees fighter 2 as the
-// previous tick left it. A position is read as it stood before this tick's
-// movement here (Tick runs physics after both fighters; see decision 027).
+// previous tick left it. Neither moves here; fighter 2 reading fighter 1's
+// movement is TestTick_SecondFighterSeesTheFirstOnesPositionAfterItsMovement.
 func TestTick_OpponentTriggers_SecondFighterSeesTheFirstOnesNewState_FirstSeesTheSecondsPreviousTick(t *testing.T) {
 	p1States := map[int]cns.StateDef{
 		0:   standing(0, recordVar("0", "P2StateNo"), recordVar("2", "P2Dist X"), changeTo("100", "Time = 0")),

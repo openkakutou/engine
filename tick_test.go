@@ -59,13 +59,11 @@ func TestTick_AdvancesPhysics_WhenNoStateChangeOccurs(t *testing.T) {
 		t.Fatalf("Tick returned an error: %v", err)
 	}
 
-	// Y starts at 5 (airborne, since grounded requires Y<=0), so gravity
-	// applies: velocity goes from 0 to -1.0, then integrates into
-	// position, landing back on the ground plane (Y clamped to 0) since
-	// 5 - 1.0 would still be > 0 -- actually 5 - 1.0 = 4, still airborne.
-	got := result.State.Fighter(match.SideP1).Position.Y
-	if got != 4 {
-		t.Errorf("P1 Position.Y = %v, want 4 (5 - gravity 1.0)", got)
+	// Ikemen GO posUpdate (char.go:10102-10139): the position moves by the
+	// velocity (0) first, then gravity takes the velocity to -1.0.
+	got := result.State.Fighter(match.SideP1)
+	if got.Position.Y != 5 || got.Velocity.Y != -1 {
+		t.Errorf("P1 Position.Y, Velocity.Y = %v, %v, want 5, -1", got.Position.Y, got.Velocity.Y)
 	}
 	if result.Round.Outcome != round.OutcomeNone {
 		t.Errorf("Round.Outcome = %v, want OutcomeNone", result.Round.Outcome)

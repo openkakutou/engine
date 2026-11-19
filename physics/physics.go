@@ -1,21 +1,15 @@
-// Package physics implements per-tick physics for a fighter: velocity
-// integration, gravity while airborne, ground/air state transitions, and
-// clamping a fighter's horizontal position against the current stage's
-// boundaries.
+// Package physics implements Ikemen GO's per-tick position update for a
+// fighter (char.go posUpdate, 10102-10139): velocity integrates into
+// position, the horizontal position is clamped to the stage's boundaries,
+// then gravity is added to the vertical velocity. Position.Y follows an
+// "upward is positive" convention, 0 being ground level.
 //
-// Ground/air state is deliberately not a stored field on match.FighterState
-// -- it is derived every call from Position.Y and Velocity.Y, following the
-// same wrap-rather-than-reopen precedent evaluator.Context set for an
-// earlier item (see .vibe/decisions/002 and this item's own .vibe/decisions
-// entry). Position.Y follows an "upward is positive" convention: 0 is
-// ground level, and a fighter is airborne whenever it is above the ground
-// or still moving upward off of it -- a fighter resting or falling into the
-// ground (Y <= 0 and Velocity.Y <= 0) is grounded, and gravity does not
-// apply to it.
+// Like Ikemen GO's posUpdate, Step knows no ground: landing is the caller's
+// (Tick changes a falling physics A fighter to state 52, decision 029).
 //
 // Stage boundary data and the gravity rate are both read-only inputs
 // supplied by the caller on every call, not stored or defaulted internally
-// -- see this item's .vibe/decisions entry for why.
+// -- see .vibe/decisions/007 for why.
 package physics
 
 import (
@@ -25,12 +19,10 @@ import (
 	"github.com/openkakutou/stage"
 )
 
-// Step advances f by one simulation tick: gravity is applied to its
-// vertical velocity while airborne, velocity integrates into position,
-// landing on the ground plane zeroes vertical velocity, and the resulting
-// horizontal position is clamped to bounds so a fighter can never move
-// outside the stage -- even when a single tick's velocity would otherwise
-// carry it past the edge.
+// Step advances f by one simulation tick in Ikemen GO's order: velocity
+// integrates into position, the horizontal position is clamped to bounds so a
+// fighter can never move outside the stage, then gravity (0 when the caller's
+// physics type adds none) is subtracted from the vertical velocity.
 //
 // bounds is the current stage's horizontal movement limits, read-only. A
 // nil bounds, meaning no stage boundary data was supplied, and a bounds
@@ -46,30 +38,12 @@ func Step(f match.FighterState, bounds *stage.StageBoundaries, gravity float64) 
 	}
 
 	out := f
-	if !grounded(out) {
-		out.Velocity.Y -= gravity
-	}
-
 	out.Position.X += out.Velocity.X
 	out.Position.Y += out.Velocity.Y
-
-	if out.Position.Y <= 0 {
-		out.Position.Y = 0
-		out.Velocity.Y = 0
-	}
-
 	out.Position.X = clamp(out.Position.X, float64(bounds.Left), float64(bounds.Right))
+	out.Velocity.Y -= gravity
 
 	return out, nil
-}
-
-// grounded reports whether f is resting on, or still falling toward, the
-// ground plane: at or below it (Position.Y <= 0) and not moving upward
-// (Velocity.Y <= 0). A fighter given an upward impulse while at Y == 0 --
-// the moment it leaves the ground -- is airborne starting the same tick,
-// not grounded.
-func grounded(f match.FighterState) bool {
-	return f.Position.Y <= 0 && f.Velocity.Y <= 0
 }
 
 // clamp restricts x to the inclusive range [min, max].

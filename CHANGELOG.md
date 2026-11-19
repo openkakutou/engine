@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.19.0] - 2026-11-19
+
+### Fixed
+- A jumping fighter now lands: on touching the ground in an air state it enters the landing state (52), as in Ikemen GO, so a jump returns to standing.
+- Fighters move in Ikemen GO's order within a tick: a velocity set by a state moves the fighter before hits are checked, and the second fighter sees where the first has just moved. Gravity is added after the move, so jump arcs match Ikemen GO (Kung Fu Man's neutral jump peaks at 84.4 and lands 40 ticks after leaving the ground).
+
 ## [2.18.0] - 2026-11-19
 
 ### Added
@@ -252,7 +258,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.18.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.19.0...HEAD
+[2.19.0]: https://github.com/openkakutou/engine/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/openkakutou/engine/compare/v2.17.0...v2.18.0
 [2.17.0]: https://github.com/openkakutou/engine/compare/v2.16.0...v2.17.0
 [2.16.0]: https://github.com/openkakutou/engine/compare/v2.15.0...v2.16.0

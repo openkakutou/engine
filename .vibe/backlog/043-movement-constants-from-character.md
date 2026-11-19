@@ -15,3 +15,4 @@ The engine uses its own `TickConfig.Gravity` as every fighter's `yaccel`, has no
 
 ## Notes
 Raised by item 027 (2026-11-18, ADR 020).
+Item 044 (2026-11-19): gravity still comes from `TickConfig.Gravity`, not each character's `yaccel` (Constants). Do it here.

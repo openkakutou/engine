@@ -368,13 +368,13 @@ func Tick(
 	inputs [2]input.TickInput,
 	cfg TickConfig,
 ) (TickResult, error) {
-	// Ikemen GO runs the fighters one after the other (char.go:14066-14090):
-	// the first sees the second as the previous tick left it, the second sees
-	// what the first's controllers just did -- its new state, velocity and
-	// move type -- but not yet its movement, which Tick applies after both
-	// (decision 027).
+	// Ikemen GO runs the fighters one after the other (char.go:14066-14090),
+	// each acting then moving (actionRun, char.go:12583): the first sees the
+	// second as the previous tick left it, the second sees the first after
+	// its controllers and its movement; collision detection comes after both
+	// (system.go:2734). See decisions 027 and 029.
 	p2Seen := snapshotOf(state.Fighter(match.SideP2), &runtimes[match.SideP2].Context)
-	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), p2Seen, inputs[match.SideP1], cfg.Tick, cfg.Gravity, state.Round, state.RandSeed)
+	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), p2Seen, inputs[match.SideP1], cfg.Tick, cfg.Bounds, cfg.Gravity, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
 	}
@@ -387,7 +387,7 @@ func Tick(
 	// effect is immediate.
 	state.Fighters[match.SideP1] = p1Out.Runtime.Context.FighterState
 	p1Seen := snapshotOf(state.Fighter(match.SideP1), &p1Out.Runtime.Context)
-	p2Out, err := tickFighter(programs[match.SideP2], runtimes[match.SideP2], state.Fighter(match.SideP2), p1Seen, inputs[match.SideP2], cfg.Tick, cfg.Gravity, state.Round, state.RandSeed)
+	p2Out, err := tickFighter(programs[match.SideP2], runtimes[match.SideP2], state.Fighter(match.SideP2), p1Seen, inputs[match.SideP2], cfg.Tick, cfg.Bounds, cfg.Gravity, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
 	}
@@ -423,29 +423,12 @@ func Tick(
 		}
 	}
 
-	p1Fighter := state.Fighter(match.SideP1)
-	p1Fighter.StateNo = runtimesOut[match.SideP1].Context.StateNo
-	p1Fighter.Power = runtimesOut[match.SideP1].Context.Power
-	updatedP1 := p1Fighter
-	if !p1Out.Frozen {
-		updatedP1, err = physics.Step(p1Fighter, cfg.Bounds, gravityFor(&runtimesOut[match.SideP1].Context, cfg.Gravity))
-		if err != nil {
-			return TickResult{}, fmt.Errorf("engine: Tick: side %v: physics: %w", match.SideP1, err)
-		}
-	}
-	state.Fighters[match.SideP1] = updatedP1
-
-	p2Fighter := state.Fighter(match.SideP2)
-	p2Fighter.StateNo = runtimesOut[match.SideP2].Context.StateNo
-	p2Fighter.Power = runtimesOut[match.SideP2].Context.Power
-	updatedP2 := p2Fighter
-	if !p2Out.Frozen {
-		updatedP2, err = physics.Step(p2Fighter, cfg.Bounds, gravityFor(&runtimesOut[match.SideP2].Context, cfg.Gravity))
-		if err != nil {
-			return TickResult{}, fmt.Errorf("engine: Tick: side %v: physics: %w", match.SideP2, err)
-		}
-	}
-	state.Fighters[match.SideP2] = updatedP2
+	// A get-hit state entered by applyHitReaction and a PowerAdd live on the
+	// runtime context: copy them onto the match state.
+	state.Fighters[match.SideP1].StateNo = runtimesOut[match.SideP1].Context.StateNo
+	state.Fighters[match.SideP1].Power = runtimesOut[match.SideP1].Context.Power
+	state.Fighters[match.SideP2].StateNo = runtimesOut[match.SideP2].Context.StateNo
+	state.Fighters[match.SideP2].Power = runtimesOut[match.SideP2].Context.Power
 
 	var sounds [2][]evaluator.SoundEvent
 	sounds[match.SideP1] = p1Out.Sounds
@@ -509,7 +492,7 @@ var specialStates = [...]int{-3, -2, -1}
 // of this tick (position/facing/health, sourced from match.MatchState, the
 // single source of truth Tick reconciles runtime.Context against every
 // call).
-func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.FighterState, opponent evaluator.Opponent, in input.TickInput, tick int, gravity float64, round int, seed int32) (fighterTickOutput, error) {
+func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.FighterState, opponent evaluator.Opponent, in input.TickInput, tick int, bounds *stage.StageBoundaries, gravity float64, round int, seed int32) (fighterTickOutput, error) {
 	ctx := runtime.Context
 	ctx.FighterState = fighter
 	ctx.P2 = opponent
@@ -631,6 +614,16 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		newCtx.Time++
 		newCtx.AnimElapsed++
 	}
+	// Ikemen GO actionRun moves the fighter after its states (posUpdate,
+	// char.go:12583), then lands it (char.go:12584-12590).
+	moved, err := physics.Step(newCtx.FighterState, bounds, gravityFor(&newCtx, gravity))
+	if err != nil {
+		return fighterTickOutput{}, fmt.Errorf("physics: %w", err)
+	}
+	newCtx.FighterState = moved
+	if err := land(&newCtx, prog); err != nil {
+		return fighterTickOutput{}, err
+	}
 	// After every unfrozen action, a state change included, the contact
 	// counter grows (char.go:12594-12596); a state entered without
 	// movehitpersist has just reset it to 0.
@@ -673,6 +666,32 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		HitDef:    hitDef,
 		Sounds:    sounds,
 	}, nil
+}
+
+// land is Ikemen GO's hard-coded landing (char.go:12584-12590): a fighter in
+// physics A falling (velocity down) at or below the ground, outside state
+// 105, changes to state 52, entered like any ChangeState (enterState).
+// Ikemen GO runs state 52 at once (changeStateEx, char.go:6987-6994), whose
+// VelSet y = 0 and PosSet y = 0 at Time = 0 put it on the ground on this tick
+// (common1.cns:273-281); the engine runs a newly entered state's controllers
+// on the next tick, so it puts the fighter on the ground here, horizontal
+// velocity kept, for the landing tick's position to be Ikemen GO's.
+// shortcut: a character without state 52 is left falling, as basicChangeState
+// does, where Ikemen GO enters an empty state.
+func land(ctx *evaluator.Context, prog FighterProgram) error {
+	if ctx.Physics != 'A' || ctx.Velocity.Y >= 0 || ctx.Position.Y > 0 || ctx.StateNo == 105 {
+		return nil
+	}
+	def, ok := prog.stateHeader(52)
+	if !ok {
+		return nil
+	}
+	ctx.PrevStateNo = ctx.StateNo
+	ctx.StateNo = 52
+	ctx.Position.Y = 0
+	ctx.Velocity.Y = 0
+	_, err := enterState(ctx, def)
+	return err
 }
 
 // basicActions are the walk, jump and crouch a fighter with control gets

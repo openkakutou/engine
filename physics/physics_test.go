@@ -9,28 +9,28 @@ import (
 
 const testGravity = 0.5
 
-func TestStep_IntegratesVelocityIntoPosition_WhileGrounded(t *testing.T) {
+func TestStep_IntegratesVelocityIntoPosition_WithoutGravity(t *testing.T) {
 	f := match.FighterState{
 		Position: match.Position{X: 10, Y: 0},
 		Velocity: match.Velocity{X: 2, Y: 0},
 	}
 	bounds := &stage.StageBoundaries{Left: -100, Right: 100}
 
-	got, err := Step(f, bounds, testGravity)
+	got, err := Step(f, bounds, 0)
 	if err != nil {
 		t.Fatalf("Step returned error: %v", err)
 	}
 
 	want := match.Position{X: 12, Y: 0}
-	if got.Position != want {
-		t.Errorf("Position = %+v, want %+v", got.Position, want)
-	}
-	if got.Velocity.Y != 0 {
-		t.Errorf("Velocity.Y = %v, want 0 (gravity must not apply while grounded)", got.Velocity.Y)
+	if got.Position != want || got.Velocity.Y != 0 {
+		t.Errorf("Position, Velocity.Y = %+v, %v, want %+v, 0", got.Position, got.Velocity.Y, want)
 	}
 }
 
-func TestStep_AppliesGravity_WhileAirborne(t *testing.T) {
+// Ikemen GO posUpdate (char.go:10102-10139): the position moves by the
+// velocity first, then gravity changes the velocity: Y = 5 + 1 = 6, then
+// Velocity.Y = 1 - 0.5 = 0.5.
+func TestStep_MovesThenAppliesGravity(t *testing.T) {
 	f := match.FighterState{
 		Position: match.Position{X: 0, Y: 5},
 		Velocity: match.Velocity{X: 0, Y: 1},
@@ -42,57 +42,16 @@ func TestStep_AppliesGravity_WhileAirborne(t *testing.T) {
 		t.Fatalf("Step returned error: %v", err)
 	}
 
-	// Gravity decrements vertical velocity before it integrates into
-	// position: 1 - 0.5 = 0.5, then Y = 5 + 0.5 = 5.5.
-	if got.Velocity.Y != 0.5 {
-		t.Errorf("Velocity.Y = %v, want 0.5", got.Velocity.Y)
-	}
-	if got.Position.Y != 5.5 {
-		t.Errorf("Position.Y = %v, want 5.5", got.Position.Y)
+	if got.Position.Y != 6 || got.Velocity.Y != 0.5 {
+		t.Errorf("Position.Y, Velocity.Y = %v, %v, want 6, 0.5", got.Position.Y, got.Velocity.Y)
 	}
 }
 
-func TestStep_FullJumpArc_LeavesGroundApexAndLands(t *testing.T) {
+// Ikemen GO's posUpdate has no ground: the landing is the caller's (Tick,
+// state 52), so a fighter crossing Y 0 is left below it.
+func TestStep_DoesNotStopAtTheGround(t *testing.T) {
 	f := match.FighterState{
-		Position: match.Position{X: 0, Y: 0},
-		Velocity: match.Velocity{X: 0, Y: 2},
-	}
-	bounds := &stage.StageBoundaries{Left: -100, Right: 100}
-
-	sawAirborne := false
-	var apex float64
-	for i := 0; i < 20; i++ {
-		next, err := Step(f, bounds, testGravity)
-		if err != nil {
-			t.Fatalf("Step returned error on tick %d: %v", i, err)
-		}
-		if next.Position.Y > 0 {
-			sawAirborne = true
-		}
-		if next.Position.Y > apex {
-			apex = next.Position.Y
-		}
-		f = next
-	}
-
-	if !sawAirborne {
-		t.Fatal("fighter never left the ground during the jump")
-	}
-	if apex <= 0 {
-		t.Fatalf("apex = %v, want > 0", apex)
-	}
-	if f.Position.Y != 0 {
-		t.Errorf("final Position.Y = %v, want 0 (fighter should have landed)", f.Position.Y)
-	}
-	if f.Velocity.Y != 0 {
-		t.Errorf("final Velocity.Y = %v, want 0 (landing must zero vertical velocity)", f.Velocity.Y)
-	}
-}
-
-func TestStep_TransitionsToGrounded_OnTheLandingTick(t *testing.T) {
-	// One tick away from crossing back to the ground plane.
-	f := match.FighterState{
-		Position: match.Position{X: 0, Y: 0.3},
+		Position: match.Position{X: 0, Y: 0.25},
 		Velocity: match.Velocity{X: 0, Y: -0.5},
 	}
 	bounds := &stage.StageBoundaries{Left: -100, Right: 100}
@@ -102,11 +61,8 @@ func TestStep_TransitionsToGrounded_OnTheLandingTick(t *testing.T) {
 		t.Fatalf("Step returned error: %v", err)
 	}
 
-	if got.Position.Y != 0 {
-		t.Errorf("Position.Y = %v, want 0 (clamped to the ground plane)", got.Position.Y)
-	}
-	if got.Velocity.Y != 0 {
-		t.Errorf("Velocity.Y = %v, want 0 (landing zeroes vertical velocity)", got.Velocity.Y)
+	if got.Position.Y != -0.25 || got.Velocity.Y != -1 {
+		t.Errorf("Position.Y, Velocity.Y = %v, %v, want -0.25, -1", got.Position.Y, got.Velocity.Y)
 	}
 }
 

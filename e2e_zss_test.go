@@ -186,10 +186,19 @@ func scenarioWalkForward(t *testing.T, prog FighterProgram) error {
 }
 
 // scenarioJump: pressing up (one tick) from idle runs jump start (state 40),
-// jump up (state 50) with velocity.jump.neu y = -8.4, i.e. 8.4 up
-// (kfm.cns:57), under yaccel .44 (kfm.cns:76), then lands (Ikemen GO
-// char.go:12584-12590 changes to state 52) and returns to state 0 with Y back
-// to 0 (common1.cns.zss:163-178).
+// whose last tick sets velocity.jump.neu y = -8.4, i.e. 8.4 up (kfm.cns:57),
+// and changes to jump up (state 50, physics A); the fighter then lands (Ikemen
+// GO char.go:12584-12590 changes to state 52) and returns to state 0 with Y
+// back to 0 (common1.cns:267-297, common1.cns.zss:163-178).
+//
+// The arc, by hand, in Ikemen GO's order (posUpdate, char.go:10102-10139:
+// position += velocity, then velocity += yaccel .44, kfm.cns:76), with n
+// counting from the VelSet tick (n = 1, which already moves: state 50 is
+// entered before the movement, char.go:12583): Y(n) = 8.4n - 0.22n(n-1) in
+// the engine's Y up (decision 020). Y(1) = 8.4; the velocity is still upward
+// for the moves k = 0..19 (8.4 - .44 * 19 = .04), so the peak is
+// Y(20) = 168 - 83.6 = 84.4; Y(39) = 1.56 and Y(40) = 336 - 343.2 = -7.2,
+// falling, so tick n = 40 lands in state 52 at Y 0.
 func scenarioJump(t *testing.T, prog FighterProgram) error {
 	m := newE2EMatch(t, prog)
 	if err := m.step(input.TickInput{Up: true}); err != nil {
@@ -198,19 +207,28 @@ func scenarioJump(t *testing.T, prog FighterProgram) error {
 	if stateNo, _, _ := m.p1(); stateNo != 40 {
 		return fmt.Errorf("after pressing up StateNo = %d, want 40 (jump start)", stateNo)
 	}
-	sawJumpUp, peak := false, 0.0
+	n, peak := 0, 0.0
 	for i := 2; i <= 200; i++ {
 		if err := m.step(input.TickInput{}); err != nil {
 			return err
 		}
 		stateNo, pos, _ := m.p1()
-		sawJumpUp = sawJumpUp || stateNo == 50
+		if stateNo == 50 || n > 0 {
+			n++
+		}
 		peak = math.Max(peak, pos.Y)
-		if stateNo == 0 && sawJumpUp {
-			// A jump of vy0 = 8.4 up under g = .44 peaks near vy0^2 / 2g = 80
-			// (the engine keeps Y up, decision 020; Ikemen GO's content has Y down).
-			if peak < 70 || peak > 90 {
-				return fmt.Errorf("jump peaked at Y = %v, want about 80", peak)
+		if n == 1 && !approx(pos.Y, 8.4) {
+			return fmt.Errorf("first tick of state 50: Y = %v, want 8.4 (the VelSet moves on its own tick)", pos.Y)
+		}
+		if n > 0 && n < 40 && stateNo != 50 {
+			return fmt.Errorf("jump tick %d: StateNo = %d, want 50 (Y %v)", n, stateNo, pos.Y)
+		}
+		if n == 40 && (stateNo != 52 || pos.Y != 0) {
+			return fmt.Errorf("jump tick 40: StateNo, Y = %d, %v, want 52, 0 (landing)", stateNo, pos.Y)
+		}
+		if stateNo == 0 && n >= 40 {
+			if !approx(peak, 84.4) {
+				return fmt.Errorf("jump peaked at Y = %v, want 84.4", peak)
 			}
 			if pos.Y != 0 {
 				return fmt.Errorf("landed in state 0 at Y = %v, want 0", pos.Y)
@@ -219,7 +237,7 @@ func scenarioJump(t *testing.T, prog FighterProgram) error {
 		}
 	}
 	stateNo, _, _ := m.p1()
-	return fmt.Errorf("never back in state 0 after the jump (StateNo %d, saw jump up: %v, peak Y %v)", stateNo, sawJumpUp, peak)
+	return fmt.Errorf("never back in state 0 after the jump (StateNo %d, jump ticks %d, peak Y %v)", stateNo, n, peak)
 }
 
 // scenarioAttackSound: from idle, pressing button for one tick enters the
@@ -257,14 +275,8 @@ func scenarioAttackSound(t *testing.T, prog FighterProgram, button string, state
 // does. The .cns kfm walks at the right speed but keeps the standing
 // animation: common1.cns's walk ChangeAnim needs "trigger1 OR trigger2"
 // (common1.cns:128-133), and controller triggers are all ANDed (decision
-// 003). Both jumps stop at the landing (landingCause).
+// 003). Both jump and land back in state 0 since item 044.
 var cnsWalkCause = knownCause{"061 (OR between trigger groups, needs character#080)", "walk Anim = 0, want 20"}
-
-// landingCause stops the jump: the engine does not change a fighter in
-// physics type A to state 52 when it lands (Ikemen GO char.go:12584-12590), so
-// a jump never returns to state 0. No backlog item covers it yet; item 044
-// (physics order) is the closest home.
-var landingCause = knownCause{"none yet: landing changes to state 52 (propose adding it to 044)", "never back in state 0"}
 
 // zssHeaderCommentCause: kfm.zss's state 200 header spans lines whose "#"
 // comments hold ";" and "]" (kfm.zss:212-222); character's zss.Parse ends
@@ -297,7 +309,9 @@ func TestE2E_KfmZss_HoldForward_WalksAtTheCharactersWalkSpeed(t *testing.T) {
 
 func TestE2E_KfmZss_PressUp_JumpsAndLandsInStateZero(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmZssDef)
-	expectFailure(t, []knownCause{landingCause}, func() error { return scenarioJump(t, prog) })
+	if err := scenarioJump(t, prog); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestE2E_KfmCns_StandIdle_StaysInStateZero(t *testing.T) {
@@ -314,7 +328,9 @@ func TestE2E_KfmCns_HoldForward_WalksAtTheCharactersWalkSpeed(t *testing.T) {
 
 func TestE2E_KfmCns_PressUp_JumpsAndLandsInStateZero(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmCnsDef)
-	expectFailure(t, []knownCause{landingCause}, func() error { return scenarioJump(t, prog) })
+	if err := scenarioJump(t, prog); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // Stand light kick, state 230 (command.zss:253-259): at Time = 2 it calls
@@ -371,8 +387,8 @@ func TestClassifyFailure_PassingScenarioUnknownAndKnownCause_AreToldApart(t *tes
 // miniZss is a few states written like common1.cns.zss's own (state 0, walk
 // 20, jump 40/50/52) driven by a state -1 on the real kfm_zss commands: the
 // scenarios above must pass on a character the engine can run, or they would
-// assert nothing. The landing in state 50 is spelled out because the engine
-// does not do Ikemen GO's change to state 52 on landing yet (see landingCause).
+// assert nothing. Like common1, state 50 relies on the engine's own landing
+// into state 52 (Ikemen GO char.go:12584-12590).
 const miniZss = `
 [StateDef 0; type: S; physics: S;]
 velSet{x: 0}
@@ -396,9 +412,7 @@ if time = 2 {
 }
 
 [StateDef 50; type: A; physics: A;]
-if time > 0 && pos y >= 0 {
-	changeState{value: 52}
-}
+null{}
 
 [StateDef 52; type: S; physics: S; anim: 47; ctrl: 0;]
 velSet{y: 0}
