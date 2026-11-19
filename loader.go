@@ -2,7 +2,10 @@ package engine
 
 import (
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -12,7 +15,7 @@ import (
 	"github.com/openkakutou/engine/v2/evaluator"
 )
 
-// LoadFighterProgram assembles the state table of a loaded character the way
+// LoadFighterProgramFS assembles the state table of a loaded character the way
 // Ikemen GO does and returns it as a FighterProgram: it compiles the state
 // files in this order -- every "st" and "stN" .def entry (sorted: st, then
 // st1, st2, ...), then the .cmd file (its Statedef -1/-2/-3 live there), then
@@ -22,8 +25,9 @@ import (
 // "skip appending if already declared"; commit 54d4148a). A number defined
 // twice inside one file is likewise first-wins (:7248).
 //
-// A state file is searched in the .def's folder first, then in each
-// searchDir in order, case-insensitively: Ikemen GO's SearchFile/LoadFile
+// defName and searchDirs are slash-separated paths inside fsys (backslashes
+// are accepted); a path leaving the root of fsys is not found. A state file is
+// searched in the .def's folder first, then in each searchDir in order, case-insensitively: Ikemen GO's SearchFile/LoadFile
 // (src/common.go ~720-775) look in the dirs given by the caller, and the
 // compiler passes []string{def, "", sys.motif.Def, "data/"} (compiler.go:8793).
 // The caller supplies the game's own folders (such as data/) as searchDirs;
@@ -49,21 +53,107 @@ import (
 // several files for characters flagged ikemenversion (:7269, :7538) and for
 // every .zss (:8466); here the first file's negative state wins. Upgrade if
 // a real character's -1 split across files shows up in the results.
+func LoadFighterProgramFS(fsys fs.FS, ch *character.Character, defName string, searchDirs ...string) (prog FighterProgram, missing []string, err error) {
+	dirs := []string{path.Dir(slashed(defName))}
+	for _, dir := range searchDirs {
+		dirs = append(dirs, slashed(dir))
+	}
+	return assembleFighterProgram(fsAccess{fsys}, ch, dirs)
+}
+
+// LoadFighterProgram is LoadFighterProgramFS over the disk: defPath and
+// searchDirs are OS paths, used as the caller wrote them (relative ones are
+// resolved by the OS from the working directory), and its errors name files
+// with those paths.
 func LoadFighterProgram(ch *character.Character, defPath string, searchDirs ...string) (prog FighterProgram, missing []string, err error) {
 	dirs := append([]string{filepath.Dir(defPath)}, searchDirs...)
+	return assembleFighterProgram(osAccess{}, ch, dirs)
+}
+
+// fileAccess is what the search needs of a file tree, so that one resolution
+// logic serves both an fs.FS (path semantics, a path leaving the root is not
+// found) and the OS (the caller's own paths, joined with filepath.Join).
+type fileAccess interface {
+	// join appends one path component to dir; false when the result is not
+	// a name this tree can hold.
+	join(dir, component string) (string, bool)
+	exists(name string) bool
+	// readDir lists the entry names of the directory name.
+	readDir(name string) ([]string, error)
+	open(name string) (io.ReadCloser, error)
+}
+
+type fsAccess struct{ fsys fs.FS }
+
+func (a fsAccess) join(dir, component string) (string, bool) {
+	name := path.Join(dir, component)
+	return name, fs.ValidPath(name)
+}
+
+func (a fsAccess) exists(name string) bool {
+	_, err := fs.Stat(a.fsys, name)
+	return err == nil
+}
+
+func (a fsAccess) readDir(name string) ([]string, error) {
+	entries, err := fs.ReadDir(a.fsys, name)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	return names, nil
+}
+
+func (a fsAccess) open(name string) (io.ReadCloser, error) {
+	return a.fsys.Open(name)
+}
+
+type osAccess struct{}
+
+func (osAccess) join(dir, component string) (string, bool) {
+	return filepath.Join(dir, component), true
+}
+
+func (osAccess) exists(name string) bool {
+	_, err := os.Stat(name)
+	return err == nil
+}
+
+func (osAccess) readDir(name string) ([]string, error) {
+	entries, err := os.ReadDir(name)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	return names, nil
+}
+
+func (osAccess) open(name string) (io.ReadCloser, error) {
+	return os.Open(name)
+}
+
+// assembleFighterProgram is the one implementation behind both loaders; dirs is
+// the .def's folder followed by the search folders.
+func assembleFighterProgram(files fileAccess, ch *character.Character, dirs []string) (prog FighterProgram, missing []string, err error) {
 	entries := append([]string{}, ch.StateFiles...)
 	entries = append(entries, ch.CommandFile, ch.StateCommonFile)
 
-	var files []StateFile
+	var stateFiles []StateFile
 	for _, entry := range entries {
 		if entry == "" {
 			continue
 		}
 		if entry == ch.CommandFile {
-			files = append(files, StateFile{States: ch.Commands.States})
+			stateFiles = append(stateFiles, StateFile{States: ch.Commands.States})
 			continue
 		}
-		file, found, err := loadStateFile(dirs, entry)
+		file, found, err := loadStateFile(files, dirs, entry)
 		if err != nil {
 			return FighterProgram{}, nil, err
 		}
@@ -71,11 +161,11 @@ func LoadFighterProgram(ch *character.Character, defPath string, searchDirs ...s
 			missing = append(missing, entry)
 			continue
 		}
-		files = append(files, file)
+		stateFiles = append(stateFiles, file)
 	}
-	files = append(files, StateFile{States: ch.StateDefs})
-	prog = NewFighterProgramFromFiles(files, ch.Animations, ch.Commands)
-	prog.Constants, err = loadConstants(dirs, ch.ConstantsFile)
+	stateFiles = append(stateFiles, StateFile{States: ch.StateDefs})
+	prog = NewFighterProgramFromFiles(stateFiles, ch.Animations, ch.Commands)
+	prog.Constants, err = loadConstants(files, dirs, ch.ConstantsFile)
 	if err != nil {
 		return FighterProgram{}, nil, err
 	}
@@ -90,46 +180,46 @@ func LoadFighterProgram(ch *character.Character, defPath string, searchDirs ...s
 // src/char.go:4403 LoadFile dirs {def, "", "data/"}). It returns nil when the
 // entry is empty or found in no folder, and the character keeps Ikemen GO's
 // defaults.
-func loadConstants(dirs []string, entry string) (*evaluator.Constants, error) {
+func loadConstants(files fileAccess, dirs []string, entry string) (*evaluator.Constants, error) {
 	if entry == "" {
 		return nil, nil
 	}
-	path, ok := searchFile(dirs, strings.ReplaceAll(entry, "\\", "/"))
+	name, ok := searchFile(files, dirs, slashed(entry))
 	if !ok {
 		return nil, nil
 	}
-	f, err := os.Open(path)
+	f, err := files.open(name)
 	if err != nil {
 		return nil, fmt.Errorf("opening constants file %q: %w", entry, err)
 	}
 	defer f.Close()
 	constants, err := evaluator.ParseConstants(f)
 	if err != nil {
-		return nil, fmt.Errorf("constants file %q: %w", path, err)
+		return nil, fmt.Errorf("constants file %q: %w", name, err)
 	}
 	return constants, nil
 }
 
 // loadStateFile finds entry in dirs, falling back to "<entry>.zss", and
 // parses it by its extension.
-func loadStateFile(dirs []string, entry string) (StateFile, bool, error) {
-	relPath := strings.ReplaceAll(entry, "\\", "/")
-	path, ok := searchFile(dirs, relPath)
+func loadStateFile(files fileAccess, dirs []string, entry string) (StateFile, bool, error) {
+	relPath := slashed(entry)
+	name, ok := searchFile(files, dirs, relPath)
 	if !ok && !strings.EqualFold(filepath.Ext(relPath), ".zss") {
-		path, ok = searchFile(dirs, relPath+".zss")
+		name, ok = searchFile(files, dirs, relPath+".zss")
 	}
 	if !ok {
 		return StateFile{}, false, nil
 	}
-	f, err := os.Open(path)
+	f, err := files.open(name)
 	if err != nil {
 		return StateFile{}, false, fmt.Errorf("opening state file %q: %w", entry, err)
 	}
 	defer f.Close()
-	if strings.EqualFold(filepath.Ext(path), ".zss") {
+	if strings.EqualFold(filepath.Ext(name), ".zss") {
 		script, err := zss.Parse(f)
 		if err != nil {
-			return StateFile{}, false, fmt.Errorf("state script %q: %w", path, err)
+			return StateFile{}, false, fmt.Errorf("state script %q: %w", name, err)
 		}
 		return StateFile{Script: &script}, true, nil
 	}
@@ -140,11 +230,16 @@ func loadStateFile(dirs []string, entry string) (StateFile, bool, error) {
 	return StateFile{States: defs}, true, nil
 }
 
+// slashed turns the backslashes of a name written for Windows into slashes.
+func slashed(name string) string {
+	return strings.ReplaceAll(name, "\\", "/")
+}
+
 // searchFile returns the first dir's match for relPath, in dirs order.
-func searchFile(dirs []string, relPath string) (string, bool) {
+func searchFile(files fileAccess, dirs []string, relPath string) (string, bool) {
 	for _, dir := range dirs {
-		if path, ok := resolveCaseInsensitive(dir, relPath); ok {
-			return path, true
+		if name, ok := resolveCaseInsensitive(files, dir, relPath); ok {
+			return name, true
 		}
 	}
 	return "", false
@@ -154,32 +249,38 @@ func searchFile(dirs []string, relPath string) (string, bool) {
 // matching each component case-insensitively when no exact match exists, as
 // real .def files are written for case-insensitive Windows filesystems. It
 // reports false when a component has no match.
-func resolveCaseInsensitive(base, relPath string) (string, bool) {
+func resolveCaseInsensitive(files fileAccess, base, relPath string) (string, bool) {
 	current := base
 	for _, component := range strings.Split(relPath, "/") {
 		if component == "" || component == "." {
 			continue
 		}
-		candidate := filepath.Join(current, component)
-		if _, err := os.Stat(candidate); err == nil {
+		candidate, ok := files.join(current, component)
+		if !ok {
+			return "", false
+		}
+		if files.exists(candidate) {
 			current = candidate
 			continue
 		}
-		entries, err := os.ReadDir(current)
+		names, err := files.readDir(current)
 		if err != nil {
 			return "", false
 		}
 		match := ""
-		for _, entry := range entries {
-			if strings.EqualFold(entry.Name(), component) {
-				match = entry.Name()
+		for _, name := range names {
+			if strings.EqualFold(name, component) {
+				match = name
 				break
 			}
 		}
 		if match == "" {
 			return "", false
 		}
-		current = filepath.Join(current, match)
+		current, ok = files.join(current, match)
+		if !ok {
+			return "", false
+		}
 	}
 	return current, true
 }

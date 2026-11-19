@@ -3,7 +3,7 @@ module github.com/openkakutou/engine/v2
 go 1.26.7
 
 require (
-	github.com/openkakutou/character v0.17.0
+	github.com/openkakutou/character v0.18.0
 	github.com/openkakutou/stage v0.17.0
 )
 

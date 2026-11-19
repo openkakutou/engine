@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.24.0] - 2026-11-20
+
+### Changed
+- Depends on `character` v0.18.0.
+
+### Added
+- `LoadFighterProgramFS(fsys, ch, defName, searchDirs...)` builds a fighter program from an `fs.FS` (names are slash-separated paths inside it), with the same search as `LoadFighterProgram`: the .def folder, then the search folders in order, the `.zss` fallback and the case-insensitive lookup. `LoadFighterProgram` shares the same search, so the programs it builds and its error messages do not change.
+
 ## [2.23.0] - 2026-11-19
 
 ### Changed
@@ -290,7 +298,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.23.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.24.0...HEAD
+[2.24.0]: https://github.com/openkakutou/engine/compare/v2.23.0...v2.24.0
 [2.23.0]: https://github.com/openkakutou/engine/compare/v2.22.2...v2.23.0
 [2.22.2]: https://github.com/openkakutou/engine/compare/v2.22.1...v2.22.2
 [2.22.1]: https://github.com/openkakutou/engine/compare/v2.22.0...v2.22.1
