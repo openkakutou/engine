@@ -1,10 +1,8 @@
-github.com/openkakutou/character v0.16.0 h1:Tc4krn0ZSN1yL7OC4T4olUEJC9FJZB4ahi/Iao2eabI=
-github.com/openkakutou/character v0.16.0/go.mod h1:iPpJxagNriywu0qLJqGIThufnr+OmWwBNILWf2Aq150=
 github.com/openkakutou/character v0.17.0 h1:ZWqsP9kgiYTSwd8/sja3U2kD2n5FFpTQV3dcLGkUnKI=
 github.com/openkakutou/character v0.17.0/go.mod h1:iPpJxagNriywu0qLJqGIThufnr+OmWwBNILWf2Aq150=
-github.com/openkakutou/sff v0.8.0 h1:lmhHV6pWRaYuAU3lAfMy6j4lkDz1O4ImZvfTi9QNXZk=
-github.com/openkakutou/sff v0.8.0/go.mod h1:82EBFkUd/eXXNgfvrHvk2ITwul+X3IEao9jwYGQL44U=
+github.com/openkakutou/sff v0.8.1 h1:0UrWzGLFpwATaf+jTAjEs+ghHprO0EVtIr+kSzZr1jQ=
+github.com/openkakutou/sff v0.8.1/go.mod h1:82EBFkUd/eXXNgfvrHvk2ITwul+X3IEao9jwYGQL44U=
 github.com/openkakutou/snd v0.7.2 h1:CZdAs+a6E6Zp2HSIe9xMXu23vjQk3t6855E6B77kVzU=
 github.com/openkakutou/snd v0.7.2/go.mod h1:fAAbJE/dewexjPY3NyPhmxrYhr2sSPe5wprBVnJwHiw=
-github.com/openkakutou/stage v0.13.0 h1:FcVtFrNi1QtUwJJocs9swxVU03f2wTfUYaydmnNHmPk=
-github.com/openkakutou/stage v0.13.0/go.mod h1:Ozkszon52eqQYooaxUccm1phJEqSR1VmMauAHf93GoY=
+github.com/openkakutou/stage v0.17.0 h1:WUsPvxZPDUM38DqSxcIZp8jyCoJyUSS7EMrmicBDgGo=
+github.com/openkakutou/stage v0.17.0/go.mod h1:c9SVqDOrnOOc1/C023jQk0urHI7DhVdnkULJeP9BvFA=

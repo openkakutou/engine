@@ -25,19 +25,19 @@ This project is early-stage. Available now:
 Requires [Go](https://go.dev/) 1.26 or later.
 
 ```sh
-go get github.com/openkakutou/engine
+go get github.com/openkakutou/engine/v2
 ```
 
 Verify the install by importing the module in a Go file and running `go build`:
 
 ```go
-import "github.com/openkakutou/engine"
+import "github.com/openkakutou/engine/v2"
 ```
 
 To update to the latest version:
 
 ```sh
-go get -u github.com/openkakutou/engine
+go get -u github.com/openkakutou/engine/v2
 ```
 <!-- vibe:end:install -->
 
@@ -55,7 +55,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 func main() {
@@ -79,7 +79,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/openkakutou/engine/evaluator"
+	"github.com/openkakutou/engine/v2/evaluator"
 )
 
 func main() {
@@ -106,9 +106,9 @@ import (
 	"fmt"
 
 	"github.com/openkakutou/character/cns"
-	"github.com/openkakutou/engine/evaluator"
-	"github.com/openkakutou/engine/match"
-	"github.com/openkakutou/engine/statemachine"
+	"github.com/openkakutou/engine/v2/evaluator"
+	"github.com/openkakutou/engine/v2/match"
+	"github.com/openkakutou/engine/v2/statemachine"
 )
 
 func main() {
@@ -149,8 +149,8 @@ import (
 	"fmt"
 
 	"github.com/openkakutou/character/cmd"
-	"github.com/openkakutou/engine/input"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/input"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 func main() {
@@ -185,8 +185,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/openkakutou/engine/match"
-	"github.com/openkakutou/engine/physics"
+	"github.com/openkakutou/engine/v2/match"
+	"github.com/openkakutou/engine/v2/physics"
 	"github.com/openkakutou/stage"
 )
 
@@ -216,9 +216,9 @@ import (
 	"strings"
 
 	"github.com/openkakutou/character/zss"
-	"github.com/openkakutou/engine/evaluator"
-	"github.com/openkakutou/engine/match"
-	"github.com/openkakutou/engine/zssexec"
+	"github.com/openkakutou/engine/v2/evaluator"
+	"github.com/openkakutou/engine/v2/match"
+	"github.com/openkakutou/engine/v2/zssexec"
 )
 
 func main() {
@@ -255,10 +255,10 @@ import (
 	"fmt"
 
 	"github.com/openkakutou/character/cns"
-	"github.com/openkakutou/engine"
-	"github.com/openkakutou/engine/input"
-	"github.com/openkakutou/engine/match"
-	"github.com/openkakutou/engine/round"
+	"github.com/openkakutou/engine/v2"
+	"github.com/openkakutou/engine/v2/input"
+	"github.com/openkakutou/engine/v2/match"
+	"github.com/openkakutou/engine/v2/round"
 	"github.com/openkakutou/stage"
 )
 
@@ -297,8 +297,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/openkakutou/engine/match"
-	"github.com/openkakutou/engine/round"
+	"github.com/openkakutou/engine/v2/match"
+	"github.com/openkakutou/engine/v2/round"
 )
 
 func main() {

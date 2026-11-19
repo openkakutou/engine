@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/openkakutou/character/cns"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // Item 044: the order inside a tick follows Ikemen GO (commit 54d4148a).

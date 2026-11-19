@@ -5,7 +5,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 func fighterCtx() Context {

@@ -7,8 +7,8 @@ import (
 	"github.com/openkakutou/character/air"
 	"github.com/openkakutou/character/cmd"
 	"github.com/openkakutou/character/cns"
-	"github.com/openkakutou/engine/input"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/input"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 func tickBoth(t *testing.T, p1States, p2States map[int]cns.StateDef, seed int32, round int, p1Runtime, p2Runtime *FighterRuntime) TickResult {

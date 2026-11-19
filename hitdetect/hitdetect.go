@@ -19,7 +19,7 @@ package hitdetect
 
 import (
 	"github.com/openkakutou/character/air"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // HitEvent reports one detected overlap between an attacker's Clsn1 box

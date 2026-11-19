@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/openkakutou/character/cmd"
-	"github.com/openkakutou/engine/input"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/input"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 func TestInputFor_SecondSide_RunsTheSameScriptOffsetByHalfItsLength(t *testing.T) {

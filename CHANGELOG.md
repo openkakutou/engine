@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.23.0] - 2026-11-19
+
+### Changed
+- The Go module path is now `github.com/openkakutou/engine/v2`, matching the v2 tags: consumers can `go get github.com/openkakutou/engine/v2@v2.23.0` instead of pinning a raw commit.
+- Depends on `stage` v0.17.0 and `sff` v0.8.1, the versions `game` already uses.
+
 ## [2.22.2] - 2026-11-19
 
 ### Fixed

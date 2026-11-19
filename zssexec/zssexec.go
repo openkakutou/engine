@@ -29,8 +29,8 @@ import (
 
 	"github.com/openkakutou/character/cns"
 	"github.com/openkakutou/character/zss"
-	"github.com/openkakutou/engine/evaluator"
-	"github.com/openkakutou/engine/statemachine"
+	"github.com/openkakutou/engine/v2/evaluator"
+	"github.com/openkakutou/engine/v2/statemachine"
 )
 
 // Result is the outcome of one Step call.

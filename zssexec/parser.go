@@ -8,7 +8,7 @@ import (
 
 	"github.com/openkakutou/character/cns"
 	"github.com/openkakutou/character/zss"
-	"github.com/openkakutou/engine/evaluator"
+	"github.com/openkakutou/engine/v2/evaluator"
 )
 
 // The parser mirrors Ikemen GO's .zss compiler (src/compiler.go, commit

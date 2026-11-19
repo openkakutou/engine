@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/openkakutou/character"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 const dupOwnCNS = "[Statedef 0]\nanim = 1\n\n[Statedef 5]\nanim = 5\n"

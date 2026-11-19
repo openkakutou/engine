@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/openkakutou/character/zss"
-	"github.com/openkakutou/engine/evaluator"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/evaluator"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // mustParseScript builds a CompiledScript from the given block sources, one

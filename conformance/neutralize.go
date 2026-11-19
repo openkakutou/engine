@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/openkakutou/character/cns"
-	"github.com/openkakutou/engine/evaluator"
-	"github.com/openkakutou/engine/statemachine"
+	"github.com/openkakutou/engine/v2/evaluator"
+	"github.com/openkakutou/engine/v2/statemachine"
 )
 
 // neverTrue is the trigger a neutralized controller gets: it never passes.

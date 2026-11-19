@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/openkakutou/character/cmd"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // qcfCommands mirrors character/cmd's own real sample.cmd fixture

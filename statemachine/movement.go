@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/openkakutou/character/cns"
-	"github.com/openkakutou/engine/evaluator"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/evaluator"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // Movement, animation, control, state-type and life controllers. Each is

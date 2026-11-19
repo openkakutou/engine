@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/openkakutou/character/cns"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // extractTriggerStrings reads a .cns-formatted fixture and returns every

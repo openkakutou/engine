@@ -3,7 +3,7 @@ package round
 import (
 	"testing"
 
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 func newState(t *testing.T, round, roundTimer, p1Health, p2Health int) *match.MatchState {

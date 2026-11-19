@@ -7,7 +7,7 @@ import (
 
 	"github.com/openkakutou/character/cmd"
 	"github.com/openkakutou/character/cns"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // Item 060: a .cns Statedef header field is applied only when written, as

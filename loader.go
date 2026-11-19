@@ -9,7 +9,7 @@ import (
 	"github.com/openkakutou/character"
 	"github.com/openkakutou/character/cns"
 	"github.com/openkakutou/character/zss"
-	"github.com/openkakutou/engine/evaluator"
+	"github.com/openkakutou/engine/v2/evaluator"
 )
 
 // LoadFighterProgram assembles the state table of a loaded character the way

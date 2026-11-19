@@ -3,8 +3,8 @@ package combat
 import (
 	"testing"
 
-	"github.com/openkakutou/engine/hitdetect"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/hitdetect"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 func newTestState(t *testing.T, p1Health, p2Health int) match.MatchState {

@@ -8,8 +8,8 @@ import (
 
 	"github.com/openkakutou/character"
 	"github.com/openkakutou/character/cns"
-	"github.com/openkakutou/engine/evaluator"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/evaluator"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // copyKfm copies the reference kfm folder into a fresh directory, with its

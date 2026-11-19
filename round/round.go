@@ -18,7 +18,7 @@ package round
 import (
 	"fmt"
 
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // Outcome describes how a round ended, or that it hasn't yet.

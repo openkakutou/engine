@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/openkakutou/character/cns"
-	"github.com/openkakutou/engine/evaluator"
-	"github.com/openkakutou/engine/input"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/evaluator"
+	"github.com/openkakutou/engine/v2/input"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 type freezeKind int

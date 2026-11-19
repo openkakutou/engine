@@ -32,7 +32,7 @@ import (
 	"strings"
 
 	"github.com/openkakutou/character/cns"
-	"github.com/openkakutou/engine/evaluator"
+	"github.com/openkakutou/engine/v2/evaluator"
 )
 
 // Controller type names this package recognizes, declared once here rather

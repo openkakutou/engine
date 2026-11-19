@@ -21,8 +21,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/openkakutou/engine/hitdetect"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/hitdetect"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // DefaultDamage is applied when a HitDef's own "damage" parameter is

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openkakutou/engine/evaluator"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/evaluator"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // stepBody runs one Step over a Statedef 0 whose body is the given lines.

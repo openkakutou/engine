@@ -15,7 +15,7 @@ package physics
 import (
 	"fmt"
 
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 	"github.com/openkakutou/stage"
 )
 

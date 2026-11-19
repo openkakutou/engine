@@ -9,9 +9,9 @@ import (
 
 	"github.com/openkakutou/character"
 	"github.com/openkakutou/character/zss"
-	"github.com/openkakutou/engine/evaluator"
-	"github.com/openkakutou/engine/input"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/evaluator"
+	"github.com/openkakutou/engine/v2/input"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // End-to-end scenarios (CLAUDE.md, "End-to-end tests (MUST)"): Kung Fu Man

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // Opponent is what a fighter's triggers can read of the opponent: a snapshot

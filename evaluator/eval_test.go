@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 func mustEval(t *testing.T, expr string, ctx Context) Value {

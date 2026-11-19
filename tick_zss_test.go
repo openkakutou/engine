@@ -7,8 +7,8 @@ import (
 	"github.com/openkakutou/character/cmd"
 	"github.com/openkakutou/character/cns"
 	"github.com/openkakutou/character/zss"
-	"github.com/openkakutou/engine/input"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/input"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 func mustScript(t *testing.T, source string) zss.Script {

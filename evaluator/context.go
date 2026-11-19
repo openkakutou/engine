@@ -2,7 +2,7 @@ package evaluator
 
 import (
 	"github.com/openkakutou/character/air"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // maxVars, maxSysVars, maxFVars and maxSysFVars mirror MUGEN's fixed variable

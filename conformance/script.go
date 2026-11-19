@@ -1,8 +1,8 @@
 package conformance
 
 import (
-	"github.com/openkakutou/engine/input"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/input"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // scriptStep holds a facing-relative input for a number of ticks.

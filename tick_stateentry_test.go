@@ -5,8 +5,8 @@ import (
 
 	"github.com/openkakutou/character/cmd"
 	"github.com/openkakutou/character/cns"
-	"github.com/openkakutou/engine/input"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/input"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // Item 055: round-start control and the Statedef header on entry, as Ikemen

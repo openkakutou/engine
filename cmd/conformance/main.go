@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/openkakutou/engine/conformance"
+	"github.com/openkakutou/engine/v2/conformance"
 )
 
 func main() {

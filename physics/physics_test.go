@@ -3,7 +3,7 @@ package physics
 import (
 	"testing"
 
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 	"github.com/openkakutou/stage"
 )
 

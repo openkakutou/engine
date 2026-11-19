@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // Expected values are worked out by hand from Ikemen GO's char.go (commit

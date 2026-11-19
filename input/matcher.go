@@ -2,7 +2,7 @@ package input
 
 import (
 	"github.com/openkakutou/character/cmd"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // TickInput is one simulation tick's raw device input: which of the four

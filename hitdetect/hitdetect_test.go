@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/openkakutou/character/air"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // loadFixtureAnimations parses this package's own copy of character/air's

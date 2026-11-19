@@ -5,7 +5,7 @@ import (
 
 	"github.com/openkakutou/character/cmd"
 	"github.com/openkakutou/character/zss"
-	"github.com/openkakutou/engine/input"
+	"github.com/openkakutou/engine/v2/input"
 )
 
 // hardcodedKeysZss has the standing, crouching, walking and jump-start

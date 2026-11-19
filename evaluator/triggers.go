@@ -5,7 +5,7 @@ import (
 	"math"
 	"strings"
 
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // axisTriggers are the triggers written with an axis letter ("Pos Y").

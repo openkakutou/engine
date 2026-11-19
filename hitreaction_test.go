@@ -9,10 +9,10 @@ import (
 	"github.com/openkakutou/character/air"
 	"github.com/openkakutou/character/cmd"
 	"github.com/openkakutou/character/cns"
-	"github.com/openkakutou/engine/combat"
-	"github.com/openkakutou/engine/evaluator"
-	"github.com/openkakutou/engine/input"
-	"github.com/openkakutou/engine/match"
+	"github.com/openkakutou/engine/v2/combat"
+	"github.com/openkakutou/engine/v2/evaluator"
+	"github.com/openkakutou/engine/v2/input"
+	"github.com/openkakutou/engine/v2/match"
 )
 
 // parseStatesFiles parses the given testdata .cns files in order into one

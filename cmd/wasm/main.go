@@ -26,11 +26,11 @@ import (
 	"syscall/js"
 
 	"github.com/openkakutou/character/zss"
-	"github.com/openkakutou/engine"
-	"github.com/openkakutou/engine/evaluator"
-	"github.com/openkakutou/engine/input"
-	"github.com/openkakutou/engine/match"
-	"github.com/openkakutou/engine/round"
+	"github.com/openkakutou/engine/v2"
+	"github.com/openkakutou/engine/v2/evaluator"
+	"github.com/openkakutou/engine/v2/input"
+	"github.com/openkakutou/engine/v2/match"
+	"github.com/openkakutou/engine/v2/round"
 	"github.com/openkakutou/stage"
 )
 

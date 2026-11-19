@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/openkakutou/character/zss"
-	"github.com/openkakutou/engine/evaluator"
+	"github.com/openkakutou/engine/v2/evaluator"
 )
 
 // stepN runs Step n times, feeding each result's Context into the next call,
