@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-11-19
+
 ### Added
 - Characters can read their own constants with `Const(name)` (`data.*`, `size.*`, `velocity.*`, `movement.*` and the `[Constants]` section, read from the `.def` "cns" file over Ikemen GO's defaults) and use `Const240p`/`Const480p`/`Const720p`/`Const1080p`.
 - Float variables: `FVar(n)`, `SysFVar(n)`, and the `fvar`/`sysfvar`/`fv`/`sysfv` forms of `VarSet` and `:=`.
@@ -15,7 +17,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Hit contacts: `MoveContact`, `MoveHit`, `MoveGuarded`, `MoveReversed`, `HitDefAttr = SCA, NA`, `HitFall` and `CanRecover`, and the rest of `GetHitVar` (`yvel`, `yaccel`, `fall`, `fall.yvel`, `fall.recover`, `fall.recovertime`, `ctrltime`, `isbound`), recorded from the HitDef when a hit lands.
 
 ### Changed
-- `AnimTime` now reads as in Ikemen GO: the animation's time so far minus its total time, so 0 on its last tick and negative before (a held last element reads one more than the ticks played). The context's elapsed-ticks counter is now `Context.AnimElapsed`; the WebAssembly `animTime` field is unchanged.
+- `AnimTime` now reads as in Ikemen GO: the animation's time so far minus its total time, so 0 on its last tick and negative before (a held last element reads one more than the ticks played). The context's elapsed-ticks counter is now `Context.AnimElapsed`; the WebAssembly `animTime` field is unchanged. Code that read `Context.AnimTime` as elapsed ticks (for example to pick the frame to draw) must read `Context.AnimElapsed`.
+
+### Fixed
+- A ChangeState into the state the fighter is already in now re-enters it as Ikemen GO does: its animation restarts and the contact counter clears, so a move that cancels into itself can hit again.
+- Entering a state clears the last HitDef unless the state says `hitdefpersist`, so `HitDefAttr` no longer matches a HitDef from an earlier move.
+- A state change made during a hit pause applies its entry (animation, control, contact reset) once the pause ends, as in Ikemen GO.
 
 ## [2.14.0] - 2026-11-18
 
@@ -217,7 +224,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.14.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.15.0...HEAD
+[2.15.0]: https://github.com/openkakutou/engine/compare/v2.14.0...v2.15.0
 [2.14.0]: https://github.com/openkakutou/engine/compare/v2.13.0...v2.14.0
 [2.13.0]: https://github.com/openkakutou/engine/compare/v2.12.0...v2.13.0
 [2.12.0]: https://github.com/openkakutou/engine/compare/v2.11.1...v2.12.0

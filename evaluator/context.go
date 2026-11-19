@@ -149,6 +149,16 @@ type Context struct {
 	// HitDefAttr is the attr of the fighter's current HitDef, parsed by
 	// ParseAttr; HitDefAttr reads it while the move type is A.
 	HitDefAttr int32
+	// StateChanged reports that a ChangeState ran since the caller last
+	// cleared it, even into the same state number: Ikemen GO re-enters the
+	// state either way (char.go changeStateEx, 6966-6994). Tick clears it
+	// before each phase and enters the state when it is set.
+	StateChanged bool
+	// StateEntryPending is a state change made during a hit pause whose
+	// entry (Ikemen GO stateChange2: the StateDef's anim, ctrl, types and
+	// persist resets) waits until the pause ends (char.go:6943-6944,
+	// applied at 12529 before the current state runs).
+	StateEntryPending bool
 	// HasTarget reports that the fighter hit the opponent and the opponent has
 	// not left its hit states since: the fighter's target list, which in a
 	// one-on-one match holds at most the opponent (NumTarget, "target,").

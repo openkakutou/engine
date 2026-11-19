@@ -532,6 +532,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	var sounds []evaluator.SoundEvent
 	unsupported := runtime.Unsupported[:0]
 	skippedCalls := runtime.SkippedCalls[:0]
+	ctx.StateChanged = false
 	for _, number := range specialStates {
 		if !prog.hasState(number) {
 			continue
@@ -545,7 +546,17 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		unsupported = appendMissing(unsupported, special.Unsupported)
 		skippedCalls = appendMissing(skippedCalls, special.SkippedCalls)
 	}
-	if ctx.StateNo != runtime.Context.StateNo {
+	// A ChangeState made by -3/-2/-1 -- even into the current number -- or
+	// one left pending by a hit pause is entered now, before the current
+	// state runs (Ikemen GO stateChange2, char.go:12529). During a hit pause
+	// the entry waits (char.go:6943-6944).
+	enter := ctx.StateChanged || (ctx.StateEntryPending && !frozen)
+	if enter && frozen {
+		ctx.StateEntryPending = true
+	}
+	ctx.StateChanged = false
+	if enter && !frozen {
+		ctx.StateEntryPending = false
 		entered, _ := prog.stateHeader(ctx.StateNo)
 		enterState(&ctx, entered)
 		// Ikemen GO applies the new animation in stateChange2, before
@@ -564,10 +575,11 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 
 	newCtx := result.Context
 	resolveAnimElem(&newCtx, findAnimation(prog, newCtx.Anim))
+	changed := newCtx.StateChanged
+	newCtx.StateChanged = false
 	if frozen {
-		if newCtx.StateNo != ctx.StateNo {
-			entered, _ := prog.stateHeader(newCtx.StateNo)
-			enterState(&newCtx, entered)
+		if changed {
+			newCtx.StateEntryPending = true
 		}
 		frozenRuntime := FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: unsupported, SkippedCalls: skippedCalls}
 		if frozenRuntime.HitPause > 0 {
@@ -581,7 +593,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		}
 		return fighterTickOutput{Runtime: frozenRuntime, Frame: frame, Frozen: true, Sounds: sounds}, nil
 	}
-	if newCtx.StateNo != ctx.StateNo {
+	if changed {
 		// statemachine's own ChangeState handling already reset Time to 0
 		// (character/cmd data plays no part in that); Anim/AnimElapsed/Ctrl
 		// are enterState's responsibility, since statemachine has no
@@ -620,8 +632,9 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	}
 
 	// The HitDef that just applied becomes the one HitDefAttr reads, unless
-	// the state changed in the same tick (which would have cleared it).
-	if hasHitDef && newCtx.StateNo == ctx.StateNo {
+	// the state changed in the same tick: entering the new state has just
+	// reset it (enterState, hitdefpersist).
+	if hasHitDef && !changed {
 		if attr, err := evaluator.ParseAttr(hitDef.Parameters["attr"], true); err == nil {
 			newCtx.HitDefAttr = attr
 		}
@@ -699,6 +712,11 @@ func enterState(ctx *evaluator.Context, def cns.StateDef) {
 	// movehitpersist (Ikemen GO bytecode.go:5456-5459, compiler.go:7072-7079).
 	if !def.MoveHitPersist {
 		ctx.MoveContactTime = 0
+	}
+	// And its HitDef unless hitdefpersist (bytecode.go:5460-5463): attr 0
+	// never matches HitDefAttr (char.go:5829-5830).
+	if !def.HitDefPersist {
+		ctx.HitDefAttr = 0
 	}
 	ctx.Ctrl = def.Ctrl
 	// An omitted physics is N (Ikemen GO newStateBytecode); U or an unknown

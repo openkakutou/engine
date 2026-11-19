@@ -174,7 +174,9 @@ func TestTick_SoundInSpecialState_IsReported(t *testing.T) {
 
 func TestTickFighter_StateEnteredFromState1_UsesNewAnimationsFirstFrameThisTick(t *testing.T) {
 	states := map[int]cns.StateDef{
-		-1:  {Number: -1, Controllers: []cns.Controller{changeStateTo("1", "200")}},
+		// stateno = 0: a ChangeState into the current state re-enters it and
+		// restarts its animation (Ikemen GO changeStateEx), so it must fire once.
+		-1:  {Number: -1, Controllers: []cns.Controller{changeStateTo("stateno = 0", "200")}},
 		0:   {Number: 0, Type: cns.StateTypeStanding, Ctrl: true},
 		200: {Number: 200, Type: cns.StateTypeStanding, Anim: 200},
 	}
@@ -196,7 +198,7 @@ func TestTickFighter_StateEnteredFromState1_UsesNewAnimationsFirstFrameThisTick(
 	if out.Frame.Group != 200 || out.Frame.Image != 0 {
 		t.Errorf("frame this tick = %d,%d, want 200,0 (the entered animation's first frame)", out.Frame.Group, out.Frame.Image)
 	}
-	next, err := tickFighter(prog, out.Runtime, fighter, evaluator.Opponent{}, input.TickInput{}, 2, 0, 1, 0)
+	next, err := tickFighter(prog, out.Runtime, out.Runtime.Context.FighterState, evaluator.Opponent{}, input.TickInput{}, 2, 0, 1, 0)
 	if err != nil {
 		t.Fatalf("tickFighter: %v", err)
 	}

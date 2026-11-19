@@ -231,6 +231,9 @@ func bodyDistX(ctx *Context) float64 {
 // P2Dist Y: Ikemen GO answers with the size boxes' vertical gap only for an
 // Ikemen GO character (char.go:9366-9372), and a character's version is not
 // read here; kfm and every MUGEN character take the P2Dist Y branch.
+// shortcut: Ikemen GO truncates P2Dist X/Y and P2BodyDist X to an integer
+// for a WinMUGEN character (mugenversion major != 1, char.go:9324-9361);
+// character does not expose mugenversion yet. Upgrade when it does.
 func evalP2Distance(n componentNode, ctx *Context) (Value, error) {
 	if n.axis == 'z' {
 		return Value{}, fmt.Errorf("evaluator: %s Z is not supported: fighters have no depth", n.name)

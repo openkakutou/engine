@@ -40,6 +40,8 @@ status: accepted
 | `HitTime` of a ground hit | `air.hittime` when `yvel` is not 0, and +1 for a MUGEN character (`char.go:11792-11808`) | `ground.hittime` for a ground defender, unchanged since decision 018 |
 | Defender lying down (L) | `down.velocity`, `down.hittime` (`char.go:11773-11787`) | takes the ground branch; Tick does not put a lying fighter into a get-hit state yet |
 | Targets | `HitDef` targets, dropped when they leave the hit states (`char.go:10387`) | the opponent while it is in a hit state after one of this fighter's hits; same drop point (before the fighter acts); `NumTarget(id)` filters on the HitDef id |
+| `P2Dist X/Y`, `P2BodyDist X` for a WinMUGEN character | truncated to an integer when `mugenversion`'s major is not 1 (`char.go:9324-9327`, `9338-9341`, `9359-9361`) | never truncated: `character` does not expose `mugenversion` yet; kfm and kfm_zss (1.0) are exact |
+| Re-entering the current state | a ChangeState always runs `stateChange1`/`stateChange2` and `sb.init` (`char.go:6966-6994`); during a hit pause `stateChange2` waits for the pause to end (`char.go:6943-6944`, `12529`) | same since the review round: a ChangeState flags the context (`StateChanged`) and Tick enters the state on that flag, or marks the entry pending during a hit pause |
 | `HitDefAttr` | the attr of the last HitDef; its state type is rewritten after a `hitonce` contact (`char.go:1098`) | the attr of the last `.cns` HitDef that applied; not rewritten; a HitDef in a `.zss` block is not acted on yet (decision 024) |
 | `GetHitVar(isbound)` | bound by a target bind | always 0 (no binds) |
 | `forcenofall`, `fall.damage`, `down.*`, guard values of a HitDef | recorded | not parsed |

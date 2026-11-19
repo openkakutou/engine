@@ -218,8 +218,11 @@ func TestTick_FlaggedChangeStateInStateMinusOneWhileFrozen_EntersNewStateAndRuns
 		always(ctrl("VarSet", "v", "2", "value", "8")),
 	}}
 	ctx := tickFrozenP1(t, attackerPause, states).Fighters[match.SideP1].Context
-	if ctx.StateNo != 300 || ctx.Anim != 301 || ctx.Time != 0 {
-		t.Errorf("StateNo, Anim, Time = %d, %d, %d, want 300, 301, 0", ctx.StateNo, ctx.Anim, ctx.Time)
+	// Ikemen GO changes the state number during the pause (stateChange1) but
+	// defers the entry -- the StateDef's anim among it -- until the pause
+	// ends (stateChange2, char.go:6943-6944).
+	if ctx.StateNo != 300 || ctx.Anim != 0 || ctx.Time != 0 || !ctx.StateEntryPending {
+		t.Errorf("StateNo, Anim, Time, pending = %d, %d, %d, %v, want 300, 0, 0, true", ctx.StateNo, ctx.Anim, ctx.Time, ctx.StateEntryPending)
 	}
 	if ctx.Vars[1] != 9 || ctx.Vars[2] != 0 {
 		t.Errorf("var(1), var(2) = %d, %d, want 9, 0 (new state's flagged controller runs, unflagged one does not)", ctx.Vars[1], ctx.Vars[2])
@@ -243,8 +246,8 @@ func TestTick_ChangeStateWithIgnoreHitPause_ChangesStateWhileFrozen(t *testing.T
 	states[300] = cns.StateDef{Number: 300, Type: cns.StateTypeStanding, Anim: 300}
 	result := tickFrozenP1(t, defenderShake, states)
 	ctx := result.Fighters[match.SideP1].Context
-	if ctx.StateNo != 300 || ctx.Anim != 300 || ctx.Time != 0 {
-		t.Errorf("StateNo, Anim, Time = %d, %d, %d, want 300, 300, 0", ctx.StateNo, ctx.Anim, ctx.Time)
+	if ctx.StateNo != 300 || ctx.Anim != 0 || ctx.Time != 0 || !ctx.StateEntryPending {
+		t.Errorf("StateNo, Anim, Time, pending = %d, %d, %d, %v, want 300, 0 (entry deferred, char.go:6943-6944), 0, true", ctx.StateNo, ctx.Anim, ctx.Time, ctx.StateEntryPending)
 	}
 	if got := result.State.Fighters[match.SideP1].StateNo; got != 300 {
 		t.Errorf("match StateNo = %d, want 300", got)
