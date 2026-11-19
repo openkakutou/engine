@@ -128,11 +128,11 @@ func TestTick_StateTransition_ResetsAnimAndAnimTime_ToTheEnteredStatesOwn(t *tes
 	if p1Ctx.Anim != 200 {
 		t.Errorf("Anim = %d, want 200 (the entered state's own anim)", p1Ctx.Anim)
 	}
-	if p1Ctx.AnimElapsed != 0 {
-		t.Errorf("AnimTime = %d, want 0", p1Ctx.AnimElapsed)
+	if p1Ctx.AnimElapsed != 1 {
+		t.Errorf("AnimTime = %d, want 1 (restarted at 0, stepped once at the end of the change tick)", p1Ctx.AnimElapsed)
 	}
-	if p1Ctx.Time != 0 {
-		t.Errorf("Time = %d, want 0", p1Ctx.Time)
+	if p1Ctx.Time != 1 {
+		t.Errorf("Time = %d, want 1 (the new state ran at Time 0 in the change tick)", p1Ctx.Time)
 	}
 	if p1Ctx.Ctrl {
 		t.Errorf("Ctrl = true, want false (state 200's own declared ctrl)")
