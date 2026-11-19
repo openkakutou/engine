@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.22.1] - 2026-11-19
+
 ### Fixed
 - A state change made by a state now runs the new state in the same tick, as in Ikemen GO, instead of one tick later: every transition is no longer a tick late, chained changes run one after the other (bounded at 2500 like Ikemen GO), and the landing is done by the character's own landing state.
 
@@ -277,7 +279,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.22.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.22.1...HEAD
+[2.22.1]: https://github.com/openkakutou/engine/compare/v2.22.0...v2.22.1
 [2.22.0]: https://github.com/openkakutou/engine/compare/v2.21.0...v2.22.0
 [2.21.0]: https://github.com/openkakutou/engine/compare/v2.20.0...v2.21.0
 [2.20.0]: https://github.com/openkakutou/engine/compare/v2.19.0...v2.20.0
