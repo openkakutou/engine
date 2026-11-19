@@ -195,7 +195,9 @@ func TestEnterState_Physics_UnchangedForUAndUnknownLetters_NoneWhenOmitted(t *te
 	}
 	for _, tc := range tests {
 		ctx := evaluator.Context{Physics: 'C'}
-		enterState(&ctx, cns.StateDef{Physics: tc.physics})
+		if _, err := enterState(&ctx, entryHeader{StateDef: cns.StateDef{Physics: tc.physics}}); err != nil {
+			t.Fatal(err)
+		}
 		if ctx.Physics != tc.want {
 			t.Errorf("%s: Physics = %c, want %c", tc.name, ctx.Physics, tc.want)
 		}
@@ -551,7 +553,9 @@ func TestTick_DefenderDeclaredAirButStateTypeSetToStanding_GetsTheGroundReaction
 func TestEnterState_PersistentCounters_AreZeroed(t *testing.T) {
 	ctx := evaluator.Context{}
 	ctx.Persistent[0], ctx.Persistent[3] = 7, math.MaxInt32
-	enterState(&ctx, cns.StateDef{})
+	if _, err := enterState(&ctx, entryHeader{}); err != nil {
+		t.Fatal(err)
+	}
 	if ctx.Persistent != [evaluator.MaxPersistent]int32{} {
 		t.Errorf("Persistent = %v, want all zero (Ikemen GO char.go:6896-6903)", ctx.Persistent)
 	}

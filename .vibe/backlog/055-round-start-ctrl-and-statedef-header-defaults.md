@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Round-Start Ctrl and Statedef Header Defaults
 
@@ -9,9 +9,10 @@ At round start Ikemen GO gives every fighter control (`ctrl = 1`, system.go:3364
 🔒 MUST: Ikemen GO behaviour, grounded in its source (commit `54d4148a`, compiler.go `stateDef` 7020, char.go `changeState`).
 
 ## Acceptance Criteria
-- [ ] Each fighter has control at round start, as in Ikemen GO
-- [ ] A header with no `ctrl` leaves Ctrl unchanged on entry. `velset`, `poweradd` and expression-valued fields apply as Ikemen GO does, with the source cited
-- [ ] The end-to-end scenarios no longer force `Ctrl = true` in their setup
+- [x] Each fighter has control at round start, as in Ikemen GO
+- [x] A header with no `ctrl` leaves Ctrl unchanged on entry. `velset`, `poweradd` and expression-valued fields apply as Ikemen GO does, with the source cited
+- [x] The end-to-end scenarios no longer force `Ctrl = true` in their setup
 
 ## Notes
 Found by item 054 (2026-11-18).
+Done on 2026-11-19 for .zss headers and ChangeState anim/ctrl. The .cns half needs character#079, tracked as item 060.

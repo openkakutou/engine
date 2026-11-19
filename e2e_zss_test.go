@@ -67,9 +67,6 @@ func newE2EMatch(t *testing.T, prog FighterProgram) *e2eMatch {
 	if err != nil {
 		t.Fatalf("NewRuntime(P2): %v", err)
 	}
-	// Ikemen GO gives every fighter control when the round starts
-	// (src/system.go:3364, setSCF(SCF_ctrl, true) as intro reaches 0).
-	rt1.Context.Ctrl = true
 	state, err := match.NewMatchState(1, 0, p1, p2)
 	if err != nil {
 		t.Fatalf("NewMatchState: %v", err)
@@ -224,7 +221,8 @@ func scenarioJump(t *testing.T, prog FighterProgram) error {
 }
 
 // What stops the scenarios today (checked by running, after item 041 gave
-// the evaluator intervals and Cond): both characters stand idle as Ikemen GO
+// the evaluator intervals and Cond, and again after item 055 gave control at
+// round start without forcing it here): both characters stand idle as Ikemen GO
 // does. Holding forward ends in the run state 100 instead of walk state 20,
 // and pressing up never leaves state 0, for kfm and kfm_zss alike: item 058
 // (walk and jump entry).

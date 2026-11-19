@@ -745,33 +745,40 @@ func (p *parser) controller(name string) (stmt, error) {
 
 // statedefHeader converts a Statedef header to a cns.StateDef, the fields
 // Ikemen GO's stateDef (src/compiler.go:7020-7130, commit 54d4148a) reads.
-// shortcut: only literal values convert; a header field written as an
-// expression (Ikemen GO evaluates it on state entry) keeps the zero value,
-// upgrade when a real character needs it (none of the reference files do).
+// The types are kept as written. Every value field the header writes (anim,
+// ctrl, velset, poweradd, facep2, the persist flags, ...) goes to HeaderExprs
+// as its source text, evaluated on entry as Ikemen GO does, and its typed
+// field stays zero: an absent key is an omitted field. velset is split into
+// "velset.x" and "velset.y" (a third, Z value is not modelled).
 func statedefHeader(b zss.Block) cns.StateDef {
 	h := b.HeaderParams
-	return cns.StateDef{
-		Number:          b.Number,
-		Type:            cns.StateType(h["type"]),
-		MoveType:        cns.MoveType(h["movetype"]),
-		Physics:         cns.PhysicsType(h["physics"]),
-		Anim:            literalInt(h["anim"]),
-		Ctrl:            literalInt(h["ctrl"]) != 0,
-		PowerAdd:        literalInt(h["poweradd"]),
-		Juggle:          literalInt(h["juggle"]),
-		FaceP2:          literalInt(h["facep2"]) != 0,
-		SprPriority:     literalInt(h["sprpriority"]),
-		HitDefPersist:   literalInt(h["hitdefpersist"]) != 0,
-		MoveHitPersist:  literalInt(h["movehitpersist"]) != 0,
-		HitCountPersist: literalInt(h["hitcountpersist"]) != 0,
+	def := cns.StateDef{
+		Number:   b.Number,
+		Type:     cns.StateType(h["type"]),
+		MoveType: cns.MoveType(h["movetype"]),
+		Physics:  cns.PhysicsType(h["physics"]),
 	}
+	for key, value := range h {
+		switch key {
+		case "type", "movetype", "physics":
+			continue
+		case "velset":
+			parts := splitTop(value)
+			addHeaderExpr(&def, "velset.x", parts[0])
+			if len(parts) > 1 {
+				addHeaderExpr(&def, "velset.y", parts[1])
+			}
+		default:
+			addHeaderExpr(&def, key, strings.TrimSpace(value))
+		}
+	}
+	return def
 }
 
-// literalInt is s as an integer, 0 when it is absent or not a plain literal.
-func literalInt(s string) int {
-	n, err := strconv.Atoi(strings.TrimSpace(s))
-	if err != nil {
-		return 0
+// addHeaderExpr records a header field's source text under name.
+func addHeaderExpr(def *cns.StateDef, name, text string) {
+	if def.HeaderExprs == nil {
+		def.HeaderExprs = map[string]string{}
 	}
-	return n
+	def.HeaderExprs[name] = text
 }

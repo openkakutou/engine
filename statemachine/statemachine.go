@@ -346,6 +346,28 @@ func applyChangeState(ctrl cns.Controller, ctx *evaluator.Context, exists func(i
 	if !exists(target) {
 		return fmt.Errorf("ChangeState targets state %d, which does not exist in the loaded character", target)
 	}
+	// Ikemen GO changeStateEx (char.go:6976-6983): an "anim" other than -1
+	// restarts that animation and a non-negative "ctrl" sets the control,
+	// both before the new state's header runs.
+	anim, hasAnim, err := evalOptional(ctrl, "anim", ctx)
+	if err != nil {
+		return err
+	}
+	if hasAnim && int(anim) != -1 {
+		ctx.Anim = int(anim)
+		if ctx.Anim < 0 && ctx.Anim != invisibleAnim {
+			ctx.Anim = 0
+		}
+		ctx.AnimElapsed = 0
+		ctx.AnimElem, ctx.AnimElemTime = 0, 0
+	}
+	ctrlValue, hasCtrl, err := evalOptional(ctrl, "ctrl", ctx)
+	if err != nil {
+		return err
+	}
+	if hasCtrl && ctrlValue >= 0 {
+		ctx.Ctrl = ctrlValue != 0
+	}
 
 	ctx.PrevStateNo = ctx.StateNo
 	ctx.StateNo = target

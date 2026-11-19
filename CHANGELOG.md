@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Fighters have control when the round starts, as in Ikemen GO, so a character whose standing state does not give control can still move.
+- Entering a state whose header does not set control or an animation keeps the current control and lets the current animation run on; a `.cns` header that writes `ctrl = 0` still takes control away.
+- State headers written as expressions are evaluated on entry, and their power gain, `facep2` turn and (in `.zss` states) starting velocity now apply.
+- A `ChangeState` that sets `ctrl` or `anim` now applies them.
+
 ## [2.16.0] - 2026-11-19
 
 ### Added

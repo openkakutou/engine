@@ -1,6 +1,7 @@
 package zssexec
 
 import (
+	"maps"
 	"os"
 	"strings"
 	"testing"
@@ -427,20 +428,25 @@ func TestStepStateDuringHitPause_FlaggedChangeState_Applies(t *testing.T) {
 	}
 }
 
-func TestCompile_StatedefHeader_ConvertsToTheStateDefBookkeeping(t *testing.T) {
-	// Ikemen GO stateDef (src/compiler.go:7020-7130): type, movetype,
-	// physics, anim, ctrl, poweradd, juggle, ...
+func TestCompile_StatedefHeader_KeepsTypesAndTheSourceTextOfEveryWrittenField(t *testing.T) {
+	// Ikemen GO stateDef (src/compiler.go:7020-7130): type, movetype and
+	// physics are letters; every other field is optional and evaluated on
+	// entry (bytecode.go:5444-5512), so its text is kept and an omitted one
+	// is absent.
 	script := mustParseScript(t,
-		"[Statedef 40; type: A; movetype: H; physics: N; anim: 41; ctrl: 0; poweradd: 5; juggle: 2; facep2: 1;]\n",
+		"[Statedef 40; type: A; movetype: H; physics: N; anim: 41; poweradd: 5 * 2; velset: ifelse(1, 2, 3), -4; facep2: 1;]\n",
 		"[Statedef 0]\n",
 	)
 	def, ok := script.Header(40)
 	if !ok {
 		t.Fatal("Header(40) not found")
 	}
-	if def.Number != 40 || def.Type != "A" || def.MoveType != "H" || def.Physics != "N" ||
-		def.Anim != 41 || def.Ctrl || def.PowerAdd != 5 || def.Juggle != 2 || !def.FaceP2 {
-		t.Errorf("Header(40) = %+v, want type A movetype H physics N anim 41 ctrl false poweradd 5 juggle 2 facep2", def)
+	if def.Number != 40 || def.Type != "A" || def.MoveType != "H" || def.Physics != "N" {
+		t.Errorf("Header(40) number and types = %d %q %q %q, want 40 A H N", def.Number, def.Type, def.MoveType, def.Physics)
+	}
+	want := map[string]string{"anim": "41", "poweradd": "5 * 2", "velset.x": "ifelse(1, 2, 3)", "velset.y": "-4", "facep2": "1"}
+	if !maps.Equal(def.HeaderExprs, want) {
+		t.Errorf("HeaderExprs = %v, want %v (ctrl omitted, so absent)", def.HeaderExprs, want)
 	}
 	if _, ok := script.Header(99); ok {
 		t.Error("Header(99) reported a state the script does not define")

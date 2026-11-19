@@ -119,14 +119,24 @@ func NewFighterProgramFromFiles(files []StateFile, animations []air.Animation, c
 	return NewFighterProgram(states, animations, commands).WithScripts(scripts)
 }
 
-// stateHeader returns the header of state number as the cns.StateDef
-// enterState takes -- a .zss Statedef's header converted (zssexec.Header) --
-// and whether the program defines it in either format.
-func (p FighterProgram) stateHeader(number int) (cns.StateDef, bool) {
+// entryHeader is a Statedef header as enterState applies it.
+type entryHeader struct {
+	cns.StateDef
+	// script reports a .zss header (zssexec.Header): every value field it
+	// writes is in HeaderExprs, so an absent ctrl was omitted. A .cns
+	// StateDef cannot tell an omitted ctrl from "ctrl = 0".
+	script bool
+}
+
+// stateHeader returns the header of state number -- a .zss Statedef's
+// header converted (zssexec.Header) -- and whether the program defines it in
+// either format.
+func (p FighterProgram) stateHeader(number int) (entryHeader, bool) {
 	if def, ok := p.States[number]; ok {
-		return def, true
+		return entryHeader{StateDef: def}, true
 	}
-	return p.script.Header(number)
+	def, ok := p.script.Header(number)
+	return entryHeader{StateDef: def, script: true}, ok
 }
 
 // hasState reports whether number is defined in either format: the check of
@@ -235,12 +245,9 @@ type FighterRuntime struct {
 
 // NewFighterRuntime builds a fresh FighterRuntime for a fighter entering
 // states[fighter.StateNo] for the first time -- typically match start or a
-// round reset (see round.ResetRound). Time and AnimElapsed start at 0, and
-// Anim/Ctrl take the entered state's own declared values (Anim defaulting
-// to the state number itself, matching cns.StateDef.Anim's own "0 means
-// not set" convention) -- mirroring the bookkeeping Tick itself applies on
-// every later state transition, so a fighter's very first state is not a
-// special case for any later trigger relying on Anim/Ctrl.
+// round reset (see round.ResetRound). The fighter enters the state as Tick
+// enters any later one (enterState), then gets control as the round starts
+// (Ikemen GO system.go:3364, setSCF(SCF_ctrl, true) as the intro ends).
 //
 // Returns a descriptive error, rather than a runtime built against a
 // nonexistent state, if fighter.StateNo is not present in states.
@@ -251,7 +258,10 @@ func NewFighterRuntime(fighter match.FighterState, states map[int]cns.StateDef) 
 	}
 
 	ctx := evaluator.Context{FighterState: fighter}
-	enterState(&ctx, def)
+	if _, err := enterState(&ctx, entryHeader{StateDef: def}); err != nil {
+		return FighterRuntime{}, fmt.Errorf("engine: NewFighterRuntime: %w", err)
+	}
+	ctx.Ctrl = true
 	return FighterRuntime{Context: ctx}, nil
 }
 
@@ -265,7 +275,10 @@ func (p FighterProgram) NewRuntime(fighter match.FighterState) (FighterRuntime, 
 		return FighterRuntime{}, fmt.Errorf("engine: NewRuntime: state %d not found in loaded character", fighter.StateNo)
 	}
 	ctx := evaluator.Context{FighterState: fighter, Consts: p.Constants, Anims: p.animationTable()}
-	enterState(&ctx, def)
+	if _, err := enterState(&ctx, def); err != nil {
+		return FighterRuntime{}, fmt.Errorf("engine: NewRuntime: %w", err)
+	}
+	ctx.Ctrl = true // round start, as NewFighterRuntime
 	return FighterRuntime{Context: ctx}, nil
 }
 
@@ -396,14 +409,18 @@ func Tick(
 		newState, newCombo, hit := combat.ApplyHits(state, events, match.SideP1, damage, runtimesOut[match.SideP1].Combo, cfg.Tick, cfg.ComboWindow)
 		state = newState
 		runtimesOut[match.SideP1].Combo = newCombo
-		applyHitReaction(&programs, &runtimesOut, match.SideP1, p1Out.HitDef.Parameters, hit)
+		if err := applyHitReaction(&programs, &runtimesOut, match.SideP1, p1Out.HitDef.Parameters, hit); err != nil {
+			return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
+		}
 	}
 	if p2Out.HasHitDef {
 		damage := combat.DamageParams{Damage: p2Out.HitDef.Parameters["damage"]}
 		newState, newCombo, hit := combat.ApplyHits(state, events, match.SideP2, damage, runtimesOut[match.SideP2].Combo, cfg.Tick, cfg.ComboWindow)
 		state = newState
 		runtimesOut[match.SideP2].Combo = newCombo
-		applyHitReaction(&programs, &runtimesOut, match.SideP2, p2Out.HitDef.Parameters, hit)
+		if err := applyHitReaction(&programs, &runtimesOut, match.SideP2, p2Out.HitDef.Parameters, hit); err != nil {
+			return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
+		}
 	}
 
 	p1Fighter := state.Fighter(match.SideP1)
@@ -558,7 +575,9 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	if enter && !frozen {
 		ctx.StateEntryPending = false
 		entered, _ := prog.stateHeader(ctx.StateNo)
-		enterState(&ctx, entered)
+		if _, err := enterState(&ctx, entered); err != nil {
+			return fighterTickOutput{}, err
+		}
 		// Ikemen GO applies the new animation in stateChange2, before
 		// collision detection: this tick uses its first frame (char.go:6943,
 		// 13049-13062).
@@ -600,7 +619,13 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		// character-loadout knowledge of the target state's declared
 		// values.
 		entered, _ := prog.stateHeader(newCtx.StateNo)
-		enterState(&newCtx, entered)
+		restarted, err := enterState(&newCtx, entered)
+		if err != nil {
+			return fighterTickOutput{}, err
+		}
+		if !restarted {
+			newCtx.AnimElapsed++ // a header without anim keeps the animation running
+		}
 	} else {
 		newCtx.Time++
 		newCtx.AnimElapsed++
@@ -695,30 +720,18 @@ func resolveAnimElem(ctx *evaluator.Context, anim air.Animation) {
 }
 
 // enterState applies the bookkeeping of entering the state def to ctx,
-// whose StateNo is already the new state's: Time and AnimElapsed restart at 0,
-// Anim takes the StateDef's own value (defaulting to the state number,
-// cns.StateDef.Anim's "0 means not set" convention) and Ctrl the StateDef's.
-// Shared by tickFighter's ChangeState path and the get-hit entry below.
-func enterState(ctx *evaluator.Context, def cns.StateDef) {
+// whose StateNo is already the new state's, in Ikemen GO's order:
+// stateChange1 restarts Time and the persistent counters, StateBytecode.init
+// sets the types (bytecode.go:17032-17076), then stateDef.Run runs the
+// header fields that are written, each evaluated now (bytecode.go:5444-5512;
+// compiler.go:7020-7130 makes all but the persist flags optional). It reports
+// whether the header restarted the animation: without anim, the current one
+// keeps running. Shared by tickFighter's state changes, NewRuntime and the
+// get-hit entry. Juggle points, sprpriority and hitcountpersist are not
+// modelled and are not read.
+func enterState(ctx *evaluator.Context, def entryHeader) (animRestarted bool, err error) {
 	ctx.Time = 0
 	ctx.Persistent = [evaluator.MaxPersistent]int32{} // Ikemen GO char.go:6896-6903
-	ctx.Anim = def.Anim
-	if ctx.Anim == 0 {
-		ctx.Anim = ctx.StateNo
-	}
-	ctx.AnimElapsed = 0
-	ctx.AnimElem, ctx.AnimElemTime = 0, 0
-	// Entering a state clears the contact counter unless its StateDef says
-	// movehitpersist (Ikemen GO bytecode.go:5456-5459, compiler.go:7072-7079).
-	if !def.MoveHitPersist {
-		ctx.MoveContactTime = 0
-	}
-	// And its HitDef unless hitdefpersist (bytecode.go:5460-5463): attr 0
-	// never matches HitDefAttr (char.go:5829-5830).
-	if !def.HitDefPersist {
-		ctx.HitDefAttr = 0
-	}
-	ctx.Ctrl = def.Ctrl
 	// An omitted physics is N (Ikemen GO newStateBytecode); U or an unknown
 	// letter keeps the previous one (StateBytecode.init).
 	if l := physicsLetter(def.Physics); strings.IndexByte("SCAN", l) >= 0 {
@@ -733,6 +746,131 @@ func enterState(ctx *evaluator.Context, def cns.StateDef) {
 	if l := moveLetter(def.MoveType); strings.IndexByte("IAH", l) >= 0 {
 		ctx.MoveType = l
 	}
+
+	// Entering a state clears the contact counter unless movehitpersist,
+	// and its HitDef unless hitdefpersist (bytecode.go:5456-5463): attr 0
+	// never matches HitDefAttr (char.go:5829-5830).
+	persist, err := headerBool(ctx, def, "movehitpersist", def.MoveHitPersist)
+	if err != nil {
+		return false, err
+	}
+	if !persist {
+		ctx.MoveContactTime = 0
+	}
+	if persist, err = headerBool(ctx, def, "hitdefpersist", def.HitDefPersist); err != nil {
+		return false, err
+	}
+	if !persist {
+		ctx.HitDefAttr = 0
+	}
+
+	// facep2 turns toward an opponent behind (bytecode.go:5487-5490,
+	// shouldFaceP2 char.go:6775-6800); P2Dist X reads 0 without one.
+	faceP2, err := headerBool(ctx, def, "facep2", def.FaceP2)
+	if err != nil {
+		return false, err
+	}
+	if faceP2 {
+		behind, err := evaluator.EvaluateMut("p2dist x < 0", ctx)
+		if err != nil {
+			return false, err
+		}
+		if behind.Bool() && ctx.Facing == match.FacingRight {
+			ctx.Facing = match.FacingLeft
+		} else if behind.Bool() {
+			ctx.Facing = match.FacingRight
+		}
+	}
+
+	// velset: facing-relative X, Y down in Ikemen GO (bytecode.go:5493-5500).
+	// Only a .zss header carries it (zssexec.Header): character's .cns
+	// StateDef drops the field.
+	x, hasX, err := headerExpr(ctx, def, "velset.x")
+	if err != nil {
+		return false, err
+	}
+	if hasX {
+		ctx.Velocity.X = 0 + x.Float()
+	}
+	if hasX && ctx.Facing == match.FacingLeft {
+		ctx.Velocity.X = 0 - x.Float()
+	}
+	y, hasY, err := headerExpr(ctx, def, "velset.y")
+	if err != nil {
+		return false, err
+	}
+	if hasY {
+		ctx.Velocity.Y = 0 - y.Float()
+	}
+
+	// anim: -1 means no change, an omitted one keeps the current animation
+	// (bytecode.go:5501-5507). cns.StateDef.Anim 0 stands for omitted.
+	anim, hasAnim, err := headerExpr(ctx, def, "anim")
+	if err != nil {
+		return false, err
+	}
+	animNo := anim.Int()
+	if !hasAnim && def.Anim != 0 {
+		animNo, hasAnim = def.Anim, true
+	}
+	if hasAnim && animNo != -1 {
+		ctx.Anim = animNo
+		ctx.AnimElapsed = 0
+		ctx.AnimElem, ctx.AnimElemTime = 0, 0
+		animRestarted = true
+	}
+
+	// ctrl (bytecode.go:5508-5510): an omitted one leaves Ctrl unchanged.
+	ctrl, hasCtrl, err := headerExpr(ctx, def, "ctrl")
+	if err != nil {
+		return false, err
+	}
+	if hasCtrl {
+		ctx.Ctrl = ctrl.Bool()
+	}
+	if !hasCtrl && !def.script {
+		// shortcut: a .cns StateDef cannot tell an omitted ctrl from
+		// "ctrl = 0", so its typed value applies; upgrade when character
+		// records which header fields are written.
+		ctx.Ctrl = def.Ctrl
+	}
+
+	// poweradd (bytecode.go:5511-5512), clamped as the PowerAdd controller.
+	power, hasPower, err := headerExpr(ctx, def, "poweradd")
+	if err != nil {
+		return false, err
+	}
+	add := def.PowerAdd
+	if hasPower {
+		add = power.Int()
+	}
+	ctx.Power = min(max(ctx.Power+add, 0), statemachine.DefaultMaxPower)
+	return animRestarted, nil
+}
+
+// headerExpr evaluates the header field name when it is written as an
+// expression (cns.StateDef.HeaderExprs; every written value field of a .zss
+// header), reporting ok false when it is not.
+func headerExpr(ctx *evaluator.Context, def entryHeader, name string) (v evaluator.Value, ok bool, err error) {
+	raw, ok := def.HeaderExprs[name]
+	if !ok {
+		return evaluator.Value{}, false, nil
+	}
+	v, err = evaluator.EvaluateMut(raw, ctx)
+	if err != nil {
+		return evaluator.Value{}, false, fmt.Errorf("state %d header %s %q: %w", def.Number, name, raw, err)
+	}
+	return v, true, nil
+}
+
+// headerBool is a boolean header field: its expression when written as one,
+// else the literal value.
+func headerBool(ctx *evaluator.Context, def entryHeader, name string, literal bool) (bool, error) {
+	v, ok, err := headerExpr(ctx, def, name)
+	if err != nil || !ok {
+		return literal, err
+	}
+	return v.Bool(), nil
 }
 
 // snapshotOf is what the other fighter's triggers read of fighter: its match
@@ -774,10 +912,11 @@ func stepFall(ctx *evaluator.Context) {
 // S 5000, C 5010, A 5020 -- in the same tick.
 // A defender whose stance is L/U, or whose character has no such state,
 // keeps its current state (the freeze and variables still apply), no
-// error. See .vibe/decisions/018.
-func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, attacker match.Side, hitDefParams map[string]string, hit combat.HitResult) {
+// error. It returns the error of a get-hit header expression the defender's
+// state entry could not evaluate. See .vibe/decisions/018.
+func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, attacker match.Side, hitDefParams map[string]string, hit combat.HitResult) error {
 	if !hit.Hit {
-		return
+		return nil
 	}
 	params := combat.ParseHitDef(hitDefParams)
 	runtimes[attacker].HitPause = params.PauseTime[0]
@@ -807,8 +946,11 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 	if def, ok := defender.stateHeader(target); ok && target != 0 {
 		ctx.PrevStateNo = ctx.StateNo
 		ctx.StateNo = target
-		enterState(ctx, def)
+		if _, err := enterState(ctx, def); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // getHitFor is the defender's get-hit variables for a landed hit, as Ikemen GO
