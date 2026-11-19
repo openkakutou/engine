@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # OR Between Trigger Groups
 
@@ -9,9 +9,9 @@ The engine ANDs every trigger of a `.cns` controller. MUGEN and Ikemen GO evalua
 🔒 MUST: MUGEN 1.0/1.1 and Ikemen GO compatibility (roadmap decision `038`).
 
 ## Acceptance Criteria
-- [ ] triggerall AND (OR of the numbered groups) is evaluated as Ikemen GO does, including its rules for gaps in the numbering, with the source cited
-- [ ] The `.cns` Kung Fu Man walk scenario plays animation 20
-- [ ] Controllers sent over the WebAssembly JSON request get the same semantics
+- [x] triggerall AND (OR of the numbered groups) is evaluated as Ikemen GO does, including its rules for gaps in the numbering, with the source cited
+- [x] The `.cns` Kung Fu Man walk scenario plays animation 20
+- [x] Controllers sent over the WebAssembly JSON request get the same semantics
 
 ## Notes
 Needs character#080 released. Found by item 058 (2026-11-19).

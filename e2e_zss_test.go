@@ -269,25 +269,6 @@ func scenarioAttackSound(t *testing.T, prog FighterProgram, button string, state
 	return nil
 }
 
-// What stops the scenarios today (checked by running, after item 058 gave
-// the engine's built-in walk, jump and crouch entries and press semantics to
-// commands): both characters stand idle, and kfm_zss walks, as Ikemen GO
-// does. The .cns kfm walks at the right speed but keeps the standing
-// animation: common1.cns's walk ChangeAnim needs "trigger1 OR trigger2"
-// (common1.cns:128-133), and controller triggers are all ANDed (decision
-// 003). Both jump and land back in state 0 since item 044.
-var cnsWalkCause = knownCause{"061 (OR between trigger groups, needs character#080)", "walk Anim = 0, want 20"}
-
-// zssHeaderCommentCause: kfm.zss's state 200 header spans lines whose "#"
-// comments hold ";" and "]" (kfm.zss:212-222); character's zss.Parse ends
-// the header inside a comment, so state 200's block runs state 210's
-// controllers (its CSnd(0, 4, 1), kfm.zss:293). No backlog item covers it.
-var zssHeaderCommentCause = knownCause{"character#081 (zss.Parse ends a multi-line Statedef header inside a # comment)", "= [{0 4 false 1 false}]"}
-
-// orGroupsAttackCause: kfm.cmd's stand light punch needs "trigger1 OR
-// trigger2" (kfm.cmd:630-637), so with triggers ANDed it never fires.
-var orGroupsAttackCause = knownCause{"061 (OR between trigger groups)", "after pressing x StateNo = 0, want 200"}
-
 const (
 	kfmZssDef = "chars/kfm_zss/kfm_zss.def"
 	kfmCnsDef = "chars/kfm/kfm.def"
@@ -323,7 +304,9 @@ func TestE2E_KfmCns_StandIdle_StaysInStateZero(t *testing.T) {
 
 func TestE2E_KfmCns_HoldForward_WalksAtTheCharactersWalkSpeed(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmCnsDef)
-	expectFailure(t, []knownCause{cnsWalkCause}, func() error { return scenarioWalkForward(t, prog) })
+	if err := scenarioWalkForward(t, prog); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestE2E_KfmCns_PressUp_JumpsAndLandsInStateZero(t *testing.T) {
@@ -348,9 +331,9 @@ func TestE2E_KfmZss_PressA_PlaysTheLightKickSoundFromItsOwnFile(t *testing.T) {
 // CSnd(0, 0, 1) (kfm.zss:253-258).
 func TestE2E_KfmZss_PressX_PlaysTheLightPunchSoundFromItsOwnFile(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmZssDef)
-	expectFailure(t, []knownCause{zssHeaderCommentCause}, func() error {
-		return scenarioAttackSound(t, prog, "x", 200, evaluator.SoundEvent{Group: 0, Sample: 0, Channel: 1})
-	})
+	if err := scenarioAttackSound(t, prog, "x", 200, evaluator.SoundEvent{Group: 0, Sample: 0, Channel: 1}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // Stand light punch, state 200 (kfm.cmd:630-637): PlaySnd value = 0, 0 at
@@ -358,9 +341,9 @@ func TestE2E_KfmZss_PressX_PlaysTheLightPunchSoundFromItsOwnFile(t *testing.T) {
 // newPlaySndParams, src/sound.go:1471).
 func TestE2E_KfmCns_PressX_PlaysTheLightPunchSoundFromItsOwnFile(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmCnsDef)
-	expectFailure(t, []knownCause{orGroupsAttackCause}, func() error {
-		return scenarioAttackSound(t, prog, "x", 200, evaluator.SoundEvent{Group: 0, Sample: 0, Channel: -1})
-	})
+	if err := scenarioAttackSound(t, prog, "x", 200, evaluator.SoundEvent{Group: 0, Sample: 0, Channel: -1}); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // scenarioLightKickHitsKfm: kfm_zss (P1) presses a next to the .cns kfm (P2)

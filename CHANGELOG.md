@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.22.0] - 2026-11-19
+
+### Fixed
+- A `.cns` controller now fires when all its `triggerall` lines hold and any one of its numbered `trigger1`, `trigger2`, ... groups holds, as in MUGEN and Ikemen GO, instead of requiring every trigger line at once. Evaluation stops as Ikemen GO does (later groups are not evaluated once one holds), and a controller without `trigger1` never fires. Kung Fu Man (`.cns`) now plays its walk animation, and its light punch (`x`) starts state 200 with its sound; this also applies to controllers sent to the WebAssembly build.
+
 ## [2.21.0] - 2026-11-19
 
 ### Fixed
@@ -269,7 +274,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.21.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.22.0...HEAD
+[2.22.0]: https://github.com/openkakutou/engine/compare/v2.21.0...v2.22.0
 [2.21.0]: https://github.com/openkakutou/engine/compare/v2.20.0...v2.21.0
 [2.20.0]: https://github.com/openkakutou/engine/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/openkakutou/engine/compare/v2.18.0...v2.19.0

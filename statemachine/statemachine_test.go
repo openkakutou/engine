@@ -1099,3 +1099,162 @@ func TestStep_PlaySndController_RecordsChannelAndLowPriority(t *testing.T) {
 		t.Errorf("Sounds = %v, want %v", result.Sounds, want)
 	}
 }
+
+// stepOne runs a single-controller state 0 and reports whether the
+// controller applied, with the resulting Context.
+func stepOne(t *testing.T, ctrl cns.Controller, ctx evaluator.Context) (bool, evaluator.Context) {
+	t.Helper()
+	states := map[int]cns.StateDef{0: {Number: 0, Controllers: []cns.Controller{ctrl}}}
+	result, err := Step(ctx, states)
+	if err != nil {
+		t.Fatalf("Step returned unexpected error: %v", err)
+	}
+	return len(result.Applied) == 1, result.Context
+}
+
+func TestStep_TriggerGroups_FireWhenTriggerAllHoldsAndAnyGroupHolds(t *testing.T) {
+	ctrl := cns.Controller{
+		Type:          "VarSet",
+		Parameters:    map[string]string{"v": "1", "value": "7"},
+		TriggerAll:    []string{"var(5) = 1"},
+		TriggerGroups: [][]string{{"var(2) = 1", "var(3) = 1"}, {"var(4) = 1"}},
+		Triggers:      []string{"var(5) = 1", "var(2) = 1", "var(3) = 1", "var(4) = 1"},
+	}
+	cases := []struct {
+		name string
+		vars map[int]int
+		want bool
+	}{
+		{"only group 2 holds", map[int]int{5: 1, 4: 1}, true},
+		{"only group 1 holds", map[int]int{5: 1, 2: 1, 3: 1}, true},
+		{"group 1 half holds, group 2 false", map[int]int{5: 1, 2: 1}, false},
+		{"groups hold but triggerall false", map[int]int{2: 1, 3: 1, 4: 1}, false},
+	}
+	for _, tc := range cases {
+		ctx := evaluator.Context{}
+		for i, v := range tc.vars {
+			ctx.Vars[i] = v
+		}
+		if got, _ := stepOne(t, ctrl, ctx); got != tc.want {
+			t.Errorf("%s: applied = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// Ikemen GO compiles groups as "group1 jnz group2 ...": the first true group
+// ends evaluation (src/compiler.go:7488-7493, commit 54d4148a), so a later
+// group's side effects never run.
+func TestStep_TriggerGroups_StopAtFirstTrueGroup_LaterAssignAndRandomNotRun(t *testing.T) {
+	ctrl := cns.Controller{
+		Type:          "Null",
+		TriggerGroups: [][]string{{"1"}, {"(var(0) := 9) || Random >= 0"}},
+		Triggers:      []string{"1", "(var(0) := 9) || Random >= 0"},
+	}
+	applied, out := stepOne(t, ctrl, evaluator.Context{RandSeed: 42})
+	if !applied {
+		t.Fatal("controller did not apply")
+	}
+	if out.Vars[0] != 0 {
+		t.Errorf("Vars[0] = %d, want 0 (group 2 must not be evaluated)", out.Vars[0])
+	}
+	if out.RandSeed != 42 {
+		t.Errorf("RandSeed = %d, want 42 (Random must not be drawn)", out.RandSeed)
+	}
+}
+
+func TestStep_TriggerAllFalse_SkipsGroupsEntirely(t *testing.T) {
+	ctrl := cns.Controller{
+		Type:          "Null",
+		TriggerAll:    []string{"0"},
+		TriggerGroups: [][]string{{"var(0) := 9"}},
+		Triggers:      []string{"0", "var(0) := 9"},
+	}
+	applied, out := stepOne(t, ctrl, evaluator.Context{})
+	if applied || out.Vars[0] != 0 {
+		t.Errorf("applied = %v, Vars[0] = %d, want false and 0", applied, out.Vars[0])
+	}
+}
+
+// Ikemen GO refuses a controller without trigger1 ("Missing trigger1",
+// src/compiler.go:7439-7441); character drops groups from the first gap, so
+// only triggerall (or trigger2 alone) leaves TriggerGroups empty.
+func TestStep_TriggersWithoutTrigger1_NeverFire(t *testing.T) {
+	ctrl := cns.Controller{
+		Type:       "Null",
+		TriggerAll: []string{"1"},
+		Triggers:   []string{"1", "1"},
+	}
+	if applied, _ := stepOne(t, ctrl, evaluator.Context{}); applied {
+		t.Error("controller without trigger1 applied, want never")
+	}
+}
+
+func TestStep_LegacyFlatTriggersOnly_StillANDed(t *testing.T) {
+	ctrl := cns.Controller{Type: "Null", Triggers: []string{"1", "var(0) = 1"}}
+	if applied, _ := stepOne(t, ctrl, evaluator.Context{}); applied {
+		t.Error("flat-only controller applied with one false trigger, want AND")
+	}
+	ctx := evaluator.Context{}
+	ctx.Vars[0] = 1
+	if applied, _ := stepOne(t, ctrl, ctx); !applied {
+		t.Error("flat-only controller did not apply with every trigger true")
+	}
+}
+
+func parseOneController(t *testing.T, src string) cns.Controller {
+	t.Helper()
+	defs, err := cns.Parse(strings.NewReader(src))
+	if err != nil {
+		t.Fatalf("cns.Parse: %v", err)
+	}
+	return defs[0].Controllers[0]
+}
+
+// common1.cns:128-133, verbatim: the walk ChangeAnim fires through trigger1
+// while trigger2 is false.
+func TestStep_RealCommon1WalkChangeAnim_FiresThroughTrigger1(t *testing.T) {
+	ctrl := parseOneController(t, `[Statedef 20]
+[State 20, 3]
+type = ChangeAnim
+triggerall = vel x > 0
+trigger1 = Anim != 20 && Anim != 5
+trigger2 = Anim = 5 && AnimTime = 0
+value = 20
+`)
+	ctx := evaluator.Context{}
+	ctx.Velocity.X = 2.4
+	applied, out := stepOne(t, ctrl, ctx)
+	if !applied || out.Anim != 20 {
+		t.Errorf("applied = %v, Anim = %d, want true and 20", applied, out.Anim)
+	}
+}
+
+// kfm.cmd:630-637, verbatim: during state 200 after time 6, trigger2 lets x
+// chain the punch although ctrl is off.
+func TestStep_RealKfmCmdStandLightPunch_FiresThroughTrigger2(t *testing.T) {
+	ctrl := parseOneController(t, `[Statedef 0]
+[State -1, Stand Light Punch]
+type = ChangeState
+value = 200
+triggerall = command = "x"
+triggerall = command != "holddown"
+trigger1 = statetype = S
+trigger1 = ctrl
+trigger2 = stateno = 200
+trigger2 = time > 6
+`)
+	states := map[int]cns.StateDef{200: {Number: 200, Controllers: []cns.Controller{ctrl}}}
+	ctx := evaluator.Context{
+		FighterState:   match.FighterState{StateNo: 200},
+		Time:           7,
+		StateType:      'S',
+		ActiveCommands: map[string]bool{"x": true},
+	}
+	result, err := Step(ctx, states)
+	if err != nil {
+		t.Fatalf("Step: %v", err)
+	}
+	if len(result.Applied) != 1 || result.Context.Time != 0 {
+		t.Errorf("Applied = %v, Time = %d, want [0] and a re-entry of state 200", result.Applied, result.Context.Time)
+	}
+}

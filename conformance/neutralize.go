@@ -97,6 +97,8 @@ func neutralize(states map[int]cns.StateDef) (map[int]cns.StateDef, int) {
 			}
 			if unparsable || len(unknown) > 0 {
 				controllers[i].Triggers = []string{neverTrue}
+				controllers[i].TriggerAll = nil
+				controllers[i].TriggerGroups = [][]string{{neverTrue}}
 			}
 		}
 		def.Controllers = controllers

@@ -17,12 +17,10 @@
 // is still recorded as "applied" when its trigger evaluates true, has no
 // effect on the Context, and is reported by name in Result.Unsupported.
 //
-// A controller's Triggers ("triggerN"/"triggerall" lines) are combined
-// with logical AND across the whole flat list, not MUGEN's full
-// group-by-number OR-of-ANDs semantics -- character/cns's Controller does
-// not retain which numeric group each trigger string came from, so that
-// distinction cannot be reconstructed here. See
-// .vibe/decisions/003-controller-triggers-combined-with-and.md.
+// A controller fires when every TriggerAll line holds and at least one of
+// its TriggerGroups ("trigger1", "trigger2", ...) holds, a group holding when
+// all its lines do -- evaluated in Ikemen GO's order with its short-circuit.
+// See .vibe/decisions/032-controller-trigger-groups-ored-as-ikemen-go.md.
 //
 // Matching real MUGEN/Ikemen behavior, once a ChangeState controller
 // applies, Step stops evaluating any further controllers in the current
@@ -185,7 +183,7 @@ func stepState(ctx evaluator.Context, number int, states map[int]cns.StateDef, e
 				continue
 			}
 		}
-		pass, err := triggersPass(ctrl.Triggers, &working)
+		pass, err := triggersPass(ctrl, &working)
 		if err != nil {
 			return Result{}, fmt.Errorf("statemachine: state %d controller %d (%s): evaluating triggers: %w", number, i, ctrl.Type, err)
 		}
@@ -223,13 +221,43 @@ func ignoresHitPause(ctrl cns.Controller, ctx *evaluator.Context) (bool, error) 
 	return v.Bool(), nil
 }
 
-// triggersPass reports whether every trigger expression in triggers
-// evaluates true against ctx (logical AND across the flat list -- see the
-// package doc comment). A nil or empty triggers list is unconditional and
-// always passes.
-func triggersPass(triggers []string, ctx *evaluator.Context) (bool, error) {
-	for _, trig := range triggers {
-		v, err := evaluator.EvaluateMut(trig, ctx)
+// triggersPass reports whether ctrl's trigger condition holds, in Ikemen
+// GO's evaluation order (stateCompileCNS, src/compiler.go:7442-7495, commit
+// 54d4148a): every TriggerAll line first, stopping at the first false one,
+// then the groups in order, each stopping at its first false line, the
+// whole stopping at the first true group -- so a later line's ":=" or
+// Random never runs once the outcome is known. Non-empty Triggers with no
+// TriggerGroups means no trigger1, which Ikemen GO refuses ("Missing
+// trigger1", src/compiler.go:7439-7441): such a controller never fires.
+//
+// shortcut: a controller with neither TriggerAll nor TriggerGroups (built
+// by hand, not by cns.Parse) falls back to ANDing its flat Triggers, and
+// an empty Triggers is unconditional, as before groups existed.
+func triggersPass(ctrl cns.Controller, ctx *evaluator.Context) (bool, error) {
+	if len(ctrl.TriggerAll) == 0 && len(ctrl.TriggerGroups) == 0 {
+		return allHold(ctrl.Triggers, ctx)
+	}
+	pass, err := allHold(ctrl.TriggerAll, ctx)
+	if err != nil || !pass {
+		return false, err
+	}
+	for _, group := range ctrl.TriggerGroups {
+		pass, err := allHold(group, ctx)
+		if err != nil {
+			return false, err
+		}
+		if pass {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// allHold reports whether every expression in lines evaluates true,
+// stopping at the first false one; an empty list holds.
+func allHold(lines []string, ctx *evaluator.Context) (bool, error) {
+	for _, line := range lines {
+		v, err := evaluator.EvaluateMut(line, ctx)
 		if err != nil {
 			return false, err
 		}

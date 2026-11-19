@@ -1,6 +1,6 @@
 ---
 date: 2026-08-09
-status: accepted
+status: superseded by 032
 ---
 # A controller's triggers are combined with AND, not MUGEN's OR-of-groups
 

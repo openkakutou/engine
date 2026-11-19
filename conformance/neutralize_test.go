@@ -121,3 +121,21 @@ func TestInspectController_OpponentAndContactTriggers_AreNoLongerUnknown(t *test
 		t.Errorf("unknown = %v unparsable = %v, want none", unknown, unparsable)
 	}
 }
+
+// A parsed controller's groups decide whether it fires (statemachine), so a
+// neutralized one must lose them too, or its trigger1 would still fire.
+func TestNeutralize_ControllerWithTriggerGroups_LosesItsGroups(t *testing.T) {
+	original := map[int]cns.StateDef{0: {Number: 0, Controllers: []cns.Controller{
+		{Type: "Null", TriggerAll: []string{"1"}, TriggerGroups: [][]string{{"1"}, {"nosuchtrigger"}}, Triggers: []string{"1", "1", "nosuchtrigger"}},
+	}}}
+
+	got, _ := neutralize(original)
+
+	ctrl := got[0].Controllers[0]
+	if ctrl.TriggerAll != nil || !reflect.DeepEqual(ctrl.TriggerGroups, [][]string{{"0"}}) {
+		t.Errorf("TriggerAll = %v, TriggerGroups = %v, want nil and [[0]]", ctrl.TriggerAll, ctrl.TriggerGroups)
+	}
+	if len(original[0].Controllers[0].TriggerGroups) != 2 {
+		t.Error("the given table was modified")
+	}
+}
