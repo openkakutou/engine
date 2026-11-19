@@ -70,6 +70,10 @@ type commandProgress struct {
 // every command starts with no progress and no recognized match.
 type State struct {
 	progress map[string]commandProgress
+	// prevDirs and prevButtons are the previous tick's resolved directions
+	// and held buttons, to tell a press (held now, not before) from a hold.
+	prevDirs    directionSet
+	prevButtons map[string]bool
 }
 
 // Step advances every command defined in cmds by one simulation tick,
@@ -92,11 +96,23 @@ type State struct {
 // tick, then stops. A tick that doesn't match a command's next expected
 // step tries that same tick against the command's first step instead --
 // so one wrong input doesn't require fully replaying an otherwise-correct
-// sequence -- and resets to no progress if that doesn't match either.
+// sequence -- and otherwise keeps its progress, as Ikemen GO's
+// Command.Step drops a partial sequence only when its time runs out
+// (input.go:2566-2584). A step without "/" matches only on the tick its
+// inputs become pressed; a "/" step matches while they are held
+// (input.go:2621-2625).
 func Step(state State, tick int, facing match.Facing, in TickInput, cmds cmd.CommandFile) (State, map[string]bool) {
 	held := in.resolve(facing)
 
-	next := State{progress: make(map[string]commandProgress, len(cmds.Commands))}
+	next := State{progress: make(map[string]commandProgress, len(cmds.Commands)), prevDirs: held}
+	if len(in.Buttons) > 0 {
+		// A copy: the caller may reuse its map for the next tick.
+		next.prevButtons = make(map[string]bool, len(in.Buttons))
+		for b, down := range in.Buttons {
+			next.prevButtons[b] = down
+		}
+	}
+	now := keys{dirs: held, buttons: in.Buttons, prevDirs: state.prevDirs, prevButtons: state.prevButtons}
 	active := make(map[string]bool, len(cmds.Commands))
 
 	for _, c := range cmds.Commands {
@@ -123,7 +139,7 @@ func Step(state State, tick int, facing match.Facing, in TickInput, cmds cmd.Com
 			p.step = 0
 		}
 
-		p = advance(p, steps, tick, held, in.Buttons)
+		p = advance(p, steps, tick, now)
 
 		next.progress[c.Name] = p
 		if p.matchedTick >= 0 && tick-p.matchedTick <= bufferWindow {
@@ -137,19 +153,43 @@ func Step(state State, tick int, facing match.Facing, in TickInput, cmds cmd.Com
 // advance matches held/buttons against steps[p.step] (the next step this
 // command's sequence expects) and returns p updated for this tick -- see
 // Step's doc comment for the exact matching/reset rules.
-func advance(p commandProgress, steps []step, tick int, held directionSet, buttons map[string]bool) commandProgress {
-	if matches(steps[p.step], held, buttons) {
-		return commit(p, steps, tick, p.step)
+func advance(p commandProgress, steps []step, tick int, now keys) commandProgress {
+	if matches(steps[p.step], now) {
+		return chain(commit(p, steps, tick, p.step), steps, tick, now)
 	}
-	if p.step > 0 && matches(steps[0], held, buttons) {
+	if p.step > 0 && matches(steps[0], now) {
 		// A wrong input doesn't erase an otherwise-valid fresh attempt
 		// starting on this very tick.
-		return commit(p, steps, tick, 0)
-	}
-	if p.step > 0 {
-		p.step = 0
+		return chain(commit(p, steps, tick, 0), steps, tick, now)
 	}
 	return p
+}
+
+// chain matches, on the tick a direction step matched, the button steps
+// that follow it, as Ikemen GO checks such "direction to button" steps in
+// the same frame (input.go:2385-2407, IsDirToButton input.go:2031-2054):
+// "F, c" completes when F and c are pressed together.
+func chain(p commandProgress, steps []step, tick int, now keys) commandProgress {
+	for p.step > 0 && dirToButton(steps[p.step-1], steps[p.step]) && matches(steps[p.step], now) {
+		p = commit(p, steps, tick, p.step)
+	}
+	return p
+}
+
+// dirToButton reports whether next can match on the tick cur did: cur
+// presses no button, next is not held, and they share no direction.
+func dirToButton(cur, next step) bool {
+	if next.hold || len(cur.buttons) > 0 {
+		return false
+	}
+	return !(cur.hasDir && next.hasDir && cur.dirs == next.dirs)
+}
+
+// keys is one tick's resolved directions and held buttons, with the
+// previous tick's, to tell a press from a hold.
+type keys struct {
+	dirs, prevDirs       directionSet
+	buttons, prevButtons map[string]bool
 }
 
 // commit records step matchedStep having matched on tick, advancing p's
@@ -166,16 +206,37 @@ func commit(p commandProgress, steps []step, tick, matchedStep int) commandProgr
 	return p
 }
 
-// matches reports whether the current tick's resolved direction and held
-// buttons satisfy s.
-func matches(s step, held directionSet, buttons map[string]bool) bool {
-	if s.hasDir && s.dirs != held {
-		return false
+// matches reports whether this tick's keys satisfy s: each of its inputs is
+// held, and, for a step without "/", was not held on the previous tick
+// (Ikemen GO input.go:2621-2625).
+func matches(s step, now keys) bool {
+	if s.hasDir {
+		if s.dirs != now.dirs {
+			return false
+		}
+		if !s.hold && s.dirs == now.prevDirs {
+			return false
+		}
 	}
 	for _, b := range s.buttons {
-		if !buttons[b] {
+		if !now.buttons[b] {
+			return false
+		}
+		if !s.hold && now.prevButtons[b] {
 			return false
 		}
 	}
 	return true
+}
+
+// Directions are the directions a fighter holds, relative to its facing.
+type Directions struct {
+	Up, Down, Forward, Back bool
+}
+
+// Directions resolves in's raw directions against facing, opposing ones
+// cancelling out as for command matching.
+func (in TickInput) Directions(facing match.Facing) Directions {
+	d := in.resolve(facing)
+	return Directions{Up: d.up, Down: d.down, Forward: d.forward, Back: d.back}
 }

@@ -85,8 +85,9 @@ func loadStageBounds(t *testing.T) *stage.StageBoundaries {
 // full scripted match between two real characters (loaded from real,
 // parsed .cns/.air/.cmd data, and real stage boundary data), driven
 // end-to-end through Tick and round alone, asserting on the final match
-// outcome -- not just individual subsystem behavior. P1 holds its attack
-// command every tick; P2 never presses anything -- a deterministic,
+// outcome -- not just individual subsystem behavior. P1 taps its attack
+// button every other tick (a held button is one press, Ikemen GO
+// input.go:2621-2625); P2 never presses anything -- a deterministic,
 // one-sided script exercising the state transition -> HitDef -> damage ->
 // KO -> round reset -> best-of-N progression loop exactly the way the `game` app's
 // own per-frame loop would drive it via the WASM entrypoint.
@@ -123,7 +124,7 @@ func TestIntegration_FullScriptedMatch_TwoRealCharactersRunsToACorrectWinConditi
 	programs := [2]FighterProgram{match.SideP1: prog, match.SideP2: prog}
 	runtimes := [2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime}
 
-	p1Input := input.TickInput{Buttons: map[string]bool{"a": true}}
+	attack := input.TickInput{Buttons: map[string]bool{"a": true}}
 	var p2Input input.TickInput // never attacks
 
 	const maxTicks = 5000
@@ -131,6 +132,10 @@ func TestIntegration_FullScriptedMatch_TwoRealCharactersRunsToACorrectWinConditi
 	var winner match.Side
 
 	for tick := 1; tick <= maxTicks; tick++ {
+		var p1Input input.TickInput
+		if tick%2 == 1 {
+			p1Input = attack
+		}
 		result, err := Tick(*state, programs, runtimes, [2]input.TickInput{match.SideP1: p1Input, match.SideP2: p2Input}, TickConfig{Bounds: bounds, Gravity: 0, Tick: tick, ComboWindow: 60})
 		if err != nil {
 			t.Fatalf("Tick failed at tick %d: %v", tick, err)

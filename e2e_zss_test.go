@@ -220,25 +220,19 @@ func scenarioJump(t *testing.T, prog FighterProgram) error {
 	return fmt.Errorf("never back in state 0 after the jump (StateNo %d, saw jump up: %v, peak Y %v)", stateNo, sawJumpUp, peak)
 }
 
-// What stops the scenarios today (checked by running, after item 041 gave
-// the evaluator intervals and Cond, and again after item 055 gave control at
-// round start without forcing it here): both characters stand idle as Ikemen GO
-// does. Holding forward ends in the run state 100 instead of walk state 20,
-// and pressing up never leaves state 0, for kfm and kfm_zss alike: item 058
-// (walk and jump entry).
-var (
-	walkCauses = []knownCause{
-		{"058 (walk entry)", "StateNo = 100, want 20"},
-	}
-	jumpCauses = []knownCause{
-		{"058 (jump entry)", "StateNo = 0, want 40 (jump start)"},
-	}
-)
+// What stops the scenarios today (checked by running, after item 058 gave
+// the engine's built-in walk, jump and crouch entries and press semantics to
+// commands): both characters stand idle, and kfm_zss walks, as Ikemen GO
+// does. The .cns kfm walks at the right speed but keeps the standing
+// animation: common1.cns's walk ChangeAnim needs "trigger1 OR trigger2"
+// (common1.cns:128-133), and controller triggers are all ANDed (decision
+// 003). Both jumps stop at the landing (landingCause).
+var cnsWalkCause = knownCause{"none yet: OR between trigger groups (decision 003; propose a character + engine item)", "walk Anim = 0, want 20"}
 
-// landingCause stops the jump once the triggers above are there: the engine
-// does not change a fighter in physics type A to state 52 when it lands
-// (Ikemen GO char.go:12584-12590), so a jump never returns to state 0. No
-// backlog item covers it yet; item 044 (physics order) is the closest home.
+// landingCause stops the jump: the engine does not change a fighter in
+// physics type A to state 52 when it lands (Ikemen GO char.go:12584-12590), so
+// a jump never returns to state 0. No backlog item covers it yet; item 044
+// (physics order) is the closest home.
 var landingCause = knownCause{"none yet: landing changes to state 52 (propose adding it to 044)", "never back in state 0"}
 
 const (
@@ -255,12 +249,14 @@ func TestE2E_KfmZss_StandIdle_StaysInStateZero(t *testing.T) {
 
 func TestE2E_KfmZss_HoldForward_WalksAtTheCharactersWalkSpeed(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmZssDef)
-	expectFailure(t, walkCauses, func() error { return scenarioWalkForward(t, prog) })
+	if err := scenarioWalkForward(t, prog); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestE2E_KfmZss_PressUp_JumpsAndLandsInStateZero(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmZssDef)
-	expectFailure(t, append(jumpCauses[:len(jumpCauses):len(jumpCauses)], landingCause), func() error { return scenarioJump(t, prog) })
+	expectFailure(t, []knownCause{landingCause}, func() error { return scenarioJump(t, prog) })
 }
 
 func TestE2E_KfmCns_StandIdle_StaysInStateZero(t *testing.T) {
@@ -272,12 +268,12 @@ func TestE2E_KfmCns_StandIdle_StaysInStateZero(t *testing.T) {
 
 func TestE2E_KfmCns_HoldForward_WalksAtTheCharactersWalkSpeed(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmCnsDef)
-	expectFailure(t, walkCauses, func() error { return scenarioWalkForward(t, prog) })
+	expectFailure(t, []knownCause{cnsWalkCause}, func() error { return scenarioWalkForward(t, prog) })
 }
 
 func TestE2E_KfmCns_PressUp_JumpsAndLandsInStateZero(t *testing.T) {
 	prog := loadReferenceProgram(t, kfmCnsDef)
-	expectFailure(t, append(jumpCauses[:len(jumpCauses):len(jumpCauses)], landingCause), func() error { return scenarioJump(t, prog) })
+	expectFailure(t, []knownCause{landingCause}, func() error { return scenarioJump(t, prog) })
 }
 
 func TestClassifyFailure_PassingScenarioUnknownAndKnownCause_AreToldApart(t *testing.T) {

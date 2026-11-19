@@ -161,3 +161,45 @@ func TestStep_MultipleCommands_AreTrackedIndependently(t *testing.T) {
 		t.Errorf("holdfwd incorrectly recognized while holding back, not forward; active = %+v", active)
 	}
 }
+
+// kfmDashCommands are kfm.cmd's own "FF" (F, F within 10 ticks) and
+// "holdfwd" (/$F) commands (testdata/reference/chars/kfm/kfm.cmd:248-251,
+// 312-314).
+func kfmDashCommands() cmd.CommandFile {
+	return cmd.CommandFile{
+		Defaults: cmd.CommandDefaults{Time: 15, BufferTime: 1},
+		Commands: []cmd.Command{
+			{Name: "FF", Input: "F, F", Time: 10},
+			{Name: "holdfwd", Input: "/$F", Time: 1},
+		},
+	}
+}
+
+func TestStep_ForwardHeldWithoutRelease_IsOnePressNotADoubleTap(t *testing.T) {
+	// Ikemen GO input.go:2621-2625: a step without "/" matches only on the
+	// tick its key becomes pressed (State == 1); "/" matches while held.
+	cmds := kfmDashCommands()
+	s := State{}
+	var active map[string]bool
+	for tick := 0; tick < 6; tick++ {
+		s, active = Step(s, tick, match.FacingRight, TickInput{Right: true}, cmds)
+		if active["FF"] {
+			t.Fatalf("tick %d: FF recognized while forward is only held", tick)
+		}
+		if !active["holdfwd"] {
+			t.Fatalf("tick %d: holdfwd not recognized while forward is held", tick)
+		}
+	}
+}
+
+func TestStep_ForwardTappedTwice_IsADoubleTap(t *testing.T) {
+	cmds := kfmDashCommands()
+	s := State{}
+	var active map[string]bool
+	for tick, in := range []TickInput{{Right: true}, {}, {Right: true}} {
+		s, active = Step(s, tick, match.FacingRight, in, cmds)
+	}
+	if !active["FF"] {
+		t.Errorf("FF not recognized after forward, neutral, forward; active = %+v", active)
+	}
+}

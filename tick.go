@@ -550,6 +550,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	unsupported := runtime.Unsupported[:0]
 	skippedCalls := runtime.SkippedCalls[:0]
 	ctx.StateChanged = false
+	basicActions(&ctx, prog, in.Directions(fighter.Facing))
 	for _, number := range specialStates {
 		if !prog.hasState(number) {
 			continue
@@ -672,6 +673,62 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		HitDef:    hitDef,
 		Sounds:    sounds,
 	}, nil
+}
+
+// basicActions are the walk, jump and crouch a fighter with control gets
+// from the engine itself, before its states -3, -2 and -1 run (Ikemen GO
+// actionPrepare, char.go:12300-12345; common1 has no ChangeState into 20 or
+// 40). Like a ChangeState there, the change is entered after state -1.
+// shortcut: no AssertSpecial yet (item 050), so the nohardcodedkeys,
+// nojump, nocrouch, nostand, nowalk and nobrake flags are all off, as in
+// Ikemen GO without AssertSpecial; there is no guard distance, so the guard
+// entry (120) never fires and back does not cancel forward (char.go:12306,
+// 12332); the air jump (45) and the round-over input lock (char.go:12309)
+// are not done.
+func basicActions(ctx *evaluator.Context, prog FighterProgram, d input.Directions) {
+	if ctx.Ctrl {
+		switch {
+		case ctx.StateType == 'S' && d.Up:
+			if ctx.StateNo != 40 {
+				basicChangeState(ctx, prog, 40)
+			}
+		case ctx.StateType == 'S' && d.Down:
+			if ctx.StateNo != 10 {
+				if ctx.StateNo != 100 {
+					ctx.Velocity.X = 0
+				}
+				basicChangeState(ctx, prog, 10)
+			}
+		case ctx.StateType == 'C' && !d.Down:
+			if ctx.StateNo != 12 {
+				basicChangeState(ctx, prog, 12)
+			}
+		case ctx.StateType == 'S' && d.Forward != d.Back:
+			if ctx.StateNo != 20 {
+				basicChangeState(ctx, prog, 20)
+			}
+		}
+	}
+	// Braking does not need control (char.go:12338-12342).
+	if ctx.StateNo == 20 && d.Back == d.Forward {
+		basicChangeState(ctx, prog, 0)
+	}
+}
+
+// basicChangeState changes to state number as a ChangeState with no anim or
+// ctrl does (statemachine applyChangeState).
+// shortcut: a character without that state is left where it is, where
+// Ikemen GO enters an empty state (char.go:6852-6857); every character
+// loading common1 has them.
+func basicChangeState(ctx *evaluator.Context, prog FighterProgram, number int) {
+	if !prog.hasState(number) {
+		return
+	}
+	ctx.PrevStateNo = ctx.StateNo
+	ctx.StateNo = number
+	ctx.Time = 0
+	ctx.StateChanged = true
+	ctx.Persistent = [evaluator.MaxPersistent]int32{}
 }
 
 // nilIfEmpty returns names, or nil when it is empty, so a side with nothing

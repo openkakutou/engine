@@ -1,6 +1,6 @@
 ---
 date: 2026-08-16
-status: accepted
+status: accepted (amended by 028: "/" hold and press semantics)
 ---
 # `.cmd` command-string modifier prefixes are recognized but not semantically implemented
 

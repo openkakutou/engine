@@ -26,6 +26,11 @@ type directionSet struct {
 // button-only step like "a" must not care about stick position) plus zero
 // or more button names that must all be held simultaneously.
 type step struct {
+	// hold is set by a "/" prefix: the step matches on every tick its
+	// inputs are held. Without it the step matches only on the tick they
+	// become pressed (Ikemen GO input.go:2621-2625, "t == 1"), so a held
+	// direction is one press, never a repeated one.
+	hold    bool
 	hasDir  bool
 	dirs    directionSet
 	buttons []string
@@ -50,11 +55,10 @@ var directionCodes = map[string]directionSet{
 }
 
 // commandModifiers are the MUGEN/Ikemen GO command-string prefix
-// modifiers this package recognizes syntactically (release-detection "~",
-// 4-way-guarantee "$", hold "/", and the strict-timing step separator
-// ">") but does not implement semantically -- a step carrying one of them
-// is matched the same as its unmodified form. Full modifier semantics are
-// deferred; see .vibe/decisions/006-command-modifier-prefixes-recognized-not-implemented.md.
+// modifiers this package recognizes. Only hold "/" has its own semantics
+// (step.hold); release-detection "~", 4-way-guarantee "$" and the
+// strict-timing step separator ">" are matched the same as the unmodified
+// step. See .vibe/decisions/006 and 028.
 const commandModifiers = "~$/>"
 
 // stepsCache memoizes parseSteps by its raw input string, so Step's
@@ -98,9 +102,13 @@ func parseSteps(input string) []step {
 // parseStep parses one comma-separated token of a command string into the
 // step it requires.
 func parseStep(tok string) step {
+	prefix := tok[:len(tok)-len(strings.TrimLeft(tok, commandModifiers))]
 	tok = strings.TrimLeft(tok, commandModifiers)
 
 	var s step
+	// A "/" anywhere in the prefix holds the whole step, as Ikemen GO
+	// propagates it (input.go:2480-2503).
+	s.hold = strings.Contains(prefix, "/")
 	for _, part := range strings.Split(tok, "+") {
 		part = strings.TrimSpace(part)
 		if part == "" {

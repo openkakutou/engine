@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Entering a state whose header does not set control or an animation keeps the current control and lets the current animation run on; a `.cns` header that writes `ctrl = 0` still takes control away.
 - State headers written as expressions are evaluated on entry, and their power gain, `facep2` turn and (in `.zss` states) starting velocity now apply.
 - A `ChangeState` that sets `ctrl` or `anim` now applies them.
+- A fighter with control walks while forward or back is held, jumps when up is held, crouches when down is held and stands up again, as in Ikemen GO, even when its own states never change into those states.
+- Holding a direction or a button counts as one press: holding forward no longer triggers a double-tap dash, and holding an attack button no longer repeats the attack. A pause between two steps of a motion no longer cancels it while it is still within its time, and a button pressed together with the last direction of a motion completes it.
 
 ## [2.16.0] - 2026-11-19
 

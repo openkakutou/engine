@@ -41,8 +41,7 @@ func buildScript() []scriptStep {
 	}
 	s = append(s,
 		// quarter-circle forward + a
-		// Each direction lasts one tick: the matcher advances one step per
-		// tick and resets on a repeated direction.
+		// Each direction lasts one tick, a press each.
 		scriptStep{ticks: 1, down: true},
 		scriptStep{ticks: 1, down: true, forward: true},
 		scriptStep{ticks: 1, forward: true},

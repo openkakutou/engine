@@ -61,6 +61,9 @@ func TestInputFor_FacingLeft_MirrorsForwardAndBack(t *testing.T) {
 }
 
 func TestInputFor_OverOneCycle_ExecutesMotionCommands(t *testing.T) {
+	// The charge holds back ("/B"): a plain "B" step is one press, and a
+	// press 45 ticks before F is outside the 20-tick window (Ikemen GO
+	// input.go:2580-2584, 2621-2625).
 	const cmdSrc = `[Command]
 name = "qcf_a"
 command = D, DF, F, a
@@ -73,7 +76,7 @@ time = 20
 
 [Command]
 name = "charge_c"
-command = B, F, c
+command = /B, F, c
 time = 20
 `
 	cf, err := cmd.Parse(strings.NewReader(cmdSrc))

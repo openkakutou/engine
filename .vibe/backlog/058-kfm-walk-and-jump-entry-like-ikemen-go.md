@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [041]
 ---
 # Kfm Walk and Jump Entry Like Ikemen GO
@@ -14,9 +14,10 @@ The cause is not diagnosed. Candidates are how the `FF` command matches a held d
 🔒 MUST: Ikemen GO behaviour (roadmap decision `038`), grounded in its source (commit `54d4148a`).
 
 ## Acceptance Criteria
-- [ ] The cause is found and cited from the Ikemen GO source
-- [ ] The `.cns` Kung Fu Man walks (state 20, X increasing) when forward is held, and jumps (state 40) when up is pressed, in the end-to-end scenarios
-- [ ] The `.zss` Kung Fu Man does the same, once its own blockers are gone
+- [x] The cause is found and cited from the Ikemen GO source
+- [x] The `.cns` Kung Fu Man walks (state 20, X increasing) when forward is held, and jumps (state 40) when up is pressed, in the end-to-end scenarios
+- [x] The `.zss` Kung Fu Man does the same, once its own blockers are gone
 
 ## Notes
 Found by item 042 (2026-11-18), with a temporary interval stub that was reverted.
+Done on 2026-11-19. The `.zss` Kung Fu Man walks, and both Kung Fu Man versions enter jump start then jump up. Still open, each in its own item: the `.cns` walk animation (item 061, OR between trigger groups) and landing (item 044).
