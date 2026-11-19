@@ -43,6 +43,7 @@ func init() {
 	RegisterController(ControllerTypeLifeSet, applyLifeSet)
 	RegisterController(ControllerTypeGravity, applyGravity)
 	RegisterController(ControllerTypeNull, applyNull)
+	RegisterController(ControllerTypePlayerPush, applyPlayerPush)
 }
 
 // worldX converts an Ikemen GO facing-relative X to the engine's world-space
@@ -403,4 +404,45 @@ func lowerType(controllerType string) string {
 	lowered := strings.ToLower(controllerType)
 	lowerTypes[controllerType] = lowered
 	return lowered
+}
+
+// applyPlayerPush sets the push properties for the current tick. Ikemen GO
+// bytecode.go:11309-11327 (playerPush.Run): value sets the playerpush flag,
+// priority the push priority, affectteam E/F/B gives 1/-1/0; its compiler
+// asks for at least one parameter (compiler_functions.go:3546-3590). Tick
+// resets the three before every unfrozen tick (evaluator.Context.PlayerPush).
+func applyPlayerPush(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+	value, hasValue, err := evalOptional(ctrl, "value", &ctx)
+	if err != nil {
+		return evaluator.Context{}, err
+	}
+	priority, hasPriority, err := evalOptional(ctrl, "priority", &ctx)
+	if err != nil {
+		return evaluator.Context{}, err
+	}
+	raw, hasTeam := ctrl.Parameters["affectteam"]
+	if !hasValue && !hasPriority && !hasTeam {
+		return evaluator.Context{}, fmt.Errorf("%s needs at least one of value, priority, affectteam", ctrl.Type)
+	}
+	if hasTeam {
+		letter, err := typeLetter(ctrl, "affectteam", raw, "EFB")
+		if err != nil {
+			return evaluator.Context{}, err
+		}
+		switch letter {
+		case 'E':
+			ctx.PushAffectTeam = 1
+		case 'F':
+			ctx.PushAffectTeam = -1
+		default:
+			ctx.PushAffectTeam = 0
+		}
+	}
+	if hasValue {
+		ctx.PlayerPush = value != 0
+	}
+	if hasPriority {
+		ctx.PushPriority = int(priority)
+	}
+	return ctx, nil
 }

@@ -410,6 +410,11 @@ func Tick(
 	var frames [2]air.Frame
 	frames[match.SideP1] = p1Out.Frame
 	frames[match.SideP2] = p2Out.Frame
+	// Ikemen GO pushes the fighters apart before hit detection, in
+	// collisionDetection (char.go:14954-14960). See decision 031.
+	pushFighters(&p1Out.Runtime.Context, &p2Out.Runtime.Context, frames, cfg.Bounds)
+	state.Fighters[match.SideP1].Position = p1Out.Runtime.Context.Position
+	state.Fighters[match.SideP2].Position = p2Out.Runtime.Context.Position
 	events := hitdetect.Detect(&state, frames)
 
 	var runtimesOut [2]FighterRuntime
@@ -545,6 +550,14 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	unsupported := runtime.Unsupported[:0]
 	skippedCalls := runtime.SkippedCalls[:0]
 	ctx.StateChanged = false
+	// Before an unfrozen tick's states, Ikemen GO's actionPrepare turns
+	// playerpush back on and resets the push properties (char.go:12350-
+	// 12361): a PlayerPush controller lasts the tick it runs in.
+	if !frozen {
+		ctx.PlayerPush = true
+		ctx.PushPriority = 0
+		ctx.PushAffectTeam = 1
+	}
 	basicActions(&ctx, prog, in.Directions(fighter.Facing))
 	for _, number := range specialStates {
 		if !prog.hasState(number) {

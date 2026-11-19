@@ -125,6 +125,14 @@ type Context struct {
 	// PrevStateNo is the number of the state the fighter was in before its
 	// current one (0 before any change).
 	PrevStateNo int
+	// PlayerPush, PushPriority and PushAffectTeam are Ikemen GO's playerpush
+	// flag, pushPriority and pushAffectTeam (char.go:12350-12361): Tick sets
+	// them to true, 0 and 1 before every unfrozen tick's states, and the
+	// PlayerPush controller changes them for that tick. PushAffectTeam is 1
+	// for enemies, -1 for the own team only, 0 for both.
+	PlayerPush     bool
+	PushPriority   int
+	PushAffectTeam int
 	// Round is the number of the round being fought, read by RoundNo.
 	Round int
 	// RandSeed is the state of the match's random generator, which both

@@ -539,3 +539,33 @@ func TestApplyController_VelAddAfterTurn_UsesTheNewFacing(t *testing.T) {
 		t.Errorf("Velocity.X = %v, want 0", ctx.Velocity.X)
 	}
 }
+
+// Ikemen GO bytecode.go:11309-11327 (playerPush.Run): value sets the
+// playerpush flag, priority and affectteam the push properties.
+func TestApplyController_PlayerPush_SetsTheFlagPriorityAndAffectTeam(t *testing.T) {
+	ctx := evaluator.Context{PlayerPush: true, PushAffectTeam: 1}
+	ctx = apply(t, controller("PlayerPush", "value", "0"), ctx)
+	if ctx.PlayerPush {
+		t.Error("PlayerPush = true after PlayerPush value = 0, want false")
+	}
+	ctx = apply(t, controller("PlayerPush", "value", "1", "priority", "2", "affectteam", "F"), ctx)
+	if !ctx.PlayerPush || ctx.PushPriority != 2 || ctx.PushAffectTeam != -1 {
+		t.Errorf("PlayerPush, PushPriority, PushAffectTeam = %v, %d, %d, want true, 2, -1", ctx.PlayerPush, ctx.PushPriority, ctx.PushAffectTeam)
+	}
+	// B (both) is 0, E (enemy) 1 (compiler_functions.go:3570-3577).
+	ctx = apply(t, controller("PlayerPush", "affectteam", "b"), ctx)
+	if !ctx.PlayerPush || ctx.PushAffectTeam != 0 {
+		t.Errorf("PlayerPush, PushAffectTeam = %v, %d after affectteam = b alone, want true (unchanged), 0", ctx.PlayerPush, ctx.PushAffectTeam)
+	}
+}
+
+// compiler_functions.go:3546-3590: at least one parameter, and affectteam
+// starting with E, F or B.
+func TestApplyController_PlayerPush_NoParameterOrBadAffectTeam_ReturnsDescriptiveError(t *testing.T) {
+	if err := applyErr(t, controller("PlayerPush"), evaluator.Context{}); !strings.Contains(err.Error(), "at least one") {
+		t.Errorf("error = %v, want it to ask for at least one parameter", err)
+	}
+	if err := applyErr(t, controller("PlayerPush", "affectteam", "X"), evaluator.Context{}); !strings.Contains(err.Error(), "affectteam") {
+		t.Errorf("error = %v, want it to name affectteam", err)
+	}
+}

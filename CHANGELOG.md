@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-11-19
+
+### Fixed
+- Fighters no longer walk through each other: when their size boxes (the character's `[Size]` ground or air width and height) and their hurt boxes overlap, they are pushed apart as in Ikemen GO, sharing the overlap by weight, the higher `PlayerPush` priority staying put, and a cornered fighter making the other take the whole push. Kung Fu Man walking into Kung Fu Man stops 32 apart and pushes the other back.
+- The `PlayerPush` controller is supported (`value`, `priority`, `affectteam`); like in Ikemen GO it lasts only the tick it runs in.
+
 ## [2.20.0] - 2026-11-19
 
 ### Fixed
@@ -263,7 +269,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - The engine now models the live state of a match while two characters fight — each fighter's position, facing, movement, and current state, plus the round number and round timer — as the foundation later combat-simulation features build on.
 
-[Unreleased]: https://github.com/openkakutou/engine/compare/v2.20.0...HEAD
+[Unreleased]: https://github.com/openkakutou/engine/compare/v2.21.0...HEAD
+[2.21.0]: https://github.com/openkakutou/engine/compare/v2.20.0...v2.21.0
 [2.20.0]: https://github.com/openkakutou/engine/compare/v2.19.0...v2.20.0
 [2.19.0]: https://github.com/openkakutou/engine/compare/v2.18.0...v2.19.0
 [2.18.0]: https://github.com/openkakutou/engine/compare/v2.17.0...v2.18.0

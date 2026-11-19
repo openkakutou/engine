@@ -556,6 +556,9 @@ func TestTick_Trade_EachFighterGetsItsOwnPauseTimeAndGetHitState(t *testing.T) {
 		a[200] = def
 		d[200] = def
 		setHitDefParam(d, "pausetime", "7, 2")
+		// Both at 0 and 5: push would part them before the hits land.
+		withoutPush(a)
+		withoutPush(d)
 	})
 	s.state.Fighters[match.SideP2].StateNo = 200
 	r2, err := NewFighterRuntime(s.state.Fighter(match.SideP2), s.programs[match.SideP2].States)

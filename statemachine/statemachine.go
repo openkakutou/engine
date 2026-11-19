@@ -63,6 +63,7 @@ const (
 	ControllerTypeLifeSet      = "LifeSet"
 	ControllerTypeGravity      = "Gravity"
 	ControllerTypeNull         = "Null"
+	ControllerTypePlayerPush   = "PlayerPush"
 )
 
 // DefaultMaxPower is the power/meter cap applied when clamping a

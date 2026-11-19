@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Player Push
 
@@ -9,9 +9,9 @@ The two fighters walk through each other: the fidelity video after engine#040 sh
 🔒 MUST: Ikemen GO behaviour (roadmap decision `038`).
 
 ## Acceptance Criteria
-- [ ] Two fighters walking into each other stop at the distance Ikemen GO gives, with the source cited
-- [ ] A `PlayerPush` controller set to 0 lets them overlap
-- [ ] End-to-end: Kung Fu Man walking into Kung Fu Man stays outside its opponent's size box
+- [x] Two fighters walking into each other stop at the distance Ikemen GO gives, with the source cited
+- [x] A `PlayerPush` controller set to 0 lets them overlap
+- [x] End-to-end: Kung Fu Man walking into Kung Fu Man stays outside its opponent's size box
 
 ## Notes
 Found by the fidelity video after engine#040 (2026-11-19).

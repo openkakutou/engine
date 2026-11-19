@@ -15,6 +15,8 @@ status: accepted
       v
    P2: same, seeing P1 after its move
       v
+   player push (pushFighters, decision 031)
+      v
    hit detection, damage, applyHitReaction
       v
    round timer and outcome

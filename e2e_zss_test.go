@@ -505,3 +505,49 @@ func TestE2EScenarios_WalkAndJump_FailOnACharacterThatDoesNotMove(t *testing.T) 
 		t.Errorf("jump scenario on a standing-only character: %v, want a StateNo failure", err)
 	}
 }
+
+// scenarioWalkIntoKfm: kfm_zss (P1) holds forward for 30 ticks into the .cns
+// kfm (P2) standing 60 ahead. Ikemen GO pushes them apart once their size
+// boxes overlap (CharList.pushDetection, char.go:14551-14779): P1's front 16
+// and P2's front 16 (kfm.const, kfm.cns [Size] ground.front) leave them 32
+// apart, and both weigh 100 with pushfactor 1 (defaults, char.go:416-417),
+// so each overlap is split in half. P1 walks 30 * 2.4 = 72; the first 28
+// close the gap to 32, the other 44 are overlap, 22 for each: P1 ends at
+// -70 + 72 - 22 = -20, P2 at -10 + 22 = 12. Their Clsn2 boxes overlap too
+// (kfm.air actions 0 and 20), which Ikemen GO requires (char.go:14641-14645).
+func scenarioWalkIntoKfm(t *testing.T, walker, standing FighterProgram) error {
+	m := newE2EMatch(t, walker)
+	p2 := match.FighterState{Side: match.SideP2, Position: match.Position{X: e2eP1X + 60}, Facing: match.FacingLeft, Health: 1000}
+	rt2, err := standing.NewRuntime(p2)
+	if err != nil {
+		return fmt.Errorf("NewRuntime(P2): %w", err)
+	}
+	m.programs[match.SideP2] = standing
+	m.runtimes[match.SideP2] = rt2
+	m.state.Fighters[match.SideP2] = p2
+	for i := 0; i < 5; i++ {
+		if err := m.step(input.TickInput{}); err != nil {
+			return err
+		}
+	}
+	for i := 0; i < 30; i++ {
+		if err := m.step(input.TickInput{Right: true}); err != nil {
+			return err
+		}
+		x1, x2 := m.state.Fighters[match.SideP1].Position.X, m.state.Fighters[match.SideP2].Position.X
+		if x2-x1 < 32-0.01 {
+			return fmt.Errorf("tick %d: P1 at %v, P2 at %v, %v apart, inside the 32 of their size boxes", m.tick, x1, x2, x2-x1)
+		}
+	}
+	x1, x2 := m.state.Fighters[match.SideP1].Position.X, m.state.Fighters[match.SideP2].Position.X
+	if !approx(x1, -20) || !approx(x2, 12) {
+		return fmt.Errorf("after 30 walking ticks P1, P2 X = %v, %v, want -20, 12 (32 apart, P2 pushed 22)", x1, x2)
+	}
+	return nil
+}
+
+func TestE2E_KfmZssVsKfm_WalkIntoTheOpponent_StopsAtTheSizeBoxes(t *testing.T) {
+	if err := scenarioWalkIntoKfm(t, loadReferenceProgram(t, kfmZssDef), loadReferenceProgram(t, kfmCnsDef)); err != nil {
+		t.Fatal(err)
+	}
+}

@@ -93,6 +93,9 @@ func loadStageBounds(t *testing.T) *stage.StageBoundaries {
 // own per-frame loop would drive it via the WASM entrypoint.
 func TestIntegration_FullScriptedMatch_TwoRealCharactersRunsToACorrectWinCondition(t *testing.T) {
 	prog := loadFighterProgram(t)
+	// The fixture's attack reaches 8 past its own Clsn2 and both fighters
+	// start at X 0: player push would keep them out of reach.
+	withoutPush(prog.States)
 	bounds := loadStageBounds(t)
 
 	const startingHealth = 60 // 4 landed hits (15 damage each) to KO
