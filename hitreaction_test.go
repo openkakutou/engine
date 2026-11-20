@@ -195,8 +195,10 @@ func TestTick_LandedHit_FreezesBothFightersForTheKfmPauseTime_HoldingTimeAnimTim
 	if got := s.ctx(match.SideP1).Vars[0]; got != 2 {
 		t.Errorf("tick 10: attacker var(0) = %d, want 2 (controllers run again)", got)
 	}
-	if got := s.state.Fighter(match.SideP1).Position.X; got != attackerX+3 {
-		t.Errorf("tick 10: attacker X = %v, want %v (physics runs again)", got, attackerX+3)
+	// The velocity 3 left the stand friction once (0.85, char.go:10121-10127)
+	// before the freeze.
+	if want := attackerX + 3*float64(float32(0.85)); s.state.Fighter(match.SideP1).Position.X != want {
+		t.Errorf("tick 10: attacker X = %v, want %v (physics runs again)", s.state.Fighter(match.SideP1).Position.X, want)
 	}
 	if got := s.ctx(match.SideP2).Vars[1]; got != defenderCounter+1 {
 		t.Errorf("tick 10: defender var(1) = %d, want %d (5000's counter ran once)", got, defenderCounter+1)

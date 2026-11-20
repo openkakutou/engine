@@ -379,7 +379,10 @@ type TickConfig struct {
 	// Screen is the left and right screen edges of this tick (Ikemen GO
 	// sys.xmin, sys.xmax, set from its camera), read by the edge distance
 	// triggers. Left not below Right means unset: the stage bounds stand in.
-	Screen      [2]float64
+	Screen [2]float64
+	// Gravity is not read any more: each fighter falls by its own
+	// movement.yaccel (Ikemen GO char.go:9963-9965). Kept so callers built
+	// against earlier versions still compile.
 	Gravity     float64
 	Tick        int
 	ComboWindow int
@@ -585,7 +588,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	}
 	ctx.Round = round
 	ctx.RandSeed = seed
-	ctx.YAccel = gravity
+	ctx.YAccel = ctx.Consts.Lookup("movement.yaccel").Number
 
 	newInputState, active := input.Step(runtime.Input, tick, fighter.Facing, in, prog.Commands)
 	ctx.ActiveCommands = active
@@ -685,11 +688,12 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	}
 	// Ikemen GO actionRun moves the fighter after its states (posUpdate,
 	// char.go:12583), then lands it (char.go:12584-12590).
-	moved, err := physics.Step(newCtx.FighterState, bounds, gravityFor(&newCtx, gravity))
+	moved, err := physics.Step(newCtx.FighterState, bounds, gravityFor(&newCtx, newCtx.YAccel))
 	if err != nil {
 		return fighterTickOutput{}, fmt.Errorf("physics: %w", err)
 	}
 	newCtx.FighterState = moved
+	applyFriction(&newCtx)
 	if err := land(&newCtx, prog, &runs); err != nil {
 		return fighterTickOutput{}, err
 	}
@@ -1295,6 +1299,24 @@ func physicsLetter(t cns.PhysicsType) byte {
 // configured one in physics type A, none otherwise. Ikemen GO's char.go
 // posUpdate adds yaccel automatically only for ss.physics == ST_A; any other
 // state gets gravity from its Gravity controller.
+// applyFriction slows a fighter on the ground after it moved, Ikemen GO
+// posUpdate (char.go:10121-10137): physics S multiplies the x velocity by
+// the character's stand.friction and zeroes it under 1, physics C by its
+// crouch.friction.
+// shortcut: a HitDef's own ground friction for the fighter it hits
+// (ghv.stand_friction, Ikemen GO only) is not read.
+func applyFriction(ctx *evaluator.Context) {
+	switch ctx.Physics {
+	case 'S':
+		ctx.Velocity.X *= ctx.Consts.Lookup("movement.stand.friction").Number
+		if math.Abs(ctx.Velocity.X) < 1 {
+			ctx.Velocity.X = 0
+		}
+	case 'C':
+		ctx.Velocity.X *= ctx.Consts.Lookup("movement.crouch.friction").Number
+	}
+}
+
 func gravityFor(ctx *evaluator.Context, gravity float64) float64 {
 	if ctx.Physics != 'A' {
 		return 0

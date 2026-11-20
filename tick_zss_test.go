@@ -67,8 +67,10 @@ func TestTick_ZssCurrentState_RunsItsBlock(t *testing.T) {
 	if rt.Context.Vars[1] != 5 {
 		t.Errorf("var(1) = %d, want 5", rt.Context.Vars[1])
 	}
-	if got := result.State.Fighters[match.SideP1].Velocity.X; got != 3 {
-		t.Errorf("Velocity.X = %v, want 3", got)
+	// velSet 3, the move, then physics S's stand friction 0.85
+	// (char.go:10121-10127).
+	if got, want := result.State.Fighters[match.SideP1].Velocity.X, 3*float64(float32(0.85)); got != want {
+		t.Errorf("Velocity.X = %v, want %v", got, want)
 	}
 	if rt.Context.Time != 1 {
 		t.Errorf("Time = %d, want 1 (an unchanged state's time advances as for .cns)", rt.Context.Time)

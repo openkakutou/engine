@@ -23,6 +23,7 @@ func tickPair(t *testing.T, progs [2]FighterProgram, fighters [2]match.FighterSt
 		if err != nil {
 			t.Fatalf("NewFighterRuntime(side %d): %v", side, err)
 		}
+		yaccel(t, &rt, gravity)
 		runtimes[side] = rt
 	}
 	state, err := match.NewMatchState(1, 1000, fighters[match.SideP1], fighters[match.SideP2])

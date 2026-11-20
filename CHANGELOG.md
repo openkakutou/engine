@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.29.0] - 2026-11-21
+
+### Added
+- `VarAdd` (every `VarSet` form) and `VarRangeSet` (`first`, `last`, `value` or `fvalue`, Ikemen GO's defaults 0 and 59).
+- Each fighter's own movement constants: gravity is its `movement.yaccel`, and on the ground physics S applies its `stand.friction` (the x velocity zeroed under 1) and physics C its `crouch.friction`, as Ikemen GO's posUpdate does. `LifeAdd` and `LifeSet` clamp to the character's `[Data] life`; `statemachine.MaxHealth` reads it.
+
+### Changed
+- `TickConfig.Gravity` is no longer read: each character's `yaccel` applies.
+
 ## [2.28.0] - 2026-11-21
 
 ### Added

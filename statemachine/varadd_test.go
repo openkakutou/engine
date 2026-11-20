@@ -1,6 +1,7 @@
 package statemachine
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/openkakutou/character/cns"
@@ -68,5 +69,28 @@ func TestApplyController_VarRangeSet(t *testing.T) {
 	}
 	if err := applyCtrl(t, &ctx, "VarRangeSet", map[string]string{"first": "0"}); err == nil {
 		t.Error("no value nor fvalue: want an error")
+	}
+}
+
+// char.go lifeSet / lifeAdd clamp to lifeMax, the character's [Data] life
+// (char.go:4615-4630 reads data.life), not a constant.
+func TestApplyController_LifeClampsToTheCharactersLife(t *testing.T) {
+	c, err := evaluator.ParseConstants(strings.NewReader("[Data]\nlife = 1200\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := evaluator.Context{Consts: c}
+	ctx.Health = 1000
+	if err := applyCtrl(t, &ctx, "LifeAdd", map[string]string{"value": "500"}); err != nil {
+		t.Fatal(err)
+	}
+	if ctx.Health != 1200 {
+		t.Errorf("LifeAdd 500 from 1000 = %d, want the character's 1200", ctx.Health)
+	}
+	if err := applyCtrl(t, &ctx, "LifeSet", map[string]string{"value": "5000"}); err != nil {
+		t.Fatal(err)
+	}
+	if ctx.Health != 1200 {
+		t.Errorf("LifeSet 5000 = %d, want 1200", ctx.Health)
 	}
 }

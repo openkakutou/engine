@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Movement constants and life from the character
 
@@ -9,10 +9,11 @@ The engine uses its own `TickConfig.Gravity` as every fighter's `yaccel`, has no
 🔒 MUST: MUGEN 1.0/1.1 and Ikemen GO, cited from source, real characters.
 
 ## Acceptance Criteria
-- [ ] Each fighter uses its own character's life, yaccel and friction values, with Ikemen GO's defaults when absent
-- [ ] Physics S and C apply friction as Ikemen GO does, cited
-- [ ] LifeAdd/LifeSet clamp to the character's life, not a constant
+- [x] Each fighter uses its own character's life, yaccel and friction values, with Ikemen GO's defaults when absent
+- [x] Physics S and C apply friction as Ikemen GO does, cited
+- [x] LifeAdd/LifeSet clamp to the character's life, not a constant
 
 ## Notes
 Raised by item 027 (2026-11-18, ADR 020).
 Item 044 (2026-11-19): gravity still comes from `TickConfig.Gravity`, not each character's `yaccel` (Constants). Do it here.
+- 2026-11-21: done in the engine; a fighter's starting life is the game's to set from `statemachine.MaxHealth` (game item to follow). Shortcut: a HitDef's own ground friction for its target (Ikemen GO only) is not read.

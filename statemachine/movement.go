@@ -20,9 +20,8 @@ import (
 // (match.Position, physics.Step). Every handler converts at the boundary,
 // so a content author's "VelSet y = -8" is an upward 8 here.
 
-// DefaultMaxHealth is the health cap applied by LifeAdd and LifeSet --
-// MUGEN's default life constant, hardcoded for the same reason as
-// DefaultMaxPower: engine has no per-character data feeding it yet.
+// DefaultMaxHealth is MUGEN's default [Data] life; a character's own life
+// caps LifeAdd and LifeSet (MaxHealth).
 const DefaultMaxHealth = 1000
 
 // invisibleAnim is Ikemen GO's "no sprite" animation number, the only
@@ -332,7 +331,7 @@ func applyLifeAdd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context
 	if !canKill && health <= 0 {
 		health = 1
 	}
-	ctx.Health = clampHealth(health)
+	ctx.Health = clampHealth(health, &ctx)
 	return ctx, nil
 }
 
@@ -347,12 +346,20 @@ func applyLifeSet(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context
 	if ctx.Health <= 0 {
 		return ctx, nil
 	}
-	ctx.Health = clampHealth(int(value))
+	ctx.Health = clampHealth(int(value), &ctx)
 	return ctx, nil
 }
 
-func clampHealth(health int) int {
-	return min(max(health, 0), DefaultMaxHealth)
+// clampHealth keeps health within 0 and the character's life (lifeMax,
+// its [Data] life, char.go:4615-4630).
+func clampHealth(health int, ctx *evaluator.Context) int {
+	return min(max(health, 0), MaxHealth(ctx))
+}
+
+// MaxHealth is the fighter's life, its [Data] life constant (1000 by
+// default).
+func MaxHealth(ctx *evaluator.Context) int {
+	return ctx.Consts.Lookup("data.life").Int()
 }
 
 // applyGravity accelerates the fighter downward by its yaccel constant.

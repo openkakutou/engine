@@ -1,7 +1,9 @@
 package engine
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/openkakutou/character/air"
@@ -18,6 +20,20 @@ func idleStates() map[int]cns.StateDef {
 	return map[int]cns.StateDef{
 		0: {Number: 0, Type: cns.StateTypeStanding, Anim: 0, Ctrl: true},
 	}
+}
+
+// yaccel gives a runtime without constants the character yaccel y, gravity
+// being the character's own (Ikemen GO char.go:9963-9965).
+func yaccel(t *testing.T, rt *FighterRuntime, y float64) {
+	t.Helper()
+	if rt.Context.Consts != nil {
+		return
+	}
+	c, err := evaluator.ParseConstants(strings.NewReader(fmt.Sprintf("[Movement]\nyaccel = %v\n", y)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.Context.Consts = c
 }
 
 func testBounds() *stage.StageBoundaries {
@@ -38,6 +54,7 @@ func TestTick_AdvancesPhysics_WhenNoStateChangeOccurs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewFighterRuntime(p1): %v", err)
 	}
+	yaccel(t, &p1Runtime, 1.0)
 	p2Runtime, err := NewFighterRuntime(p2Fighter, states)
 	if err != nil {
 		t.Fatalf("NewFighterRuntime(p2): %v", err)
