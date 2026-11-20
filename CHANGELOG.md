@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.31.0] - 2026-11-21
+
+### Added
+- A fighter with control standing, crouching or walking (state 0, 11, 20, or 52) turns toward an opponent behind it before reading its commands, with the turn animation 5 (6 crouching), as Ikemen GO's autoTurn; `AssertSpecial noautoturn` prevents it.
+
 ## [2.30.0] - 2026-11-21
 
 ### Added

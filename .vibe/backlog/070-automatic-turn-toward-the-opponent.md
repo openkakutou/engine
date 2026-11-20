@@ -9,9 +9,10 @@ Ikemen GO turns a fighter toward its opponent on its own when it is standing, cr
 🔒 MUST: Ikemen GO behaviour, grounded in its source (commit `54d4148a`).
 
 ## Acceptance Criteria
-- [ ] A fighter whose opponent passes behind it turns as Ikemen GO does, with the source cited
-- [ ] `noautoturn` keeps it from turning
+- [x] A fighter whose opponent passes behind it turns as Ikemen GO does, with the source cited
+- [x] `noautoturn` keeps it from turning
 - [ ] End-to-end scenario on the reference kfm: a jump over the opponent ends with both fighters facing each other
 
 ## Notes
 Found by item 050 (2026-11-21).
+- 2026-11-21: autoTurn done (tick_autoturn_test.go on the reference kfm); left: the jump-over scenario, the opponent's noturntarget, the stage autoturn switch and a MUGEN character's turn on a ChangeState with control.

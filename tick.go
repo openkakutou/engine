@@ -642,6 +642,10 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	ctx.RandSeed = seed
 	ctx.YAccel = ctx.Consts.Lookup("movement.yaccel").Number
 
+	// The turn comes before the commands, so back and forward follow it the
+	// same tick (system.go:13953-13958).
+	autoTurn(&ctx, prog)
+	fighter.Facing = ctx.Facing
 	newInputState, active := input.Step(runtime.Input, tick, fighter.Facing, in, prog.Commands)
 	ctx.ActiveCommands = active
 
@@ -899,6 +903,61 @@ func land(ctx *evaluator.Context, prog FighterProgram, runs *stateRuns) error {
 	ctx.StateNo = 52
 	ctx.StateChanged = true
 	return runs.followChanges(prog, ctx, false)
+}
+
+// autoTurn turns a fighter toward an opponent behind it, Ikemen GO's
+// autoTurn (char.go:6731-6745) as its main loop calls it (system.go:
+// 13953-13958): with control, in state 0, 11 or 20, or 52 on its first
+// animation tick (any tick for an Ikemen GO character), unless the previous
+// tick asserted noautoturn; standing it shows the turn animation 5,
+// crouching 6.
+// shortcut: the opponent's noturntarget, the stage's autoturn switch and a
+// MUGEN character's turn on a ChangeState with control (char.go:6970-6974)
+// are not done.
+func autoTurn(ctx *evaluator.Context, prog FighterProgram) {
+	if !ctx.Ctrl || ctx.Asserted.Has("noautoturn") || !ctx.P2.Valid {
+		return
+	}
+	switch ctx.StateNo {
+	case 0, 11, 20:
+	case 52:
+		if !ctx.IkemenChar {
+			if t, err := evaluator.EvaluateMut("animtime", ctx); err != nil || t.Int() != 0 {
+				return
+			}
+		}
+	default:
+		return
+	}
+	behind := ctx.P2.Position.X < ctx.Position.X
+	if ctx.Facing == match.FacingLeft {
+		behind = ctx.P2.Position.X > ctx.Position.X
+	}
+	if !behind {
+		return
+	}
+	turnAnim := -1
+	switch ctx.StateType {
+	case 'S':
+		turnAnim = 5
+	case 'C':
+		turnAnim = 6
+	}
+	if turnAnim >= 0 && ctx.Anim != turnAnim && hasAnimation(prog, turnAnim) {
+		ctx.Anim, ctx.AnimElapsed = turnAnim, 0
+		ctx.AnimElem, ctx.AnimElemTime = 0, 0
+	}
+	if ctx.Facing == match.FacingRight {
+		ctx.Facing = match.FacingLeft
+	} else {
+		ctx.Facing = match.FacingRight
+	}
+}
+
+// hasAnimation reports whether the character has animation number.
+func hasAnimation(prog FighterProgram, number int) bool {
+	a := findAnimation(prog, number)
+	return a.Number == number && len(a.Frames) > 0
 }
 
 // basicActions are the walk, jump and crouch a fighter with control gets

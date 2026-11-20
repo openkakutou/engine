@@ -77,9 +77,10 @@ func TestTick_VelSet_MovesFighterOnTheSameTick(t *testing.T) {
 
 func TestTick_VelSetFacingLeft_MovesTowardNegativeX(t *testing.T) {
 	prog := FighterProgram{States: stateWith(ctrl("VelSet", "x", "3"))}
-	got := p1After(t, prog, match.FighterState{Position: match.Position{X: 50}, Facing: match.FacingLeft, Health: 1000}, 0)
-	if got.Position.X != 47 {
-		t.Errorf("Position.X = %v, want 47", got.Position.X)
+	// P2 stands at 900, in front of P1 (at 950, facing left): no auto-turn.
+	got := p1After(t, prog, match.FighterState{Position: match.Position{X: 950}, Facing: match.FacingLeft, Health: 1000}, 0)
+	if got.Position.X != 947 {
+		t.Errorf("Position.X = %v, want 947", got.Position.X)
 	}
 }
 
@@ -299,16 +300,17 @@ func TestTick_P2Controllers_ReachP2sMatchState(t *testing.T) {
 	result := tickPair(t,
 		[2]FighterProgram{match.SideP1: {States: idleStates()}, match.SideP2: {States: p2States}},
 		[2]match.FighterState{
-			match.SideP1: {Position: match.Position{X: -900}, Health: 1000},
-			match.SideP2: {Position: match.Position{X: 900}, Health: 1000},
+			match.SideP1: {Position: match.Position{X: 900}, Facing: match.FacingLeft, Health: 1000},
+			match.SideP2: {Position: match.Position{X: -900}, Health: 1000},
 		}, 0)
 
 	got := result.State.Fighters[match.SideP2]
-	// VelSet 3 forward while facing right: +3 world; Turn then flips the facing but not the world velocity.
-	if got.Position.X != 903 || got.Velocity.X != 3 || got.Facing != match.FacingLeft || got.Health != 960 {
-		t.Errorf("P2 = X %v, VelX %v, Facing %v, Health %d, want 903, 3, FacingLeft, 960", got.Position.X, got.Velocity.X, got.Facing, got.Health)
+	// P1 is in front of P2 (no auto-turn). VelSet 3 forward while facing
+	// right: +3 world; Turn then flips the facing but not the world velocity.
+	if got.Position.X != -897 || got.Velocity.X != 3 || got.Facing != match.FacingLeft || got.Health != 960 {
+		t.Errorf("P2 = X %v, VelX %v, Facing %v, Health %d, want -897, 3, FacingLeft, 960", got.Position.X, got.Velocity.X, got.Facing, got.Health)
 	}
-	if p1 := result.State.Fighters[match.SideP1]; p1.Position.X != -900 || p1.Health != 1000 {
+	if p1 := result.State.Fighters[match.SideP1]; p1.Position.X != 900 || p1.Health != 1000 {
 		t.Errorf("P1 = %+v, want untouched", p1)
 	}
 }
