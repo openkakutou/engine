@@ -446,6 +446,10 @@ func Tick(
 	// Ikemen GO pushes the fighters apart before hit detection, in
 	// collisionDetection (char.go:14954-14960). See decision 031.
 	pushFighters(&p1Out.Runtime.Context, &p2Out.Runtime.Context, frames, cfg.Bounds)
+	if cfg.Screen[0] < cfg.Screen[1] {
+		screenBound(&p1Out.Runtime.Context, cfg.Screen)
+		screenBound(&p2Out.Runtime.Context, cfg.Screen)
+	}
 	state.Fighters[match.SideP1].Position = p1Out.Runtime.Context.Position
 	state.Fighters[match.SideP2].Position = p2Out.Runtime.Context.Position
 	events := hitdetect.Detect(&state, frames)
@@ -548,6 +552,14 @@ var specialStates = [...]int{-3, -2, -1}
 // of this tick (position/facing/health, sourced from match.MatchState, the
 // single source of truth Tick reconciles runtime.Context against every
 // call).
+// screenBound keeps a fighter between the screen edges, Ikemen GO's
+// xScreenBound (char.go:10322-10336) with widthEdge 0, its default.
+// shortcut: the ScreenBound controller that lifts it is not read; upgrade
+// with that controller.
+func screenBound(ctx *evaluator.Context, screen [2]float64) {
+	ctx.Position.X = min(max(ctx.Position.X, screen[0]), screen[1])
+}
+
 // screenEdges is cfg.Screen, or the stage bounds when the caller gives no
 // screen (a far-away edge on each side without bounds either).
 func screenEdges(cfg TickConfig) [2]float64 {

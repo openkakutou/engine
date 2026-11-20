@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.28.0] - 2026-11-21
+
+### Added
+- With `TickConfig.Screen` set, each fighter stays between the screen edges after moving and being pushed, as Ikemen GO's `xScreenBound` keeps it on screen. Without it, only the stage bounds hold, as before.
+
 ## [2.27.0] - 2026-11-21
 
 ### Added
