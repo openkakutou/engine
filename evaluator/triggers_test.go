@@ -398,6 +398,7 @@ func TestEval_EdgeDistancesFollowFacing(t *testing.T) {
 	ctx := fighterCtx()
 	ctx.ScreenLeft, ctx.ScreenRight = -100, 200
 	ctx.Facing = match.FacingRight
+	ctx.StateType = 'S' // standing: no MUGEN body offset
 	ctx.Position.X = 20 // 120 to the left edge, 180 to the right one
 	want := map[string]float64{"BackEdgeDist": 120, "FrontEdgeDist": 180, "BackEdgeBodyDist": 120, "FrontEdgeBodyDist": 180}
 	for expr, w := range want {
@@ -484,5 +485,29 @@ func TestEval_JugglePointsIsTheMaximumWithoutJuggleTracking(t *testing.T) {
 	ctx.P2 = Opponent{Valid: true}
 	if got := mustEval(t, "JugglePoints(p2, ID)", ctx); got.Number != 15 {
 		t.Errorf("JugglePoints(p2, ID) = %v, want data.airjuggle 15", got.Number)
+	}
+}
+
+// char.go:5627-5639: a MUGEN character's body distance to an edge is 0.5
+// less in the air and 1 less lying down; an Ikemen GO character's is not.
+func TestEval_EdgeBodyDistOffsetOfMugenCharacters(t *testing.T) {
+	ctx := fighterCtx()
+	ctx.ScreenLeft, ctx.ScreenRight = -100, 200
+	ctx.Position.X = 20
+	ctx.Facing = match.FacingRight
+	ctx.StateType = 'A'
+	if got := mustEval(t, "BackEdgeBodyDist", ctx); got.Number != 119.5 {
+		t.Errorf("MUGEN, air: %v, want 119.5", got.Number)
+	}
+	ctx.StateType = 'L'
+	if got := mustEval(t, "FrontEdgeBodyDist", ctx); got.Number != 179 {
+		t.Errorf("MUGEN, lying: %v, want 179", got.Number)
+	}
+	if got := mustEval(t, "FrontEdgeDist", ctx); got.Number != 180 {
+		t.Errorf("the plain distance has no offset: %v, want 180", got.Number)
+	}
+	ctx.IkemenChar = true
+	if got := mustEval(t, "FrontEdgeBodyDist", ctx); got.Number != 180 {
+		t.Errorf("Ikemen GO, lying: %v, want 180", got.Number)
 	}
 }

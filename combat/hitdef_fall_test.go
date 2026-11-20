@@ -21,3 +21,19 @@ func TestParseHitDef_VelocityXAndFallParameters(t *testing.T) {
 		t.Errorf("defaults = %v %d %v %v, want unset 0 true 0", d.HasFallXVelocity, d.FallDamage, d.FallKill, d.GroundVelocityX)
 	}
 }
+
+// char.go:8889-8917 computeDamage: damage times the attack multiplier over
+// the final defence, at least 1 when positive, rounded.
+func TestScaledDamage(t *testing.T) {
+	for _, c := range []struct {
+		damage int
+		mul    float64
+		want   int
+	}{
+		{26, 0, 26}, {26, 1, 26}, {26, 0.5, 13}, {25, 0.5, 13}, {1, 0.1, 1}, {0, 2, 0}, {30, 1.0 / 1.5, 20},
+	} {
+		if got := scaledDamage(c.damage, c.mul); got != c.want {
+			t.Errorf("scaledDamage(%d, %v) = %d, want %d", c.damage, c.mul, got, c.want)
+		}
+	}
+}

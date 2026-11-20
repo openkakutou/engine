@@ -94,6 +94,9 @@ type Context struct {
 	// The map is shared by the copies of a Context, like the fighter it
 	// belongs to; nil until the first write.
 	Maps map[string]Value
+	// HitBy are the fighter's HitBy / NotHitBy slots (Ikemen GO c.hitby,
+	// char.go:3710): which attacks may hit it, each for Time more ticks.
+	HitBy [8]HitBySlot
 	// PosFreeze, set by the PosFreeze controller, keeps the fighter's
 	// position this tick (Ikemen GO CSF_posfreeze, char.go:10102-10105); the
 	// engine clears it at the start of each tick.
@@ -105,6 +108,19 @@ type Context struct {
 	// between this tick (Ikemen GO sys.xmin, sys.xmax), read by the edge
 	// distance triggers.
 	ScreenLeft, ScreenRight float64
+	// Asserted are the AssertSpecial flags the fighter's states asserted
+	// this tick; the engine clears them each tick after the built-in
+	// actions read them (Ikemen GO char.go:12300-12345, 12430-12434).
+	Asserted AssertFlags
+	// CustomDefence is the DefenceMulSet multiplier of the fighter's defence
+	// (Ikemen GO customDefense; 0 reads as 1). DefenceMulOnHit applies it
+	// only while the fighter is being hit (defenseMulDelay).
+	CustomDefence   float64
+	DefenceMulOnHit bool
+	// IkemenChar is true for a character whose .def gives an ikemenversion
+	// (Ikemen GO stWgi().ikemenver not 0.0), false for a MUGEN one: some
+	// defaults differ between the two.
+	IkemenChar bool
 	// AILevel is the level of the CPU driving the fighter, 0 for a human
 	// player (Ikemen GO sys.aiLevel[playerNo], 1 to 8), read by the AILevel
 	// and AILevelF triggers. The game sets it; the engine never writes it.

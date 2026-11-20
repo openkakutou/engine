@@ -46,14 +46,15 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		// Ikemen GO's roundstate 2; pre-intro, over and post states return
 		// when the round flow models them.
 		return intValue(2), true, nil
-	case "backedgedist", "backedgebodydist":
-		// char.go:5627-5646; widthEdge is 0 until a Width controller sets it.
-		// shortcut: MUGEN characters' 0.5 (air) / 1 (lying) offset of the
-		// body variant is not applied: the engine does not read the .def's
-		// ikemenversion yet.
-		return floatValue(edgeDist(ctx, false)), true, nil
-	case "frontedgedist", "frontedgebodydist":
-		return floatValue(edgeDist(ctx, true)), true, nil // char.go:5766-5784
+	case "backedgedist":
+		return floatValue(edgeDist(ctx, false)), true, nil // char.go:5641-5646
+	case "frontedgedist":
+		return floatValue(edgeDist(ctx, true)), true, nil // char.go:5779-5784
+	case "backedgebodydist":
+		// char.go:5627-5639; widthEdge is 0 until a Width controller sets it.
+		return floatValue(edgeDist(ctx, false) - mugenBodyOffset(ctx)), true, nil
+	case "frontedgebodydist":
+		return floatValue(edgeDist(ctx, true) - mugenBodyOffset(ctx)), true, nil // char.go:5766-5777
 	case "inguarddist":
 		return boolValue(inGuardDist(ctx)), true, nil
 	case "numproj":
@@ -76,9 +77,15 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		return intValue(float64(drawRandom(ctx))), true, nil
 	case "ailevel":
 		// Ikemen GO reads sys.aiLevel[playerNo] truncated (bytecode.go:2510-2515,
-		// char.go:5529-5537), 0 for a human player.
+		// char.go:5529-5537), 0 for a human player or under noailevel.
+		if ctx.Asserted.Has("noailevel") {
+			return intValue(0), true, nil
+		}
 		return intValue(math.Trunc(ctx.AILevel)), true, nil
 	case "ailevelf":
+		if ctx.Asserted.Has("noailevel") {
+			return floatValue(0), true, nil
+		}
 		return floatValue(ctx.AILevel), true, nil // bytecode.go:3654-3659
 	case "palno":
 		// bytecode.go:2671: the palette the game chose; 1 until it sets one
@@ -403,4 +410,20 @@ func inGuardDist(ctx *Context) bool {
 		dist = -dist
 	}
 	return dist < o.GuardDist[0] && dist > -o.GuardDist[1]
+}
+
+// mugenBodyOffset is how much nearer an edge a MUGEN character's body is in
+// the air (0.5) or lying down (1), an undocumented MUGEN quirk Ikemen GO
+// keeps for characters without an ikemenversion (char.go:5628-5637).
+func mugenBodyOffset(ctx *Context) float64 {
+	if ctx.IkemenChar {
+		return 0
+	}
+	switch ctx.StateType {
+	case 'A':
+		return 0.5
+	case 'L':
+		return 1
+	}
+	return 0
 }

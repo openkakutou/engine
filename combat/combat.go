@@ -18,6 +18,7 @@
 package combat
 
 import (
+	"math"
 	"strconv"
 	"strings"
 
@@ -45,6 +46,9 @@ type DamageParams struct {
 	// value, so the zero value here is a valid "no damage declared" input,
 	// not a special case callers need to guard against.
 	Damage string
+	// Multiplier is the attacker's attack over the defender's final defence
+	// (Ikemen GO atkmul / finalDefense, char.go:8897); 0 reads as 1.
+	Multiplier float64
 }
 
 // ComboState tracks one fighter's (the defender's) combo progress across
@@ -107,6 +111,7 @@ func ApplyHits(
 	}
 
 	damage, guardDamage := parseDamage(hitDef)
+	damage = scaledDamage(damage, hitDef.Multiplier)
 
 	defenderState := state.Fighter(defender)
 	healthBefore := defenderState.Health
@@ -154,6 +159,19 @@ func findLandedHit(events []hitdetect.HitEvent, attacker match.Side) (match.Side
 // parseDamage reads hitDef's Damage field as "hit[, guard]" (MUGEN 1.1 and
 // Ikemen GO). Each value that is missing or not a valid integer falls back
 // to DefaultDamage independently, so "15" and "15," give guard damage 0.
+// scaledDamage is computeDamage's scaling (char.go:8889-8917): damage times
+// mul, at least 1 when positive, rounded; mul 0 leaves damage as it is.
+func scaledDamage(damage int, mul float64) int {
+	if mul == 0 || damage == 0 {
+		return damage
+	}
+	d := float64(damage) * mul
+	if d > 0 && d < 1 {
+		d = 1
+	}
+	return int(math.Round(d))
+}
+
 func parseDamage(hitDef DamageParams) (hit, guard int) {
 	first, second := hitDef.Damage, ""
 	if i := strings.IndexByte(first, ','); i >= 0 {

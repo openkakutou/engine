@@ -1,6 +1,8 @@
 package statemachine
 
 import (
+	"fmt"
+
 	"github.com/openkakutou/character/cns"
 	"github.com/openkakutou/engine/v2/evaluator"
 )
@@ -15,6 +17,63 @@ func init() {
 	RegisterController("HitFallVel", applyHitFallVel)
 	RegisterController("HitFallDamage", applyHitFallDamage)
 	RegisterController("PosFreeze", applyPosFreeze)
+	RegisterController("DefenceMulSet", applyDefenceMulSet)
+	RegisterController("AssertSpecial", applyAssertSpecial)
+	RegisterController("HitBy", func(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+		return applyHitBy(ctrl, ctx, false)
+	})
+	RegisterController("NotHitBy", func(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+		return applyHitBy(ctrl, ctx, true)
+	})
+}
+
+// applyHitBy is HitBy (not false) or NotHitBy, Ikemen GO's hitBySub
+// (compiler_functions.go) and hitBy.runSub (bytecode.go:5517-5566): value
+// fills slot 0 and value2 slot 1 (ignored when value is given); attr fills
+// the given slot, and without a slot nothing is set; time defaults to 1, a
+// slot past the eighth is the first.
+func applyHitBy(ctrl cns.Controller, ctx evaluator.Context, not bool) (evaluator.Context, error) {
+	slot, raw := -1, ""
+	switch {
+	case ctrl.Parameters["value"] != "":
+		slot, raw = 0, ctrl.Parameters["value"]
+	case ctrl.Parameters["value2"] != "":
+		slot, raw = 1, ctrl.Parameters["value2"]
+	case ctrl.Parameters["attr"] != "":
+		raw = ctrl.Parameters["attr"]
+		s, hasSlot, err := evalOptional(ctrl, "slot", &ctx)
+		if err != nil {
+			return ctx, err
+		}
+		if hasSlot {
+			slot = max(int(s), 0)
+		}
+	default:
+		return ctx, fmt.Errorf("%s needs value, value2 or attr", ctrl.Type)
+	}
+	attr, err := evaluator.ParseAttr(raw, false)
+	if err != nil {
+		return ctx, fmt.Errorf("%s attr %q: %w", ctrl.Type, raw, err)
+	}
+	time, hasTime, err := evalOptional(ctrl, "time", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	if !hasTime {
+		time = 1
+	}
+	stack, _, err := evalOptional(ctrl, "stack", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	if slot < 0 {
+		return ctx, nil
+	}
+	if slot >= len(ctx.HitBy) {
+		slot = 0
+	}
+	ctx.HitBy[slot] = evaluator.HitBySlot{Attr: attr, Time: int(time), Not: not, Stack: stack != 0}
+	return ctx, nil
 }
 
 // applyHitVelSet gives the fighter its get-hit velocity on each axis whose
@@ -104,6 +163,75 @@ func applyPosFreeze(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Conte
 	}
 	if !hasValue || value != 0 {
 		ctx.PosFreeze = true
+	}
+	return ctx, nil
+}
+
+// applyDefenceMulSet is defenceMulSet (bytecode.go:11851-11888): value (1),
+// mulType 1 sets the defence multiplier to it, 0 to its inverse; onHit
+// delays it to the hits taken. A MUGEN character defaults to onHit 1 and
+// mulType 0, an Ikemen GO one to onHit 0 and mulType 1.
+func applyDefenceMulSet(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+	value, hasValue, err := evalOptional(ctrl, "value", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	if !hasValue {
+		value = 1
+	}
+	onHit, mulType := !ctx.IkemenChar, 0.0
+	if ctx.IkemenChar {
+		mulType = 1
+	}
+	onHitValue, hasOnHit, err := evalOptional(ctrl, "onhit", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	if hasOnHit {
+		onHit = onHitValue != 0
+	}
+	mulTypeValue, hasMulType, err := evalOptional(ctrl, "multype", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	if hasMulType {
+		mulType = mulTypeValue
+	}
+	if mulType != 0 {
+		ctx.CustomDefence = value
+	} else if value != 0 {
+		ctx.CustomDefence = 1 / value
+	}
+	ctx.DefenceMulOnHit = onHit
+	return ctx, nil
+}
+
+// assertFlagParams are the AssertSpecial parameters naming a flag.
+var assertFlagParams = [...]string{"flag", "flag2", "flag3"}
+
+// applyAssertSpecial is assertSpecial.Run (bytecode.go:5604-5632): each flag
+// parameter is asserted, or cleared with enabled 0.
+// shortcut: Ikemen GO's noko parameter and the global flags' effects are not
+// modelled; the flags are only recorded.
+func applyAssertSpecial(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+	enabled, hasEnabled, err := evalOptional(ctrl, "enabled", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	on := !hasEnabled || enabled != 0
+	named := false
+	for _, key := range assertFlagParams {
+		name, ok := ctrl.Parameters[key]
+		if !ok {
+			continue
+		}
+		named = true
+		if err := ctx.Asserted.Set(name, on); err != nil {
+			return ctx, fmt.Errorf("AssertSpecial %s: %w", key, err)
+		}
+	}
+	if !named {
+		return ctx, fmt.Errorf("AssertSpecial flag not specified")
 	}
 	return ctx, nil
 }

@@ -136,3 +136,85 @@ func TestApplyController_SelfStateChangesStateLikeChangeState(t *testing.T) {
 		t.Error("SelfState must be reported supported")
 	}
 }
+
+// compiler_functions.go hitBySub and bytecode.go:5517-5566: value fills slot
+// 0, value2 slot 1 (ignored with value), attr needs a slot; time defaults to
+// 1.
+func TestApplyController_HitByAndNotHitBy(t *testing.T) {
+	var ctx evaluator.Context
+	if err := applyCtrl(t, &ctx, "NotHitBy", map[string]string{"value": "SCA", "time": "5"}); err != nil {
+		t.Fatal(err)
+	}
+	if s := ctx.HitBy[0]; !s.Not || s.Time != 5 || s.Attr == 0 {
+		t.Errorf("slot 0 = %+v, want a 5-tick NotHitBy", s)
+	}
+	if err := applyCtrl(t, &ctx, "HitBy", map[string]string{"value2": "S, NA"}); err != nil {
+		t.Fatal(err)
+	}
+	if s := ctx.HitBy[1]; s.Not || s.Time != 1 {
+		t.Errorf("slot 1 = %+v, want a 1-tick HitBy", s)
+	}
+	if err := applyCtrl(t, &ctx, "HitBy", map[string]string{"attr": "A, AA", "slot": "3", "stack": "1"}); err != nil {
+		t.Fatal(err)
+	}
+	if s := ctx.HitBy[3]; !s.Stack || s.Time != 1 {
+		t.Errorf("slot 3 = %+v, want a stacked HitBy", s)
+	}
+	before := ctx.HitBy
+	if err := applyCtrl(t, &ctx, "HitBy", map[string]string{"attr": "SCA"}); err != nil {
+		t.Fatal(err)
+	}
+	if ctx.HitBy != before {
+		t.Error("attr without slot sets nothing (bytecode.go:5528-5529)")
+	}
+	if err := applyCtrl(t, &ctx, "NotHitBy", map[string]string{"time": "3"}); err == nil {
+		t.Error("no attribute at all: want an error")
+	}
+}
+
+// bytecode.go:11851-11888 defenceMulSet: a MUGEN character's defaults are
+// onHit 1 and mulType 0 (defence = 1 / value), an Ikemen GO one's onHit 0 and
+// mulType 1 (defence = value).
+func TestApplyController_DefenceMulSet(t *testing.T) {
+	var mugen evaluator.Context
+	if err := applyCtrl(t, &mugen, "DefenceMulSet", map[string]string{"value": "2"}); err != nil {
+		t.Fatal(err)
+	}
+	if mugen.CustomDefence != 0.5 || !mugen.DefenceMulOnHit {
+		t.Errorf("MUGEN character: defence %v onHit %v, want 0.5 true", mugen.CustomDefence, mugen.DefenceMulOnHit)
+	}
+	ikemen := evaluator.Context{IkemenChar: true}
+	if err := applyCtrl(t, &ikemen, "DefenceMulSet", map[string]string{"value": "2"}); err != nil {
+		t.Fatal(err)
+	}
+	if ikemen.CustomDefence != 2 || ikemen.DefenceMulOnHit {
+		t.Errorf("Ikemen character: defence %v onHit %v, want 2 false", ikemen.CustomDefence, ikemen.DefenceMulOnHit)
+	}
+	if err := applyCtrl(t, &ikemen, "DefenceMulSet", map[string]string{"value": "4", "multype": "0", "onhit": "1"}); err != nil {
+		t.Fatal(err)
+	}
+	if ikemen.CustomDefence != 0.25 || !ikemen.DefenceMulOnHit {
+		t.Errorf("explicit mulType 0 onHit 1: %v %v, want 0.25 true", ikemen.CustomDefence, ikemen.DefenceMulOnHit)
+	}
+}
+
+// bytecode.go:5604-5632 assertSpecial.Run: flag, flag2 and flag3 are set,
+// or cleared with enabled 0.
+func TestApplyController_AssertSpecial(t *testing.T) {
+	var ctx evaluator.Context
+	if err := applyCtrl(t, &ctx, "AssertSpecial", map[string]string{"flag": "nowalk", "flag2": "NoJump", "flag3": "intro"}); err != nil {
+		t.Fatal(err)
+	}
+	if !ctx.Asserted.Has("nowalk") || !ctx.Asserted.Has("nojump") || !ctx.Asserted.Has("intro") {
+		t.Errorf("asserted = %v, want nowalk, nojump, intro", ctx.Asserted)
+	}
+	if err := applyCtrl(t, &ctx, "AssertSpecial", map[string]string{"flag": "nowalk", "enabled": "0"}); err != nil {
+		t.Fatal(err)
+	}
+	if ctx.Asserted.Has("nowalk") {
+		t.Error("enabled 0 clears nowalk")
+	}
+	if err := applyCtrl(t, &ctx, "AssertSpecial", map[string]string{"flag": "fly"}); err == nil {
+		t.Error("an unknown flag must be an error")
+	}
+}

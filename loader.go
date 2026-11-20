@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/openkakutou/character"
@@ -165,6 +166,7 @@ func assembleFighterProgram(files fileAccess, ch *character.Character, dirs []st
 	}
 	stateFiles = append(stateFiles, StateFile{States: ch.StateDefs})
 	prog = NewFighterProgramFromFiles(stateFiles, ch.Animations, ch.Commands)
+	prog.IkemenVersion = parseIkemenVersion(ch.IkemenVersion)
 	prog.Constants, err = loadConstants(files, dirs, ch.ConstantsFile)
 	if err != nil {
 		return FighterProgram{}, nil, err
@@ -283,4 +285,21 @@ func resolveCaseInsensitive(files fileAccess, base, relPath string) (string, boo
 		}
 	}
 	return current, true
+}
+
+// parseIkemenVersion is Ikemen GO's ParseIkemenVersion (common.go:931-945):
+// up to three dot-separated numbers, stopping at the first that is not one.
+func parseIkemenVersion(raw string) [3]uint16 {
+	var ver [3]uint16
+	for i, part := range strings.Split(raw, ".") {
+		if i >= len(ver) {
+			break
+		}
+		v, err := strconv.ParseUint(strings.TrimSpace(part), 10, 16)
+		if err != nil {
+			break
+		}
+		ver[i] = uint16(v)
+	}
+	return ver
 }

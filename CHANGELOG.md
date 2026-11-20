@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.30.0] - 2026-11-21
+
+### Added
+- Get-hit and fall controllers: `HitVelSet`, `HitFallSet`, `HitFallVel`, `HitFallDamage`, `PosFreeze` and `SelfState`; a landed HitDef now records the knock-back x velocity, `fall.xvelocity`, `fall.damage` and `fall.kill`.
+- `HitBy` and `NotHitBy` (8 slots, attribute filtering, counted down each tick): a contact the defender's slots reject does not hit.
+- `DefenceMulSet`, with MUGEN's and Ikemen GO's different defaults chosen by the character's `ikemenversion`; damage is scaled by the attacker's `[Data] attack` over the defender's `defence` and multiplier, as Ikemen GO's computeDamage.
+- `AssertSpecial`: every Ikemen GO flag is recorded (an unknown one is an error); `nohardcodedkeys`, `nowalk`, `nojump`, `nocrouch`, `nostand` and `nobrake` stop the engine's built-in walk, jump, crouch and brake, `noailevel` hides the AI level.
+- `FighterProgram.IkemenVersion` and `Context.IkemenChar`, from the `.def`'s `ikemenversion` (character v0.20.0); a MUGEN character's `BackEdgeBodyDist` / `FrontEdgeBodyDist` are 0.5 less in the air and 1 less lying down, as Ikemen GO keeps.
+
 ## [2.29.0] - 2026-11-21
 
 ### Added

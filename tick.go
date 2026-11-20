@@ -54,6 +54,10 @@ type FighterProgram struct {
 	// LoadFighterProgram. Nil reads Ikemen GO's defaults. Not part of the
 	// JSON request shape.
 	Constants *evaluator.Constants `json:"-"`
+	// IkemenVersion is the .def's [Info] ikemenversion, read as Ikemen GO's
+	// ParseIkemenVersion does (common.go:931-945); all zero for a MUGEN
+	// character. Not part of the JSON request shape.
+	IkemenVersion [3]uint16 `json:"-"`
 
 	// script is the compiled .zss of the character, set by WithScripts; the
 	// zero value defines no state. Unexported like animIndex: a program
@@ -309,6 +313,7 @@ func (p FighterProgram) NewRuntime(fighter match.FighterState) (FighterRuntime, 
 		return FighterRuntime{}, fmt.Errorf("engine: NewRuntime: state %d not found in loaded character", fighter.StateNo)
 	}
 	ctx := evaluator.Context{FighterState: fighter, Consts: p.Constants, Anims: p.animationTable()}
+	ctx.IkemenChar = p.IkemenVersion[0] != 0 || p.IkemenVersion[1] != 0
 	if _, err := enterState(&ctx, def); err != nil {
 		return FighterRuntime{}, fmt.Errorf("engine: NewRuntime: %w", err)
 	}
@@ -456,13 +461,14 @@ func Tick(
 	state.Fighters[match.SideP1].Position = p1Out.Runtime.Context.Position
 	state.Fighters[match.SideP2].Position = p2Out.Runtime.Context.Position
 	events := hitdetect.Detect(&state, frames)
+	events = hittableEvents(events, [2]*evaluator.Context{&p1Out.Runtime.Context, &p2Out.Runtime.Context})
 
 	var runtimesOut [2]FighterRuntime
 	runtimesOut[match.SideP1] = p1Out.Runtime
 	runtimesOut[match.SideP2] = p2Out.Runtime
 
 	if p1Out.HasHitDef {
-		damage := combat.DamageParams{Damage: p1Out.HitDef.Parameters["damage"]}
+		damage := combat.DamageParams{Damage: p1Out.HitDef.Parameters["damage"], Multiplier: damageMultiplier(&runtimesOut[match.SideP1].Context, &runtimesOut[match.SideP2].Context)}
 		newState, newCombo, hit := combat.ApplyHits(state, events, match.SideP1, damage, runtimesOut[match.SideP1].Combo, cfg.Tick, cfg.ComboWindow)
 		state = newState
 		runtimesOut[match.SideP1].Combo = newCombo
@@ -471,7 +477,7 @@ func Tick(
 		}
 	}
 	if p2Out.HasHitDef {
-		damage := combat.DamageParams{Damage: p2Out.HitDef.Parameters["damage"]}
+		damage := combat.DamageParams{Damage: p2Out.HitDef.Parameters["damage"], Multiplier: damageMultiplier(&runtimesOut[match.SideP2].Context, &runtimesOut[match.SideP1].Context)}
 		newState, newCombo, hit := combat.ApplyHits(state, events, match.SideP2, damage, runtimesOut[match.SideP2].Combo, cfg.Tick, cfg.ComboWindow)
 		state = newState
 		runtimesOut[match.SideP2].Combo = newCombo
@@ -555,6 +561,50 @@ var specialStates = [...]int{-3, -2, -1}
 // of this tick (position/facing/health, sourced from match.MatchState, the
 // single source of truth Tick reconciles runtime.Context against every
 // call).
+// damageMultiplier is the attacker's attack over the defender's final
+// defence, Ikemen GO's atkmul / finalDefense (char.go:8897, 12997-13001):
+// [Data] attack and defence over 100, the defence times its DefenceMulSet
+// multiplier unless that waits for a hit and the defender is not in one.
+func damageMultiplier(attacker, defender *evaluator.Context) float64 {
+	attack := attacker.Consts.Lookup("data.attack").Number / 100
+	custom := defender.CustomDefence
+	if custom == 0 || (defender.DefenceMulOnHit && defender.MoveType != 'H') {
+		custom = 1
+	}
+	defence := defender.Consts.Lookup("data.defence").Number / 100 * custom
+	if defence == 0 {
+		return attack
+	}
+	return attack / defence
+}
+
+// countDownHitBy counts each active HitBy slot down a tick, clearing it at 0
+// (Ikemen GO char.go:12365-12371, before the fighter's states run).
+func countDownHitBy(ctx *evaluator.Context) {
+	for i := range ctx.HitBy {
+		if ctx.HitBy[i].Time <= 0 {
+			continue
+		}
+		ctx.HitBy[i].Time--
+		if ctx.HitBy[i].Time == 0 {
+			ctx.HitBy[i] = evaluator.HitBySlot{}
+		}
+	}
+}
+
+// hittableEvents drops, in place, the contacts whose defender's HitBy slots
+// reject the attacker's HitDef (Ikemen GO checkHitByAllSlots, char.go:
+// 10997-11042, in hit detection).
+func hittableEvents(events []hitdetect.HitEvent, ctx [2]*evaluator.Context) []hitdetect.HitEvent {
+	kept := events[:0]
+	for _, e := range events {
+		if evaluator.HittableBy(ctx[e.Defender].HitBy, ctx[e.Attacker].HitDefAttr) {
+			kept = append(kept, e)
+		}
+	}
+	return kept
+}
+
 // screenBound keeps a fighter between the screen edges, Ikemen GO's
 // xScreenBound (char.go:10322-10336) with widthEdge 0, its default.
 // shortcut: the ScreenBound controller that lifts it is not read; upgrade
@@ -580,6 +630,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	ctx.ScreenLeft, ctx.ScreenRight = screen[0], screen[1]
 	ctx.HitPauseTime = runtime.HitPause
 	ctx.PosFreeze = false // a PosFreeze controller holds for the tick it runs
+	countDownHitBy(&ctx)
 	ctx.FighterState = fighter
 	ctx.P2 = opponent
 	// A target that left its hit states is dropped before the fighter acts
@@ -624,7 +675,9 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		ctx.PushPriority = 0
 		ctx.PushAffectTeam = 1
 	}
-	basicActions(&ctx, prog, in.Directions(fighter.Facing))
+	asserted := ctx.Asserted
+	ctx.Asserted = evaluator.AssertFlags{} // the states assert them again (char.go:12430-12434)
+	basicActions(&ctx, prog, in.Directions(fighter.Facing), asserted)
 	for _, number := range specialStates {
 		if !prog.hasState(number) {
 			continue
@@ -852,38 +905,41 @@ func land(ctx *evaluator.Context, prog FighterProgram, runs *stateRuns) error {
 // from the engine itself, before its states -3, -2 and -1 run (Ikemen GO
 // actionPrepare, char.go:12300-12345; common1 has no ChangeState into 20 or
 // 40). Like a ChangeState there, the change is entered after state -1.
-// shortcut: no AssertSpecial yet (item 050), so the nohardcodedkeys,
-// nojump, nocrouch, nostand, nowalk and nobrake flags are all off, as in
-// Ikemen GO without AssertSpecial; there is no guard distance, so the guard
-// entry (120) never fires and back does not cancel forward (char.go:12306,
-// 12332); the air jump (45) and the round-over input lock (char.go:12309)
-// are not done.
-func basicActions(ctx *evaluator.Context, prog FighterProgram, d input.Directions) {
+// asserted are the AssertSpecial flags of the previous tick: nohardcodedkeys
+// turns them all off, nojump, nocrouch, nostand, nowalk and nobrake one
+// each.
+// shortcut: there is no guard yet, so the guard entry (120) never fires and
+// back does not cancel forward (char.go:12306, 12332); the air jump (45) and
+// the round-over input lock (char.go:12309) are not done.
+func basicActions(ctx *evaluator.Context, prog FighterProgram, d input.Directions, asserted evaluator.AssertFlags) {
+	if asserted.Has("nohardcodedkeys") {
+		return
+	}
 	if ctx.Ctrl {
 		switch {
-		case ctx.StateType == 'S' && d.Up:
+		case ctx.StateType == 'S' && d.Up && !asserted.Has("nojump"):
 			if ctx.StateNo != 40 {
 				basicChangeState(ctx, prog, 40)
 			}
-		case ctx.StateType == 'S' && d.Down:
+		case ctx.StateType == 'S' && d.Down && !asserted.Has("nocrouch"):
 			if ctx.StateNo != 10 {
 				if ctx.StateNo != 100 {
 					ctx.Velocity.X = 0
 				}
 				basicChangeState(ctx, prog, 10)
 			}
-		case ctx.StateType == 'C' && !d.Down:
+		case ctx.StateType == 'C' && !d.Down && !asserted.Has("nostand"):
 			if ctx.StateNo != 12 {
 				basicChangeState(ctx, prog, 12)
 			}
-		case ctx.StateType == 'S' && d.Forward != d.Back:
+		case ctx.StateType == 'S' && d.Forward != d.Back && !asserted.Has("nowalk"):
 			if ctx.StateNo != 20 {
 				basicChangeState(ctx, prog, 20)
 			}
 		}
 	}
 	// Braking does not need control (char.go:12338-12342).
-	if ctx.StateNo == 20 && d.Back == d.Forward {
+	if ctx.StateNo == 20 && d.Back == d.Forward && !asserted.Has("nobrake") {
 		basicChangeState(ctx, prog, 0)
 	}
 }

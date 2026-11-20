@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/openkakutou/character/cmd"
@@ -88,5 +89,21 @@ if stateNo = 0 && time = 0 {
 	got := runHardcodedKeys(t, source, input.TickInput{}, input.TickInput{Right: true}, input.TickInput{Up: true})
 	if got[1] != 5 || got[2] != 5 {
 		t.Errorf("states = %v, want to stay in 5 without control", got)
+	}
+}
+
+// char.go:12300-12345 checks the flags the states asserted the tick before:
+// a state 0 asserting nowalk keeps the fighter from walking.
+func TestTick_NoWalkKeepsTheFighterStanding(t *testing.T) {
+	source := strings.Replace(hardcodedKeysZss, "[StateDef 0; type: S; physics: S;]\nnull{}", "[StateDef 0; type: S; physics: S;]\nassertSpecial{flag: nowalk}", 1)
+	fwd := input.TickInput{Right: true}
+	states := runHardcodedKeys(t, source, input.TickInput{}, fwd, fwd, fwd)
+	for _, s := range states {
+		if s == 20 {
+			t.Fatalf("states = %v, want no walk (20) under nowalk", states)
+		}
+	}
+	if walked := runHardcodedKeys(t, hardcodedKeysZss, input.TickInput{}, fwd, fwd); walked[len(walked)-1] != 20 {
+		t.Fatalf("without nowalk the fighter walks: %v", walked)
 	}
 }
