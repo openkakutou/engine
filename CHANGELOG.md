@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.27.0] - 2026-11-21
+
+### Added
+- A character's own AI written in `.zss` runs: Ikemen GO's `kfm_zss` AI plays on its own when the game gives it an AI level. For this, the `.zss` reader now accepts a `let` value holding a redirection (`let nojug = p2,anim = 5120 || …`) and an empty controller parameter (`reversalDef{reversal.attr: }`), and a negative state defined in several `.zss` files runs every part in file order, each with its own local variables, as Ikemen GO appends them.
+- Named variables: `MapSet` and `MapAdd` (the `map: name; value: expr` form) write them and `map(name)` reads them, 0 when unset.
+- Triggers `BackEdgeDist`, `BackEdgeBodyDist`, `FrontEdgeDist`, `FrontEdgeBodyDist` (from `TickConfig.Screen`, the screen edges the game gives each tick, or the stage bounds without them), `InGuardDist` (the opponent's active HitDef `guard.dist`, else its `size.attack.dist.width`), `HitPauseTime`, `ID` (56 for player 1, 57 for player 2), `JugglePoints()` (the maximum, juggle points are not spent yet), `NumProj` (0, no projectiles yet) and `StandBy` (false outside Tag mode).
+
 ## [2.26.0] - 2026-11-20
 
 ### Added

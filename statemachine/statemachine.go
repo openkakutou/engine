@@ -306,6 +306,42 @@ func init() {
 	RegisterController(ControllerTypeVarSet, applyVarSet)
 	RegisterController(ControllerTypePowerAdd, applyPowerAdd)
 	RegisterController(ControllerTypePlaySnd, applyPlaySnd)
+	RegisterController("MapSet", func(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+		return applyMapSet(ctrl, ctx, false)
+	})
+	RegisterController("MapAdd", func(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+		return applyMapSet(ctrl, ctx, true)
+	})
+}
+
+// applyMapSet is MapSet (add false) or MapAdd in their "map: name; value:
+// expr" form (compiler_functions.go:4768-4900, char.go:9808-9852): the name,
+// quoted or bare, is lower-cased; MapAdd adds to the current value, 0 when
+// unset.
+// shortcut: the map(name) := value and indexed forms are not read, and the
+// Parent, Root and Team variants report unsupported; upgrade when a
+// character needs them.
+func applyMapSet(ctrl cns.Controller, ctx evaluator.Context, add bool) (evaluator.Context, error) {
+	name := strings.Trim(strings.TrimSpace(ctrl.Parameters["map"]), `"`)
+	if name == "" {
+		return ctx, fmt.Errorf("%s needs a map name", ctrl.Type)
+	}
+	raw, ok := ctrl.Parameters["value"]
+	if !ok {
+		return ctx, fmt.Errorf("%s needs a value", ctrl.Type)
+	}
+	v, err := evaluator.EvaluateMut(raw, &ctx)
+	if err != nil {
+		return ctx, fmt.Errorf("%s value %q: %w", ctrl.Type, raw, err)
+	}
+	if add {
+		v, err = evaluator.Add(ctx.MapValue(name), v)
+		if err != nil {
+			return ctx, err
+		}
+	}
+	ctx.SetMap(name, v)
+	return ctx, nil
 }
 
 // RegisterController associates a controller type name (matched

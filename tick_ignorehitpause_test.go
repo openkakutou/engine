@@ -191,7 +191,7 @@ func TestTickFighter_IgnoreHitPauseHitDef_StartsNoHitWhileFrozen(t *testing.T) {
 		return rt
 	}
 
-	unfrozen, err := tickFighter(prog, build(0), fighter, evaluator.Opponent{}, input.TickInput{}, 1, testBounds(), 0, 1, 0)
+	unfrozen, err := tickFighter(prog, build(0), fighter, evaluator.Opponent{}, input.TickInput{}, 1, testBounds(), [2]float64{}, 0, 1, 0)
 	if err != nil {
 		t.Fatalf("tickFighter (unfrozen): %v", err)
 	}
@@ -199,7 +199,7 @@ func TestTickFighter_IgnoreHitPauseHitDef_StartsNoHitWhileFrozen(t *testing.T) {
 		t.Fatal("control case: the same HitDef must start a hit on an unfrozen tick")
 	}
 
-	frozen, err := tickFighter(prog, build(3), fighter, evaluator.Opponent{}, input.TickInput{}, 1, testBounds(), 0, 1, 0)
+	frozen, err := tickFighter(prog, build(3), fighter, evaluator.Opponent{}, input.TickInput{}, 1, testBounds(), [2]float64{}, 0, 1, 0)
 	if err != nil {
 		t.Fatalf("tickFighter (frozen): %v", err)
 	}

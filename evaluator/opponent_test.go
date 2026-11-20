@@ -205,7 +205,7 @@ func TestParse_RedirectionToAHelperFamily_IsNotSupportedYet(t *testing.T) {
 
 func TestEval_Redirection_OfATriggerTheSnapshotLacks_IsAnUnknownTriggerNotAWrongValue(t *testing.T) {
 	ctx := duel(t, 0, match.FacingRight, 10, match.FacingLeft)
-	for _, expr := range []string{"p2,var(0)", "p2,numProj", "p2,command = \"a\"", "p2,random"} {
+	for _, expr := range []string{"p2,var(0)", "p2,noSuchTrigger", "p2,command = \"a\"", "p2,random"} {
 		e, err := Parse(expr)
 		if err != nil {
 			t.Fatalf("Parse(%q): %v", expr, err)
@@ -262,7 +262,7 @@ func TestEval_P2DistWithAZAxis_IsAnError(t *testing.T) {
 }
 
 func TestTriggerNames_Redirection_NamesTheRedirectedTrigger(t *testing.T) {
-	names, err := TriggerNames("p2,numProj > 0 && p2BodyDist x < 3")
+	names, err := TriggerNames("p2,noSuchTrigger > 0 && p2BodyDist x < 3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -270,11 +270,11 @@ func TestTriggerNames_Redirection_NamesTheRedirectedTrigger(t *testing.T) {
 	for _, n := range names {
 		got[n.Name] = true
 	}
-	if !got["numproj"] || !got["p2bodydist"] {
-		t.Errorf("TriggerNames = %v, want it to hold numproj and p2bodydist", names)
+	if !got["nosuchtrigger"] || !got["p2bodydist"] {
+		t.Errorf("TriggerNames = %v, want it to hold nosuchtrigger and p2bodydist", names)
 	}
-	if IsKnownTrigger("numproj", false) {
-		t.Error("numproj is reported known")
+	if IsKnownTrigger("nosuchtrigger", false) {
+		t.Error("nosuchtrigger is reported known")
 	}
 	for _, name := range []string{"p2dist", "p2bodydist", "p2stateno", "p2movetype", "p2statetype", "p2life", "numenemy", "numtarget", "movecontact", "movehit", "moveguarded", "movereversed", "hitfall", "canrecover", "hitdefattr"} {
 		if !IsKnownTrigger(name, name == "numtarget") && !IsKnownTrigger(name, false) {

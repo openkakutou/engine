@@ -3,6 +3,7 @@ package evaluator
 import (
 	"github.com/openkakutou/character/air"
 	"github.com/openkakutou/engine/v2/match"
+	"strings"
 )
 
 // maxVars, maxSysVars, maxFVars and maxSysFVars mirror MUGEN's fixed variable
@@ -88,6 +89,18 @@ type Context struct {
 	// PalNo trigger (Ikemen GO gi().palno, bytecode.go:2671). Zero, the
 	// choice not made, reads as 1.
 	PalNo int
+	// Maps are the fighter's named variables (Ikemen GO c.mapArray), keyed by
+	// lower-cased name: MapSet and MapAdd write them, map(name) reads them.
+	// The map is shared by the copies of a Context, like the fighter it
+	// belongs to; nil until the first write.
+	Maps map[string]Value
+	// HitPauseTime is the attacker's remaining hit pause (Ikemen GO
+	// c.hitPauseTime), copied from the runtime each tick.
+	HitPauseTime int
+	// ScreenLeft and ScreenRight are the screen edges the fighter moves
+	// between this tick (Ikemen GO sys.xmin, sys.xmax), read by the edge
+	// distance triggers.
+	ScreenLeft, ScreenRight float64
 	// AILevel is the level of the CPU driving the fighter, 0 for a human
 	// player (Ikemen GO sys.aiLevel[playerNo], 1 to 8), read by the AILevel
 	// and AILevelF triggers. The game sets it; the engine never writes it.
@@ -167,6 +180,10 @@ type Context struct {
 	// HitDefAttr is the attr of the fighter's current HitDef, parsed by
 	// ParseAttr; HitDefAttr reads it while the move type is A.
 	HitDefAttr int32
+	// HitDefGuardDist is the current HitDef's guard.dist x reach, front and
+	// back (its constants' size.attack.dist.width when the HitDef gives
+	// none), read by the opponent's InGuardDist.
+	HitDefGuardDist [2]float64
 	// StateChanged reports that a ChangeState ran since the caller last
 	// cleared it, even into the same state number: Ikemen GO re-enters the
 	// state either way (char.go changeStateEx, 6966-6994). Tick clears it
@@ -269,4 +286,17 @@ type SoundEvent struct {
 	// does not play if the fighter's channel is still busy instead of
 	// stopping it (src/sound.go:1253-1256).
 	LowPriority bool `json:"lowPriority"`
+}
+
+// MapValue is the named variable name (any case), the zero int when unset.
+func (c *Context) MapValue(name string) Value {
+	return c.Maps[strings.ToLower(name)]
+}
+
+// SetMap stores v under name (any case).
+func (c *Context) SetMap(name string, v Value) {
+	if c.Maps == nil {
+		c.Maps = make(map[string]Value)
+	}
+	c.Maps[strings.ToLower(name)] = v
 }

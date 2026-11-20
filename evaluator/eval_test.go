@@ -257,12 +257,12 @@ func TestEval_LooseTyping_ComparesIntAndFloatByNumericValue(t *testing.T) {
 }
 
 func TestEval_ReturnsError_OnUnknownTriggerName(t *testing.T) {
-	e, err := Parse("BackEdgeBodyDist = 100")
+	e, err := Parse("NoSuchTrigger = 100")
 	if err != nil {
 		t.Fatalf("unexpected parse error: %v", err)
 	}
 	if _, err := e.Eval(Context{}); err == nil {
-		t.Error("expected error for unsupported trigger name BackEdgeBodyDist, got nil")
+		t.Error("expected error for unsupported trigger name NoSuchTrigger, got nil")
 	}
 }
 

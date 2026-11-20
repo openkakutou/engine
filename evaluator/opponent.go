@@ -3,6 +3,7 @@ package evaluator
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/openkakutou/engine/v2/match"
 )
@@ -28,6 +29,8 @@ type Opponent struct {
 	GetHit                  GetHit
 	MoveContactTime         int
 	HitDefAttr              int32
+	// GuardDist is the opponent's HitDef guard.dist x reach, front and back.
+	GuardDist [2]float64
 	// Consts is the opponent's constants, for its size box and Const(...).
 	Consts *Constants
 }
@@ -61,6 +64,13 @@ var redirectKinds = map[string]bool{
 	"player": false, "partner": false, "stateowner": false,
 }
 
+// IsRedirect reports whether word (any case) is a redirection keyword, which
+// takes the comma after it (and after its "(index)") as its own.
+func IsRedirect(word string) bool {
+	_, ok := redirectKinds[strings.ToLower(word)]
+	return ok
+}
+
 // redirectNode is "p2, trigger", "enemy(n), trigger", "enemyNear(n), trigger"
 // or "target(id), trigger": the inner trigger read on another fighter. kind is
 // lower-case, arg the optional index (nil when absent).
@@ -87,6 +97,7 @@ var redirectableIdentifiers = map[string]bool{
 	"power": true, "alive": true, "facing": true, "prevstateno": true,
 	"hitshakeover": true, "hitover": true, "hitfall": true, "canrecover": true,
 	"movecontact": true, "movehit": true, "moveguarded": true, "movereversed": true,
+	"numproj": true, "id": true,
 }
 
 // redirectable reports whether inner can be evaluated against an Opponent's

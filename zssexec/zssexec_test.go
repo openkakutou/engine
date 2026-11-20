@@ -594,3 +594,35 @@ func TestStep_HitDefInACalledFunction_IsReportedWithTheFunctionsLocals(t *testin
 		t.Errorf("HasHitDef, damage = %v, %q, want true, \"17\"", result.HasHitDef, result.HitDef.Parameters["damage"])
 	}
 }
+
+// compiler.go:8462-8478: a negative state defined again starts from the
+// previous definition and appends its controllers (kfm_zss's AI.zss state -1
+// follows command.zss's); a positive one keeps its first definition.
+func TestStepState_ANegativeStateDefinedTwiceRunsBothPartsInOrder(t *testing.T) {
+	script := mustParseScript(t,
+		"[Statedef -1]\nlet a = 2;\nvarSet{v: 0; value: $a}",
+		"[Statedef -1]\nlet b = var(0) * 10;\nvarSet{v: 1; value: $b + 1}",
+	)
+	r, err := StepState(evaluator.Context{}, -1, script, func(int) bool { return true })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Context.Vars[0] != 2 || r.Context.Vars[1] != 21 {
+		t.Errorf("vars = %d, %d; want 2 then 21: the second part runs after the first", r.Context.Vars[0], r.Context.Vars[1])
+	}
+}
+
+func TestStepState_AStateChangeInTheFirstPartStopsTheNext(t *testing.T) {
+	script := mustParseScript(t,
+		"[Statedef -1]\nchangeState{value: 5}",
+		"[Statedef -1]\nvarSet{v: 1; value: 9}",
+		"[Statedef 5]\n",
+	)
+	r, err := StepState(evaluator.Context{}, -1, script, func(int) bool { return true })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Context.StateNo != 5 || r.Context.Vars[1] != 0 {
+		t.Errorf("state %d, var(1) %d; want 5 and the second part not run", r.Context.StateNo, r.Context.Vars[1])
+	}
+}

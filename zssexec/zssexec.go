@@ -79,7 +79,8 @@ type CompiledScript struct {
 // Compile parses every block of script and indexes them. When script.Blocks
 // holds more than one Statedef with the same number (or Function with the
 // same name, compared case-insensitively as Ikemen GO does), the first one
-// in declaration order is the one every lookup returns.
+// in declaration order is the one every lookup returns, except for a
+// negative Statedef: its later definitions run after it, in order.
 func Compile(script zss.Script) CompiledScript {
 	prog := CompiledScript{
 		statedefs: make(map[int]*compiledBlock),
@@ -92,8 +93,21 @@ func Compile(script zss.Script) CompiledScript {
 		case zss.BlockKindStatedef:
 			// A symbolic or relative number (NumberRaw) has no state number
 			// to index under; Number is 0 for it.
-			if _, exists := prog.statedefs[b.Number]; !exists && b.NumberRaw == "" {
+			if b.NumberRaw != "" {
+				break
+			}
+			first, exists := prog.statedefs[b.Number]
+			switch {
+			case !exists:
 				prog.statedefs[b.Number] = cb
+			case b.Number < 0:
+				// A negative state defined again appends its controllers
+				// (compiler.go:8462-8478).
+				last := first
+				for last.next != nil {
+					last = last.next
+				}
+				last.next = cb
 			}
 		case zss.BlockKindFunction:
 			name := strings.ToLower(b.Name)
@@ -196,8 +210,10 @@ func stepState(ctx evaluator.Context, number int, prog CompiledScript, exists fu
 	if !ok {
 		return Result{}, fmt.Errorf("zssexec: state %d not found in loaded .zss script", number)
 	}
-	if block.err != nil {
-		return Result{}, fmt.Errorf("zssexec: %w", block.err)
+	for part := block; part != nil; part = part.next {
+		if part.err != nil {
+			return Result{}, fmt.Errorf("zssexec: %w", part.err)
+		}
 	}
 
 	working := ctx
@@ -209,11 +225,17 @@ func stepState(ctx evaluator.Context, number int, prog CompiledScript, exists fu
 	localTop = 0
 	skippedCalls = skippedCalls[:0]
 	hasHitDef, hitDef = false, cns.Controller{}
-	root := frame{base: pushFrame(len(block.names)), names: block.names}
-	working.Locals = root.locals()
-	_, err := r.stmts(block.stmts, root, 0, !hitPause)
-	if err != nil {
-		return Result{}, fmt.Errorf("zssexec: state %d: %w", number, err)
+	for part := block; part != nil; part = part.next {
+		localTop = 0 // each part has its own locals
+		root := frame{base: pushFrame(len(part.names)), names: part.names}
+		working.Locals = root.locals()
+		changed, err := r.stmts(part.stmts, root, 0, !hitPause)
+		if err != nil {
+			return Result{}, fmt.Errorf("zssexec: state %d: %w", number, err)
+		}
+		if changed {
+			break
+		}
 	}
 	working.Locals = evaluator.LocalFrame{}
 	working.ZSS = false

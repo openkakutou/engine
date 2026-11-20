@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 
@@ -261,8 +262,8 @@ type FighterRuntime struct {
 	Input   input.State
 	Combo   combat.ComboState
 	// HitPause is the attacker's remaining frozen ticks after a landed
-	// hit (HitDef pausetime[0]). It is not trigger-visible, so it lives
-	// here rather than on evaluator.Context; the defender's own freeze is
+	// hit (HitDef pausetime[0]); each tick copies it to Context.HitPauseTime
+	// for the HitPauseTime trigger. The defender's own freeze is
 	// Context.GetHit.HitShakeTime. See .vibe/decisions/018.
 	HitPause int
 	// Unsupported is the controller types that fired unimplemented in the
@@ -374,7 +375,11 @@ type TickResult struct {
 // a per-tick heap allocation this repo's allocation-discipline ADRs
 // (.vibe/decisions/009-011) specifically exist to avoid.
 type TickConfig struct {
-	Bounds      *stage.StageBoundaries
+	Bounds *stage.StageBoundaries
+	// Screen is the left and right screen edges of this tick (Ikemen GO
+	// sys.xmin, sys.xmax, set from its camera), read by the edge distance
+	// triggers. Left not below Right means unset: the stage bounds stand in.
+	Screen      [2]float64
 	Gravity     float64
 	Tick        int
 	ComboWindow int
@@ -413,7 +418,8 @@ func Tick(
 	// its controllers and its movement; collision detection comes after both
 	// (system.go:2734). See decisions 027 and 029.
 	p2Seen := snapshotOf(state.Fighter(match.SideP2), &runtimes[match.SideP2].Context)
-	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), p2Seen, inputs[match.SideP1], cfg.Tick, cfg.Bounds, cfg.Gravity, state.Round, state.RandSeed)
+	screen := screenEdges(cfg)
+	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), p2Seen, inputs[match.SideP1], cfg.Tick, cfg.Bounds, screen, cfg.Gravity, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
 	}
@@ -426,7 +432,7 @@ func Tick(
 	// effect is immediate.
 	state.Fighters[match.SideP1] = p1Out.Runtime.Context.FighterState
 	p1Seen := snapshotOf(state.Fighter(match.SideP1), &p1Out.Runtime.Context)
-	p2Out, err := tickFighter(programs[match.SideP2], runtimes[match.SideP2], state.Fighter(match.SideP2), p1Seen, inputs[match.SideP2], cfg.Tick, cfg.Bounds, cfg.Gravity, state.Round, state.RandSeed)
+	p2Out, err := tickFighter(programs[match.SideP2], runtimes[match.SideP2], state.Fighter(match.SideP2), p1Seen, inputs[match.SideP2], cfg.Tick, cfg.Bounds, screen, cfg.Gravity, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
 	}
@@ -542,8 +548,22 @@ var specialStates = [...]int{-3, -2, -1}
 // of this tick (position/facing/health, sourced from match.MatchState, the
 // single source of truth Tick reconciles runtime.Context against every
 // call).
-func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.FighterState, opponent evaluator.Opponent, in input.TickInput, tick int, bounds *stage.StageBoundaries, gravity float64, round int, seed int32) (fighterTickOutput, error) {
+// screenEdges is cfg.Screen, or the stage bounds when the caller gives no
+// screen (a far-away edge on each side without bounds either).
+func screenEdges(cfg TickConfig) [2]float64 {
+	if cfg.Screen[0] < cfg.Screen[1] {
+		return cfg.Screen
+	}
+	if cfg.Bounds != nil {
+		return [2]float64{float64(cfg.Bounds.Left), float64(cfg.Bounds.Right)}
+	}
+	return [2]float64{-math.MaxFloat32, math.MaxFloat32}
+}
+
+func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.FighterState, opponent evaluator.Opponent, in input.TickInput, tick int, bounds *stage.StageBoundaries, screen [2]float64, gravity float64, round int, seed int32) (fighterTickOutput, error) {
 	ctx := runtime.Context
+	ctx.ScreenLeft, ctx.ScreenRight = screen[0], screen[1]
+	ctx.HitPauseTime = runtime.HitPause
 	ctx.FighterState = fighter
 	ctx.P2 = opponent
 	// A target that left its hit states is dropped before the fighter acts
@@ -728,7 +748,28 @@ func (r *stateRuns) add(step stateStep, ctx *evaluator.Context, frozen bool) {
 	}
 	if attr, err := evaluator.ParseAttr(step.HitDef.Parameters["attr"], true); err == nil {
 		ctx.HitDefAttr = attr
+		ctx.HitDefGuardDist = guardDist(step.HitDef, ctx)
 	}
+}
+
+// guardDist is a HitDef's guard.dist x reach, front and back: its values,
+// else the constants size.attack.dist.width front and back (Ikemen GO's
+// HitDef defaults).
+func guardDist(hitDef cns.Controller, ctx *evaluator.Context) [2]float64 {
+	reach := [2]float64{
+		ctx.Consts.Lookup("size.attack.dist.width.front").Number,
+		ctx.Consts.Lookup("size.attack.dist.width.back").Number,
+	}
+	raw, ok := hitDef.Parameters["guard.dist"]
+	if !ok {
+		return reach
+	}
+	for i, part := range strings.SplitN(raw, ",", 2) {
+		if v, err := evaluator.EvaluateMut(strings.TrimSpace(part), ctx); err == nil {
+			reach[i] = v.Number
+		}
+	}
+	return reach
 }
 
 // followChanges enters the state a ChangeState just named and runs it, again
@@ -929,6 +970,7 @@ func enterState(ctx *evaluator.Context, def entryHeader) (animRestarted bool, er
 	}
 	if !persist {
 		ctx.HitDefAttr = 0
+		ctx.HitDefGuardDist = [2]float64{}
 	}
 
 	// facep2 turns toward an opponent behind (bytecode.go:5487-5490,
@@ -1091,6 +1133,7 @@ func snapshotOf(fighter match.FighterState, ctx *evaluator.Context) evaluator.Op
 		GetHit:          ctx.GetHit,
 		MoveContactTime: ctx.MoveContactTime,
 		HitDefAttr:      ctx.HitDefAttr,
+		GuardDist:       ctx.HitDefGuardDist,
 		Consts:          ctx.Consts,
 	}
 }

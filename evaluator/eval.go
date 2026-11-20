@@ -181,8 +181,8 @@ func collectTriggerNames(n node, names *[]TriggerName, seen map[TriggerName]bool
 		add(TriggerName{Name: tn.name})
 	case callNode:
 		add(TriggerName{Name: tn.name, Call: true})
-		if tn.name == "const" {
-			return // its argument is a constant name, not a trigger
+		if tn.name == "const" || tn.name == "map" {
+			return // its argument is a name, not a trigger
 		}
 		if tn.name == "gethitvar" {
 			// One entry per variable, named "gethitvar(<var>)", so a variable
@@ -367,6 +367,20 @@ func evalCall(n callNode, ctx *Context) (Value, error) {
 		return evalIndexedFloatVar(n, ctx, "sysfvar", ctx.SysFVars[:])
 	case "const":
 		return evalConst(n, ctx)
+	case "map":
+		return evalMap(n, ctx)
+	case "jugglepoints":
+		// char.go:5933-5946: the juggle points left on target id, the
+		// maximum data.airjuggle when id is not a target.
+		// shortcut: the engine does not spend juggle points yet, so the
+		// maximum is returned for a target too.
+		if len(n.args) != 1 {
+			return Value{}, fmt.Errorf("evaluator: JugglePoints() expects 1 argument, got %d", len(n.args))
+		}
+		if _, err := evalNode(n.args[0], ctx); err != nil {
+			return Value{}, err
+		}
+		return intValue(ctx.Consts.Lookup("data.airjuggle").Number), nil
 	case "gethitvar":
 		return evalGetHitVar(n, ctx)
 	case "ifelse":
@@ -562,6 +576,21 @@ func evalConst(n callNode, ctx *Context) (Value, error) {
 	return ctx.Consts.Lookup(id.name), nil
 }
 
+// evalMap reads a named variable: map(name) or map("name") (bytecode.go:
+// 3829-3831, compiler.go:5197-5230).
+func evalMap(n callNode, ctx *Context) (Value, error) {
+	if len(n.args) != 1 {
+		return Value{}, fmt.Errorf("evaluator: Map() expects 1 argument, got %d", len(n.args))
+	}
+	switch arg := n.args[0].(type) {
+	case identifierNode:
+		return ctx.MapValue(arg.name), nil
+	case stringNode:
+		return ctx.MapValue(arg.value), nil
+	}
+	return Value{}, fmt.Errorf("evaluator: Map() expects a name, e.g. Map(combo) or Map(\"combo\")")
+}
+
 func evalLocal(name string, ctx *Context) (Value, error) {
 	for i, n := range ctx.Locals.Names {
 		if n == name && i < len(ctx.Locals.Values) {
@@ -659,6 +688,10 @@ func evalComparisonOrLogical(op string, left, right Value) (v Value, ok bool, er
 		return Value{}, false, nil
 	}
 }
+
+// Add is a + b with Ikemen GO's int/float promotion (BytecodeExp.add), for
+// callers outside an expression such as MapAdd.
+func Add(a, b Value) (Value, error) { return evalArithmetic("+", a, b) }
 
 // evalArithmetic handles op's arithmetic (+, -, *, /, %, **) and bitwise (&,
 // |, ^) forms -- every binary operator evalComparisonOrLogical does not

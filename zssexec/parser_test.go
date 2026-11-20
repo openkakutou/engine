@@ -512,3 +512,43 @@ func TestStep_PlaySndWithSpacedPrefixAndLocals_RecordsTheEvent(t *testing.T) {
 		t.Errorf("Sounds = %v, want %v", r.Sounds, want)
 	}
 }
+
+// compiler.go letAssign (8179) reads each value with the expression parser,
+// which takes a redirection's comma with it: kfm_zss AI.zss state -1 has
+// `let nojug = p2,anim = 5120 || ...`.
+func TestStep_LetValueWithARedirectionCommaIsOneExpression(t *testing.T) {
+	ctx := evaluator.Context{P2: evaluator.Opponent{Valid: true, Anim: 5120}}
+	r := stepBody(t, ctx, "let nojug = p2,anim = 5120 || p2,anim = 5121;", "varSet{v: 0; value: $nojug}")
+	if r.Context.Vars[0] != 1 {
+		t.Errorf("var(0) = %d, want 1", r.Context.Vars[0])
+	}
+}
+
+func TestStep_LetSeveralValuesWithRedirectionsSplitBetweenThem(t *testing.T) {
+	ctx := evaluator.Context{P2: evaluator.Opponent{Valid: true, Anim: 7}}
+	r := stepBody(t, ctx, "let a, b = p2,anim, enemy(0),anim;", "varSet{v: 0; value: $a * 1000 + $b}")
+	if r.Context.Vars[0] != 7007 {
+		t.Errorf("var(0) = %d, want 7007", r.Context.Vars[0])
+	}
+}
+
+// compiler.go readKeyValue (7662-7693) stores a parameter's sentence even when
+// it is empty; kfm_zss stops its counters with `reversalDef{reversal.attr: }`
+// (kfm.zss:1962), an attr of 0 that catches nothing (attrMask, compiler.go:735).
+func TestCompile_AnEmptyParameterValueIsKept(t *testing.T) {
+	script := mustParseScript(t, "[Statedef 0]\nreversalDef{reversal.attr: }\nvarSet{v: 0; value: 3}")
+	for _, cb := range script.entries {
+		if cb.err != nil {
+			t.Fatalf("compile error: %v", cb.err)
+		}
+	}
+	var got map[string]string
+	for _, st := range script.statedefs[0].stmts {
+		if c, ok := st.(ctrlStmt); ok && strings.EqualFold(c.ctrl.Type, "reversalDef") {
+			got = c.ctrl.Parameters
+		}
+	}
+	if v, ok := got["reversal.attr"]; !ok || v != "" {
+		t.Fatalf("parameters = %v, want reversal.attr kept empty", got)
+	}
+}

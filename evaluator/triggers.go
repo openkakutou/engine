@@ -11,6 +11,9 @@ import (
 // axisTriggers are the triggers written with an axis letter ("Pos Y").
 var axisTriggers = map[string]bool{"pos": true, "vel": true, "p2dist": true, "p2bodydist": true}
 
+// firstPlayerID is player 1's ID, Ikemen GO's default HelperMax.
+const firstPlayerID = 56
+
 // randomMax is Ikemen GO's IMax (common.go), the generator's modulus.
 const randomMax = 2147483647
 
@@ -43,6 +46,29 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		// Ikemen GO's roundstate 2; pre-intro, over and post states return
 		// when the round flow models them.
 		return intValue(2), true, nil
+	case "backedgedist", "backedgebodydist":
+		// char.go:5627-5646; widthEdge is 0 until a Width controller sets it.
+		// shortcut: MUGEN characters' 0.5 (air) / 1 (lying) offset of the
+		// body variant is not applied: the engine does not read the .def's
+		// ikemenversion yet.
+		return floatValue(edgeDist(ctx, false)), true, nil
+	case "frontedgedist", "frontedgebodydist":
+		return floatValue(edgeDist(ctx, true)), true, nil // char.go:5766-5784
+	case "inguarddist":
+		return boolValue(inGuardDist(ctx)), true, nil
+	case "numproj":
+		// char.go:6186-6191 counts live projectiles.
+		// shortcut: always 0 until the engine has projectiles (item 024).
+		return intValue(0), true, nil
+	case "hitpausetime":
+		return intValue(float64(ctx.HitPauseTime)), true, nil // bytecode.go:2615-2616
+	case "id":
+		// The players' IDs start at HelperMax, 56 (system.go:2277-2325).
+		return intValue(float64(firstPlayerID + int(ctx.Side))), true, nil
+	case "standby":
+		// bytecode.go:3936-3937 reads SCF_standby, which only Tag mode sets
+		// (bytecode.go:5888-5894); a one-on-one fighter is never on standby.
+		return boolValue(false), true, nil
 	case "ishelper":
 		// The engine has no helpers yet, so every fighter is a player.
 		return boolValue(false), true, nil
@@ -350,4 +376,31 @@ func evalTypeComparison(n binaryNode, ctx *Context) (Value, bool, error) {
 		same = !same
 	}
 	return boolValue(same), true, nil
+}
+
+// edgeDist is the distance from the fighter to the screen edge in front of
+// it (front) or behind it.
+func edgeDist(ctx *Context, front bool) float64 {
+	right := ctx.Facing == match.FacingRight
+	if front == right {
+		return ctx.ScreenRight - ctx.Position.X
+	}
+	return ctx.Position.X - ctx.ScreenLeft
+}
+
+// inGuardDist is Ikemen GO's guard distance check (char.go:14159-14183) seen
+// from the defender: the opponent attacks with an active HitDef whose
+// guard.dist reaches it.
+// shortcut: the y and z guard distances are not checked; their defaults
+// reach everything a 2D match has.
+func inGuardDist(ctx *Context) bool {
+	o := ctx.P2
+	if !o.Valid || o.MoveType != 'A' || o.HitDefAttr == 0 {
+		return false
+	}
+	dist := ctx.Position.X - o.Position.X
+	if o.Facing == match.FacingLeft {
+		dist = -dist
+	}
+	return dist < o.GuardDist[0] && dist > -o.GuardDist[1]
 }

@@ -100,6 +100,9 @@ type compiledBlock struct {
 	// header is a Statedef's header converted to the cns.StateDef shape the
 	// root package's state entry already takes; zero for a Function.
 	header cns.StateDef
+	// next is the following part of a negative state defined again (in
+	// another file), run after this one with its own locals.
+	next *compiledBlock
 }
 
 // compileBlock parses b's header and body. The returned block always has
@@ -365,6 +368,58 @@ func splitTop(text string) []string {
 	return append(parts, strings.TrimSpace(text[start:]))
 }
 
+// splitValues splits a let's values at commas outside strings and brackets,
+// except the comma of a redirection ("p2,anim", "enemy(0),life"), which the
+// expression parser reads as part of the value (letAssign, compiler.go:8179).
+func splitValues(text string) []string {
+	pieces := splitTop(text)
+	var parts []string
+	value := ""
+	for i, piece := range pieces {
+		value += piece
+		if i < len(pieces)-1 && endsWithRedirect(piece) {
+			value += ","
+			continue
+		}
+		parts = append(parts, value)
+		value = ""
+	}
+	return parts
+}
+
+// endsWithRedirect reports whether text ends with a redirection keyword,
+// with or without its "(index)".
+func endsWithRedirect(text string) bool {
+	t := strings.TrimSpace(text)
+	if strings.HasSuffix(t, ")") {
+		t = strings.TrimSpace(t[:openingParen(t)])
+	}
+	end := len(t)
+	start := end
+	for start > 0 && isIdentByte(t[start-1]) {
+		start--
+	}
+	return start < end && evaluator.IsRedirect(t[start:end])
+}
+
+// openingParen is the index of the "(" matching the ")" ending t, 0 when
+// there is none.
+func openingParen(t string) int {
+	depth := 0
+	for i := len(t) - 1; i >= 0; i-- {
+		switch t[i] {
+		case ')':
+			depth++
+		case '(':
+			depth--
+		}
+		if depth == 0 {
+			return i
+		}
+	}
+	return 0
+}
+
 // hasAssign reports whether text contains ":=" outside strings.
 func hasAssign(text string) bool {
 	for i := 0; i < len(text); i++ {
@@ -610,7 +665,7 @@ func (p *parser) let() (stmt, error) {
 	if term != ';' {
 		return nil, fmt.Errorf("%q is missing its \";\"", stmtText)
 	}
-	exprs := splitTop(text)
+	exprs := splitValues(text)
 	if len(exprs) != len(slots) {
 		return nil, fmt.Errorf("%q has %d names but %d expressions", stmtText, len(slots), len(exprs))
 	}
@@ -722,10 +777,9 @@ func (p *parser) controller(name string) (stmt, error) {
 			return nil, fmt.Errorf("controller %s: expected \"key: value\", found %q", name, snip(p.src[p.pos:p.pos+colon+1]))
 		}
 		p.pos += colon + 1
+		// An empty value is kept, as readKeyValue does (compiler.go:7684-7690);
+		// the controller decides what it means.
 		value, term := p.sentence()
-		if value == "" {
-			return nil, fmt.Errorf("controller %s: parameter %q has no value", name, key)
-		}
 		if term != ';' && term != '}' {
 			return nil, fmt.Errorf("controller %s: parameter %q is missing its \";\" or \"}\"", name, key)
 		}

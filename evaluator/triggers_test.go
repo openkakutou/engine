@@ -371,3 +371,118 @@ func TestIsKnownTrigger_OtherFamily_IsKnown(t *testing.T) {
 		}
 	}
 }
+
+// bytecode.go:3829-3831 reads c.mapArray[name], the zero value when the
+// name was never set; compiler.go:5197-5230 takes a bare name as a literal
+// key, a quoted one too. Names are lower-cased (char.go:9813).
+func TestEval_MapReadsTheFightersNamedValueOrZero(t *testing.T) {
+	ctx := fighterCtx()
+	ctx.SetMap("canCombo", intValue(3))
+	ctx.SetMap("ppx", floatValue(1.5))
+	if got := mustEval(t, "map(CanCombo)", ctx); got.Number != 3 || got.Kind != KindInt {
+		t.Errorf("map(CanCombo) = %v kind %v, want int 3", got.Number, got.Kind)
+	}
+	if got := mustEval(t, `map("ppx") * 2`, ctx); got.Number != 3 {
+		t.Errorf(`map("ppx") * 2 = %v, want 3`, got.Number)
+	}
+	if got := mustEval(t, "map(never)", ctx); got.Number != 0 {
+		t.Errorf("map(never) = %v, want 0", got.Number)
+	}
+}
+
+// char.go:5620-5646 and 5759-5784: the edge distances measure from the
+// fighter to the screen edges sys.xmin / sys.xmax, behind and in front
+// according to its facing; the body variants subtract widthEdge, 0 unless a
+// Width controller set it.
+func TestEval_EdgeDistancesFollowFacing(t *testing.T) {
+	ctx := fighterCtx()
+	ctx.ScreenLeft, ctx.ScreenRight = -100, 200
+	ctx.Facing = match.FacingRight
+	ctx.Position.X = 20 // 120 to the left edge, 180 to the right one
+	want := map[string]float64{"BackEdgeDist": 120, "FrontEdgeDist": 180, "BackEdgeBodyDist": 120, "FrontEdgeBodyDist": 180}
+	for expr, w := range want {
+		if got := mustEval(t, expr, ctx); got.Number != w {
+			t.Errorf("facing right: %s = %v, want %v", expr, got.Number, w)
+		}
+	}
+	ctx.Facing = match.FacingLeft
+	for expr, w := range map[string]float64{"BackEdgeDist": 180, "FrontEdgeDist": 120} {
+		if got := mustEval(t, expr, ctx); got.Number != w {
+			t.Errorf("facing left: %s = %v, want %v", expr, got.Number, w)
+		}
+	}
+}
+
+// char.go:14159-14183: a fighter is in guard distance while its attacking
+// opponent's HitDef reaches it: distX = (self x - opponent x) * opponent
+// facing, inside (-guard.dist back, guard.dist front), strictly.
+func TestEval_InGuardDistFollowsTheOpponentsHitDef(t *testing.T) {
+	ctx := fighterCtx()
+	ctx.Position.X = 100
+	ctx.P2 = Opponent{Valid: true, MoveType: 'A', HitDefAttr: 1, GuardDist: [2]float64{60, 10}}
+	ctx.P2.Position.X = 50
+	ctx.P2.Facing = match.FacingRight
+	if !mustEval(t, "InGuardDist", ctx).Bool() {
+		t.Error("50 ahead of an attacker reaching 60: want in guard distance")
+	}
+	ctx.P2.Position.X = 40 // 60 ahead: not strictly inside
+	if mustEval(t, "InGuardDist", ctx).Bool() {
+		t.Error("exactly at the reach: want out (Ikemen GO uses <)")
+	}
+	ctx.P2.Position.X = 105 // 5 behind the attacker, back reach 10
+	if !mustEval(t, "InGuardDist", ctx).Bool() {
+		t.Error("5 behind with a back reach of 10: want in")
+	}
+	ctx.P2.Position.X = 50
+	ctx.P2.MoveType = 'I'
+	if mustEval(t, "InGuardDist", ctx).Bool() {
+		t.Error("an opponent not attacking: want out")
+	}
+	ctx.P2.MoveType, ctx.P2.HitDefAttr = 'A', 0
+	if mustEval(t, "InGuardDist", ctx).Bool() {
+		t.Error("an attacking opponent without an active HitDef: want out")
+	}
+}
+
+// char.go:6186-6191 counts the fighter's live projectiles; the engine has
+// none yet (backlog item 024), so a fighter, or its opponent, has 0.
+func TestEval_NumProjIsZeroWithoutProjectiles(t *testing.T) {
+	ctx := fighterCtx()
+	ctx.P2 = Opponent{Valid: true}
+	if got := mustEval(t, "NumProj + p2,NumProj", ctx); got.Number != 0 || got.Kind != KindInt {
+		t.Errorf("NumProj + p2,NumProj = %v kind %v, want int 0", got.Number, got.Kind)
+	}
+}
+
+// bytecode.go:2615-2616 reads c.hitPauseTime, the attacker's remaining pause.
+func TestEval_HitPauseTimeReadsTheRemainingPause(t *testing.T) {
+	ctx := fighterCtx()
+	ctx.HitPauseTime = 7
+	if got := mustEval(t, "HitPauseTime", ctx); got.Number != 7 || got.Kind != KindInt {
+		t.Errorf("HitPauseTime = %v kind %v, want int 7", got.Number, got.Kind)
+	}
+}
+
+// system.go:2277-2325 numbers the players from HelperMax (56 by default):
+// P1 is 56, P2 57, as in MUGEN (bytecode.go:2626-2627).
+func TestEval_IDIsFiftySixPlusTheSide(t *testing.T) {
+	ctx := fighterCtx()
+	ctx.Side = match.SideP2
+	ctx.P2 = Opponent{Valid: true}
+	ctx.P2.Side = match.SideP1
+	if got := mustEval(t, "ID * 100 + p2,ID", ctx); got.Number != 5756 {
+		t.Errorf("ID * 100 + p2,ID = %v, want 5756", got.Number)
+	}
+}
+
+// char.go:5933-5946: a non-target's juggle points are the attacker's maximum,
+// data.airjuggle (15 by default).
+// The engine does not spend juggle points yet, so a target's
+// are the maximum too.
+func TestEval_JugglePointsIsTheMaximumWithoutJuggleTracking(t *testing.T) {
+	ctx := fighterCtx()
+	ctx.P2 = Opponent{Valid: true}
+	if got := mustEval(t, "JugglePoints(p2, ID)", ctx); got.Number != 15 {
+		t.Errorf("JugglePoints(p2, ID) = %v, want data.airjuggle 15", got.Number)
+	}
+}
