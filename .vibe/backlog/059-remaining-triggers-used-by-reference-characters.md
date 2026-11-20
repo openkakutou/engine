@@ -21,3 +21,4 @@ After item 041, every expression of the reference files parses, but some trigger
 ## Notes
 Found by item 041 (2026-11-19).
 - 2026-11-21: edge distances, `InGuardDist` done (with `HitPauseTime`, `ID`, `JugglePoints`, `NumProj`, `StandBy`, `map()` for kfm_zss AI.zss); the conformance run on kfm and kfm_zss lists no unknown trigger. Still to do: `GameTime`, `MatchOver`, `RoundsExisted`, `MugenVersion()`, `Name`, `TeamSide`, `aiw`, `StateTime`.
+- 2026-11-21: `MugenVersion()` done.

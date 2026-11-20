@@ -181,7 +181,7 @@ func collectTriggerNames(n node, names *[]TriggerName, seen map[TriggerName]bool
 		add(TriggerName{Name: tn.name})
 	case callNode:
 		add(TriggerName{Name: tn.name, Call: true})
-		if tn.name == "const" || tn.name == "map" {
+		if tn.name == "const" || tn.name == "map" || tn.name == "mugenversion" {
 			return // its argument is a name, not a trigger
 		}
 		if tn.name == "gethitvar" {
@@ -369,6 +369,19 @@ func evalCall(n callNode, ctx *Context) (Value, error) {
 		return evalConst(n, ctx)
 	case "map":
 		return evalMap(n, ctx)
+	case "mugenversion":
+		// compiler.go:5370-5384, bytecode.go:3887-3892.
+		if len(n.args) == 1 {
+			if id, ok := n.args[0].(identifierNode); ok {
+				switch id.name {
+				case "major":
+					return intValue(float64(ctx.MugenVersion[0])), nil
+				case "minor":
+					return intValue(float64(ctx.MugenVersion[1])), nil
+				}
+			}
+		}
+		return Value{}, fmt.Errorf("evaluator: MugenVersion() expects major or minor")
 	case "jugglepoints":
 		// char.go:5933-5946: the juggle points left on target id, the
 		// maximum data.airjuggle when id is not a target.

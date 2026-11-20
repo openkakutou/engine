@@ -159,12 +159,12 @@ func TestTick_StateTransition_ResetsAnimAndAnimTime_ToTheEnteredStatesOwn(t *tes
 func TestTick_AppliesActiveHitDef_ReducesDefenderHealthAndReportsKO(t *testing.T) {
 	attackerStates := map[int]cns.StateDef{
 		200: {
-			Number: 200, Type: cns.StateTypeStanding, Anim: 200, Ctrl: false,
+			Number: 200, Type: cns.StateTypeStanding, MoveType: cns.MoveTypeAttack, Anim: 200, Ctrl: false,
 			Controllers: []cns.Controller{
 				{
 					Type:       "HitDef",
 					Triggers:   []string{"Time = 0"},
-					Parameters: map[string]string{"damage": "30"},
+					Parameters: map[string]string{"damage": "30", "attr": "S, NA"},
 				},
 			},
 		},

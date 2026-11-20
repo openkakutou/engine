@@ -44,3 +44,11 @@ func TestNewRuntime_AnIkemenVersionMakesAnIkemenCharacter(t *testing.T) {
 		t.Error("ikemenversion 1.0: want IkemenChar")
 	}
 }
+
+func TestParseMugenVersion(t *testing.T) {
+	for raw, want := range map[string][2]uint16{"1.0": {1, 0}, "1.1": {1, 1}, "": {0, 5}, "2002.04.14": {0, 5}, "1.2": {0, 5}, "x": {0, 5}} {
+		if got := parseMugenVersion(raw); got != want {
+			t.Errorf("%q = %v, want %v", raw, got, want)
+		}
+	}
+}

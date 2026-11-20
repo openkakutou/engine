@@ -58,6 +58,9 @@ type FighterProgram struct {
 	// ParseIkemenVersion does (common.go:931-945); all zero for a MUGEN
 	// character. Not part of the JSON request shape.
 	IkemenVersion [3]uint16 `json:"-"`
+	// MugenVersion is the .def's mugenversion as Ikemen GO's
+	// ParseMugenVersion keeps it: 1.0 or 1.1, else 0.5 (WinMUGEN).
+	MugenVersion [2]uint16 `json:"-"`
 
 	// script is the compiled .zss of the character, set by WithScripts; the
 	// zero value defines no state. Unexported like animIndex: a program
@@ -279,6 +282,13 @@ type FighterRuntime struct {
 	// function, wrong argument or return count), in a buffer reused like
 	// Unsupported.
 	SkippedCalls []string
+	// HitDef is the fighter's active HitDef, armed when its controller runs
+	// and kept while Context.HitDefAttr is (a state change without
+	// hitdefpersist clears both); HitDefHit is set once it has hit, as Ikemen
+	// GO's hitdefTargets keeps a HitDef from hitting the same opponent twice
+	// (char.go:869, 11193-11195).
+	HitDef    cns.Controller
+	HitDefHit bool
 }
 
 // NewFighterRuntime builds a fresh FighterRuntime for a fighter entering
@@ -314,6 +324,7 @@ func (p FighterProgram) NewRuntime(fighter match.FighterState) (FighterRuntime, 
 	}
 	ctx := evaluator.Context{FighterState: fighter, Consts: p.Constants, Anims: p.animationTable()}
 	ctx.IkemenChar = p.IkemenVersion[0] != 0 || p.IkemenVersion[1] != 0
+	ctx.MugenVersion = [2]int{int(p.MugenVersion[0]), int(p.MugenVersion[1])}
 	if _, err := enterState(&ctx, def); err != nil {
 		return FighterRuntime{}, fmt.Errorf("engine: NewRuntime: %w", err)
 	}
@@ -471,21 +482,25 @@ func Tick(
 	runtimesOut[match.SideP1] = p1Out.Runtime
 	runtimesOut[match.SideP2] = p2Out.Runtime
 
-	if p1Out.HasHitDef {
-		damage := combat.DamageParams{Damage: p1Out.HitDef.Parameters["damage"], Multiplier: damageMultiplier(&runtimesOut[match.SideP1].Context, &runtimesOut[match.SideP2].Context)}
+	armHitDef(&runtimesOut[match.SideP1], p1Out)
+	armHitDef(&runtimesOut[match.SideP2], p2Out)
+	if hitDefReady(&runtimesOut[match.SideP1]) {
+		damage := combat.DamageParams{Damage: runtimesOut[match.SideP1].HitDef.Parameters["damage"], Multiplier: damageMultiplier(&runtimesOut[match.SideP1].Context, &runtimesOut[match.SideP2].Context)}
 		newState, newCombo, hit := combat.ApplyHits(state, events, match.SideP1, damage, runtimesOut[match.SideP1].Combo, cfg.Tick, cfg.ComboWindow)
 		state = newState
 		runtimesOut[match.SideP1].Combo = newCombo
-		if err := applyHitReaction(&programs, &runtimesOut, match.SideP1, p1Out.HitDef.Parameters, hit); err != nil {
+		runtimesOut[match.SideP1].HitDefHit = hit.Hit
+		if err := applyHitReaction(&programs, &runtimesOut, match.SideP1, runtimesOut[match.SideP1].HitDef.Parameters, hit); err != nil {
 			return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
 		}
 	}
-	if p2Out.HasHitDef {
-		damage := combat.DamageParams{Damage: p2Out.HitDef.Parameters["damage"], Multiplier: damageMultiplier(&runtimesOut[match.SideP2].Context, &runtimesOut[match.SideP1].Context)}
+	if hitDefReady(&runtimesOut[match.SideP2]) {
+		damage := combat.DamageParams{Damage: runtimesOut[match.SideP2].HitDef.Parameters["damage"], Multiplier: damageMultiplier(&runtimesOut[match.SideP2].Context, &runtimesOut[match.SideP1].Context)}
 		newState, newCombo, hit := combat.ApplyHits(state, events, match.SideP2, damage, runtimesOut[match.SideP2].Combo, cfg.Tick, cfg.ComboWindow)
 		state = newState
 		runtimesOut[match.SideP2].Combo = newCombo
-		if err := applyHitReaction(&programs, &runtimesOut, match.SideP2, p2Out.HitDef.Parameters, hit); err != nil {
+		runtimesOut[match.SideP2].HitDefHit = hit.Hit
+		if err := applyHitReaction(&programs, &runtimesOut, match.SideP2, runtimesOut[match.SideP2].HitDef.Parameters, hit); err != nil {
 			return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
 		}
 	}
@@ -566,6 +581,47 @@ var specialStates = [...]int{-3, -2, -1}
 // of this tick (position/facing/health, sourced from match.MatchState, the
 // single source of truth Tick reconciles runtime.Context against every
 // call).
+// getUp is the engine's own end of a lie-down, Ikemen GO actionRun (char.go:
+// 12573-12577, 12702-12704): a fighter lying in state 5110 for at least a
+// tick whose down recover time ran out, alive and without
+// nogetupfromliedown, enters 5120 and runs it; otherwise the time counts
+// down while it lies there. Each hit sets the time (downRecoverTime).
+func getUp(ctx *evaluator.Context, prog FighterProgram, runs *stateRuns) error {
+	if ctx.StateNo != 5110 {
+		return nil
+	}
+	if ctx.Time >= 1 && ctx.GetHit.DownRecoverTime <= 0 && ctx.Health > 0 && !ctx.Asserted.Has("nogetupfromliedown") && prog.hasState(5120) {
+		ctx.PrevStateNo = ctx.StateNo
+		ctx.StateNo = 5120
+		ctx.StateChanged = true
+		return runs.followChanges(prog, ctx, false)
+	}
+	if ctx.GetHit.DownRecoverTime > 0 {
+		ctx.GetHit.DownRecoverTime--
+	}
+	return nil
+}
+
+// armHitDef keeps the fighter's active HitDef: a HitDef its states ran this
+// tick with a valid attr replaces it and may hit again; a cleared
+// HitDefAttr (a state change without hitdefpersist) disarms it.
+func armHitDef(rt *FighterRuntime, out fighterTickOutput) {
+	if rt.Context.HitDefAttr == 0 {
+		rt.HitDef, rt.HitDefHit = cns.Controller{}, false
+		return
+	}
+	if out.HasHitDef && !out.Frozen {
+		rt.HitDef, rt.HitDefHit = out.HitDef, false
+	}
+}
+
+// hitDefReady reports whether the fighter's HitDef can hit this tick: armed,
+// not spent on a hit yet, and the fighter attacking (Ikemen GO hitActive,
+// moveType not I, char.go:12984, 11168-11171).
+func hitDefReady(rt *FighterRuntime) bool {
+	return rt.HitDef.Type != "" && !rt.HitDefHit && rt.Context.MoveType != 'I'
+}
+
 // damageMultiplier is the attacker's attack over the defender's final
 // defence, Ikemen GO's atkmul / finalDefense (char.go:8897, 12997-13001):
 // [Data] attack and defence over 100, the defence times its DefenceMulSet
@@ -738,8 +794,14 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		return fighterTickOutput{}, err
 	}
 	sounds, warnings, unsupported, skippedCalls = runs.sounds, runs.warnings, runs.unsupported, runs.skippedCalls
+	if !frozen {
+		if err := getUp(&newCtx, prog, &runs); err != nil {
+			return fighterTickOutput{}, err
+		}
+		sounds, warnings, unsupported, skippedCalls = runs.sounds, runs.warnings, runs.unsupported, runs.skippedCalls
+	}
 	if frozen {
-		frozenRuntime := FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: unsupported, SkippedCalls: skippedCalls}
+		frozenRuntime := FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: unsupported, SkippedCalls: skippedCalls, HitDef: runtime.HitDef, HitDefHit: runtime.HitDefHit}
 		if frozenRuntime.HitPause > 0 {
 			frozenRuntime.HitPause--
 		}
@@ -791,7 +853,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	}
 
 	return fighterTickOutput{
-		Runtime:   FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, Unsupported: unsupported, SkippedCalls: skippedCalls},
+		Runtime:   FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, Unsupported: unsupported, SkippedCalls: skippedCalls, HitDef: runtime.HitDef, HitDefHit: runtime.HitDefHit},
 		Frame:     frame,
 		HasHitDef: runs.hasHitDef,
 		HitDef:    runs.hitDef,
@@ -1367,6 +1429,7 @@ func getHitFor(params combat.HitDefParams, defender *evaluator.Context, hitTime 
 		FallYvel:        params.FallYVelocity,
 		FallRecover:     params.FallRecover,
 		FallRecoverTime: params.FallRecoverTime,
+		DownRecoverTime: downRecoverTime(params, defender),
 		HitID:           params.HitID,
 		Fall:            defender.GetHit.Fall,
 		FallXvel:        params.FallXVelocity,
@@ -1410,6 +1473,20 @@ func getHitFor(params combat.HitDefParams, defender *evaluator.Context, hitTime 
 		g.AnimType = params.AnimType
 	}
 	return g
+}
+
+// downRecoverTime is the lie-down time a hit gives (char.go:11823-11830):
+// the HitDef's down.recovertime, else the defender's data.liedown.time, each
+// only shortening the time left of a defender already lying down.
+func downRecoverTime(params combat.HitDefParams, defender *evaluator.Context) int {
+	t := params.DownRecoverTime
+	if t < 0 {
+		t = defender.Consts.Lookup("data.liedown.time").Int()
+	}
+	if defender.StateType == 'L' && defender.GetHit.DownRecoverTime < t {
+		return defender.GetHit.DownRecoverTime
+	}
+	return t
 }
 
 // moveLetter is a StateDef's move type as an upper-case letter: its first

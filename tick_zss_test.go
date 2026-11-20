@@ -401,7 +401,7 @@ func TestTick_ZssHitDef_LandsExactlyAsTheSameCnsHitDef(t *testing.T) {
 }
 
 func TestTick_ZssHitDefReadingLocals_UsesTheirValues(t *testing.T) {
-	s := newZssHitScenario(t, "let d = 40;\nlet p = 6;\nif time = 0 {\n\thitDef{damage: $d, 0; pausetime: $p, $p + 1}\n}")
+	s := newZssHitScenario(t, "let d = 40;\nlet p = 6;\nif time = 0 {\n\thitDef{attr: S, NA; damage: $d, 0; pausetime: $p, $p + 1}\n}")
 	s.step()
 	if got := s.state.Fighter(match.SideP2).Health; got != 1000-40 {
 		t.Errorf("defender health = %d, want %d (damage $d = 40)", got, 1000-40)
@@ -415,7 +415,7 @@ func TestTick_ZssHitDefReadingLocals_UsesTheirValues(t *testing.T) {
 }
 
 func TestTick_ZssHitDefInACalledFunction_Lands(t *testing.T) {
-	s := newZssHitScenario(t, "if time = 0 {\n\tcall Attack(31);\n}\n\n[Function Attack(dmg)]\nhitDef{damage: $dmg; pausetime: 8, 8}")
+	s := newZssHitScenario(t, "if time = 0 {\n\tcall Attack(31);\n}\n\n[Function Attack(dmg)]\nhitDef{attr: S, NA; damage: $dmg; pausetime: 8, 8}")
 	s.step()
 	if got := s.state.Fighter(match.SideP2).Health; got != 1000-31 {
 		t.Errorf("defender health = %d, want %d", got, 1000-31)
@@ -427,7 +427,7 @@ func TestTick_ZssHitDefInACalledFunction_Lands(t *testing.T) {
 
 func TestTick_ZssIgnoreHitPauseHitDef_StartsNoHitWhileFrozenButLandsOnceUnfrozen(t *testing.T) {
 	// Decision 021 point 3, as for .cns: a frozen tick starts no hit.
-	body := "ignoreHitPause {\n\thitDef{damage: 50; pausetime: 8, 8}\n}"
+	body := "ignoreHitPause {\n\thitDef{attr: S, NA; damage: 50; pausetime: 8, 8}\n}"
 	frozen := newZssHitScenario(t, body)
 	frozen.runtimes[match.SideP1].HitPause = 3
 	frozen.step()

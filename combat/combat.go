@@ -156,9 +156,6 @@ func findLandedHit(events []hitdetect.HitEvent, attacker match.Side) (match.Side
 	return 0, false
 }
 
-// parseDamage reads hitDef's Damage field as "hit[, guard]" (MUGEN 1.1 and
-// Ikemen GO). Each value that is missing or not a valid integer falls back
-// to DefaultDamage independently, so "15" and "15," give guard damage 0.
 // scaledDamage is computeDamage's scaling (char.go:8889-8917): damage times
 // mul, at least 1 when positive, rounded; mul 0 leaves damage as it is.
 func scaledDamage(damage int, mul float64) int {
@@ -172,6 +169,9 @@ func scaledDamage(damage int, mul float64) int {
 	return int(math.Round(d))
 }
 
+// parseDamage reads hitDef's Damage field as "hit[, guard]" (MUGEN 1.1 and
+// Ikemen GO). Each value that is missing or not a valid integer falls back
+// to DefaultDamage independently, so "15" and "15," give guard damage 0.
 func parseDamage(hitDef DamageParams) (hit, guard int) {
 	first, second := hitDef.Damage, ""
 	if i := strings.IndexByte(first, ','); i >= 0 {
@@ -264,6 +264,9 @@ type HitDefParams struct {
 	FallEnvShakePhase                  float64
 	FallRecover                        bool
 	FallRecoverTime                    int
+	// DownRecoverTime is down.recovertime, -1 when absent (the defender\'s
+	// data.liedown.time then applies).
+	DownRecoverTime int
 	// HitID is the HitDef's id, the one NumTarget(id) filters on.
 	HitID int
 }
@@ -283,6 +286,7 @@ func ParseHitDef(params map[string]string) HitDefParams {
 		FallYVelocity:     parseFloatOr(params["fall.yvelocity"], defaultFallYVelocity),
 		FallDamage:        parseIntOr(params["fall.damage"], 0),
 		FallKill:          parseIntOr(params["fall.kill"], 1) != 0,
+		DownRecoverTime:   parseIntOr(params["down.recovertime"], -1),
 		FallEnvShakeTime:  parseIntOr(params["fall.envshake.time"], 0),
 		FallEnvShakeFreq:  parseFloatOr(params["fall.envshake.freq"], 60),
 		FallEnvShakeAmpl:  parseFloatOr(params["fall.envshake.ampl"], -4),

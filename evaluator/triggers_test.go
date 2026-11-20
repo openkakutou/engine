@@ -511,3 +511,17 @@ func TestEval_EdgeBodyDistOffsetOfMugenCharacters(t *testing.T) {
 		t.Errorf("Ikemen GO, lying: %v, want 180", got.Number)
 	}
 }
+
+// bytecode.go:3887-3892 reads the character's mugenversion, normalized by
+// ParseMugenVersion (common.go:947-965): 1.0 and 1.1 as written, anything
+// else WinMUGEN's 0.5.
+func TestEval_MugenVersion(t *testing.T) {
+	ctx := fighterCtx()
+	ctx.MugenVersion = [2]int{1, 1}
+	if got := mustEval(t, "MugenVersion(major) * 10 + MugenVersion(minor)", ctx); got.Number != 11 {
+		t.Errorf("1.1 = %v, want 11", got.Number)
+	}
+	if _, err := Evaluate("MugenVersion(patch)", ctx); err == nil {
+		t.Error("an argument other than major or minor is an error")
+	}
+}

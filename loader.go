@@ -167,6 +167,7 @@ func assembleFighterProgram(files fileAccess, ch *character.Character, dirs []st
 	stateFiles = append(stateFiles, StateFile{States: ch.StateDefs})
 	prog = NewFighterProgramFromFiles(stateFiles, ch.Animations, ch.Commands)
 	prog.IkemenVersion = parseIkemenVersion(ch.IkemenVersion)
+	prog.MugenVersion = parseMugenVersion(ch.MugenVersion)
 	prog.Constants, err = loadConstants(files, dirs, ch.ConstantsFile)
 	if err != nil {
 		return FighterProgram{}, nil, err
@@ -302,4 +303,26 @@ func parseIkemenVersion(raw string) [3]uint16 {
 		ver[i] = uint16(v)
 	}
 	return ver
+}
+
+// parseMugenVersion is Ikemen GO's ParseMugenVersion (common.go:947-965):
+// two dot-separated numbers, kept only for MUGEN 1.0 and 1.1; anything else,
+// an absent or unreadable version included, is WinMUGEN's 0.5.
+func parseMugenVersion(raw string) [2]uint16 {
+	winMugen := [2]uint16{0, 5}
+	var ver [2]uint16
+	for i, part := range strings.Split(raw, ".") {
+		if i >= len(ver) {
+			break
+		}
+		v, err := strconv.ParseUint(strings.TrimSpace(part), 10, 16)
+		if err != nil {
+			return winMugen
+		}
+		ver[i] = uint16(v)
+	}
+	if ver == [2]uint16{1, 0} || ver == [2]uint16{1, 1} {
+		return ver
+	}
+	return winMugen
 }

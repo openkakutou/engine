@@ -126,6 +126,9 @@ type Context struct {
 	// only while the fighter is being hit (defenseMulDelay).
 	CustomDefence   float64
 	DefenceMulOnHit bool
+	// MugenVersion is the character's .def mugenversion as Ikemen GO keeps it
+	// (1.0, 1.1, else 0.5), read by MugenVersion(major|minor).
+	MugenVersion [2]int
 	// IkemenChar is true for a character whose .def gives an ikemenversion
 	// (Ikemen GO stWgi().ikemenver not 0.0), false for a MUGEN one: some
 	// defaults differ between the two.
@@ -299,6 +302,9 @@ type GetHit struct {
 	FallKill        bool
 	FallRecover     bool
 	FallRecoverTime int
+	// DownRecoverTime is the ticks left lying down before the engine gets
+	// the fighter up (Ikemen GO ghv.down_recovertime).
+	DownRecoverTime int
 	FallTime        int
 	HitID           int
 }

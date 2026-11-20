@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.33.0] - 2026-11-21
+
+### Fixed
+- A HitDef stays active until it hits, as in MUGEN and Ikemen GO: before, it could only land on the tick its controller ran, so a move whose HitDef fires on its first tick (kfm's sweep) never hit. It hits each opponent once, only while the fighter attacks, and a state change without hitdefpersist ends it. A HitDef without an attack class in its attr does not hit (Ikemen GO sets its attr to 0).
+
+### Added
+- The engine gets a fighter lying in state 5110 up into 5120 once its down recover time (the HitDef's `down.recovertime`, else `data.liedown.time`) has run out, unless `nogetupfromliedown`.
+- `MugenVersion(major)` / `MugenVersion(minor)`, from the `.def`'s `mugenversion` kept as Ikemen GO keeps it (`FighterProgram.MugenVersion`, `Context.MugenVersion`).
+
 ## [2.32.0] - 2026-11-21
 
 ### Added

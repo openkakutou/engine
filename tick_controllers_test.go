@@ -319,8 +319,11 @@ func TestTick_P2Controllers_ReachP2sMatchState(t *testing.T) {
 // Time 0, together with extra controllers, over a frame with a +-5 hit box;
 // idleHurtProgram is a defender with a +-5 hurt box.
 func hitProgram(extra ...cns.Controller) FighterProgram {
-	hit := cns.Controller{Type: "HitDef", Triggers: []string{"1"}, Parameters: map[string]string{"damage": "30"}}
+	hit := cns.Controller{Type: "HitDef", Triggers: []string{"1"}, Parameters: map[string]string{"damage": "30", "attr": "S, NA"}}
 	states := stateWith(append([]cns.Controller{hit}, extra...)...)
+	def := states[0]
+	def.MoveType = cns.MoveTypeAttack // a HitDef hits only while attacking (char.go:12984)
+	states[0] = def
 	box := []air.ClsnBox{{Left: -5, Top: -50, Right: 5, Bottom: 0}}
 	return FighterProgram{States: states, Animations: []air.Animation{{Number: 0, Frames: []air.Frame{{Time: 100, Clsn1: box}}}}}
 }
