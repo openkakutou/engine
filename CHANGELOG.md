@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.26.0] - 2026-11-20
+
+### Added
+- `Context.AILevel` is the level of the CPU driving a fighter (Ikemen GO's 1 to 8, 0 for a human). The `AILevel` trigger reads it truncated and `AILevelF` as is, so a character's own AI (its `.cmd` states gated on `AILevel`) runs when the game sets a level.
+
 ## [2.25.0] - 2026-11-20
 
 ### Fixed

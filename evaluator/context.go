@@ -88,6 +88,10 @@ type Context struct {
 	// PalNo trigger (Ikemen GO gi().palno, bytecode.go:2671). Zero, the
 	// choice not made, reads as 1.
 	PalNo int
+	// AILevel is the level of the CPU driving the fighter, 0 for a human
+	// player (Ikemen GO sys.aiLevel[playerNo], 1 to 8), read by the AILevel
+	// and AILevelF triggers. The game sets it; the engine never writes it.
+	AILevel float64
 	// ActiveCommands is the set of command names currently recognized as
 	// held/triggered this tick, checked by the Command trigger. A nil map
 	// reads every command as not active.

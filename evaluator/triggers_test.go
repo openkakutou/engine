@@ -319,6 +319,21 @@ func TestEval_AILevelAndAILevelF_AreZeroForAHumanDrivenFighter(t *testing.T) {
 	}
 }
 
+// char.go:5528-5537 getAILevel: AILevel truncates the level, AILevelF keeps it.
+func TestEval_AILevelFollowsTheLevelTheGameGivesACPUFighter(t *testing.T) {
+	ctx := fighterCtx()
+	ctx.AILevel = 4.7
+	if got := mustEval(t, "AILevel", ctx); got.Number != 4 || got.Kind != KindInt {
+		t.Errorf("AILevel = %v kind %v, want int 4", got.Number, got.Kind)
+	}
+	if got := mustEval(t, "AILevelF", ctx); math.Abs(got.Number-4.7) > 1e-6 || got.Kind != KindFloat {
+		t.Errorf("AILevelF = %v kind %v, want float 4.7", got.Number, got.Kind)
+	}
+	if mustEval(t, "roundState = 2 && !aiLevelF", ctx).Bool() {
+		t.Error("a CPU fighter must not take the human branch of kfm_zss")
+	}
+}
+
 // bytecode.go:2671-2672 reads gi().palno; char.go:4888-4913 keeps it at 1 or
 // above, 1 when no palette was chosen.
 func TestEval_PalNo_DefaultsToOneAndFollowsTheContext(t *testing.T) {

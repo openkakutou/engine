@@ -49,12 +49,11 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 	case "random":
 		return intValue(float64(drawRandom(ctx))), true, nil
 	case "ailevel":
-		// Ikemen GO reads sys.aiLevel[playerNo] (bytecode.go:2510-2515,
-		// char.go:5529-5537), 0 for a human player; every fighter here is
-		// human-driven.
-		return intValue(0), true, nil
+		// Ikemen GO reads sys.aiLevel[playerNo] truncated (bytecode.go:2510-2515,
+		// char.go:5529-5537), 0 for a human player.
+		return intValue(math.Trunc(ctx.AILevel)), true, nil
 	case "ailevelf":
-		return floatValue(0), true, nil // bytecode.go:3654-3659
+		return floatValue(ctx.AILevel), true, nil // bytecode.go:3654-3659
 	case "palno":
 		// bytecode.go:2671: the palette the game chose; 1 until it sets one
 		// (char.go:4888-4913).
