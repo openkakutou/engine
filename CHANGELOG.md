@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.34.0] - 2026-11-21
+
+### Added
+- A redirection reads the opponent's edge distances (`p2,BackEdgeBodyDist` and the three others), on the same screen.
+
 ## [2.33.0] - 2026-11-21
 
 ### Fixed

@@ -306,3 +306,18 @@ func TestEval_OpponentAndContactTriggersWarmPath_AllocateNothing(t *testing.T) {
 		t.Errorf("evaluating the opponent and contact triggers allocated %v times, want 0", allocs)
 	}
 }
+
+// A redirection reads the opponent's edge distances on the same screen
+// (kfm_zss AI.zss reads p2,backEdgeBodyDist).
+func TestEval_RedirectedEdgeDistances(t *testing.T) {
+	ctx := duel(t, 0, match.FacingRight, 50, match.FacingLeft)
+	ctx.ScreenLeft, ctx.ScreenRight = -100, 200
+	ctx.P2.ScreenLeft, ctx.P2.ScreenRight = -100, 200
+	// P2 at 50 facing left: its back is the right edge, 150 away.
+	if got := mustEval(t, "p2,BackEdgeBodyDist", ctx); got.Number != 150 {
+		t.Errorf("p2,BackEdgeBodyDist = %v, want 150", got.Number)
+	}
+	if got := mustEval(t, "p2,FrontEdgeDist", ctx); got.Number != 150 {
+		t.Errorf("p2,FrontEdgeDist = %v, want 150", got.Number)
+	}
+}

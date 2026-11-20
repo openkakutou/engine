@@ -31,6 +31,11 @@ type Opponent struct {
 	HitDefAttr              int32
 	// GuardDist is the opponent's HitDef guard.dist x reach, front and back.
 	GuardDist [2]float64
+	// ScreenLeft, ScreenRight, WidthEdge and IkemenChar are what its edge
+	// distances read.
+	ScreenLeft, ScreenRight float64
+	WidthEdge               [2]float64
+	IkemenChar              bool
 	// Consts is the opponent's constants, for its size box and Const(...).
 	Consts *Constants
 }
@@ -51,6 +56,10 @@ func (o *Opponent) context() Context {
 		MoveContactTime: o.MoveContactTime,
 		HitDefAttr:      o.HitDefAttr,
 		Consts:          o.Consts,
+		ScreenLeft:      o.ScreenLeft,
+		ScreenRight:     o.ScreenRight,
+		WidthEdge:       o.WidthEdge,
+		IkemenChar:      o.IkemenChar,
 	}
 }
 
@@ -98,6 +107,7 @@ var redirectableIdentifiers = map[string]bool{
 	"hitshakeover": true, "hitover": true, "hitfall": true, "canrecover": true,
 	"movecontact": true, "movehit": true, "moveguarded": true, "movereversed": true,
 	"numproj": true, "id": true,
+	"backedgedist": true, "backedgebodydist": true, "frontedgedist": true, "frontedgebodydist": true,
 }
 
 // redirectable reports whether inner can be evaluated against an Opponent's
