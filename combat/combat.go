@@ -220,8 +220,10 @@ type HitDefParams struct {
 	// Ikemen GO's defaults (char.go:958-967), in the same codes as AnimType.
 	AirAnimType, FallAnimType int
 	// GroundVelocityY and AirVelocityY are the y of ground.velocity and
-	// air.velocity, in the content's units (Y down); the x is not used here.
+	// air.velocity, in the content's units (Y down); GroundVelocityX and
+	// AirVelocityX their x, toward the attacker's front.
 	GroundVelocityY, AirVelocityY float64
+	GroundVelocityX, AirVelocityX float64
 	// YAccel is the defender's gravity while it is knocked about (yaccel).
 	YAccel float64
 	// GroundFall and AirFall are fall and air.fall; air.fall follows fall when
@@ -229,9 +231,16 @@ type HitDefParams struct {
 	GroundFall, AirFall bool
 	// FallYVelocity, FallRecover and FallRecoverTime are fall.yvelocity,
 	// fall.recover and fall.recovertime.
-	FallYVelocity   float64
-	FallRecover     bool
-	FallRecoverTime int
+	FallYVelocity float64
+	// FallXVelocity is fall.xvelocity when HasFallXVelocity (absent, the fall
+	// keeps the x velocity: Ikemen GO's NaN); FallDamage and FallKill are
+	// fall.damage and fall.kill (defaults 0 and true, char.go:846-851).
+	FallXVelocity    float64
+	HasFallXVelocity bool
+	FallDamage       int
+	FallKill         bool
+	FallRecover      bool
+	FallRecoverTime  int
 	// HitID is the HitDef's id, the one NumTarget(id) filters on.
 	HitID int
 }
@@ -249,6 +258,8 @@ func ParseHitDef(params map[string]string) HitDefParams {
 		GroundType:      defaultGroundType,
 		YAccel:          parseFloatOr(params["yaccel"], defaultYAccel),
 		FallYVelocity:   parseFloatOr(params["fall.yvelocity"], defaultFallYVelocity),
+		FallDamage:      parseIntOr(params["fall.damage"], 0),
+		FallKill:        parseIntOr(params["fall.kill"], 1) != 0,
 		FallRecover:     parseIntOr(params["fall.recover"], 1) != 0,
 		FallRecoverTime: parseIntOr(params["fall.recovertime"], defaultFallRecoverTime),
 		HitID:           parseIntOr(params["id"], 0),
@@ -283,9 +294,23 @@ func ParseHitDef(params map[string]string) HitDefParams {
 	p.AirType = hitTypeCode(params["air.type"], p.GroundType)
 	p.GroundVelocityY = velocityY(params["ground.velocity"])
 	p.AirVelocityY = velocityY(params["air.velocity"])
+	if raw := strings.TrimSpace(params["fall.xvelocity"]); raw != "" {
+		if v, err := strconv.ParseFloat(raw, 64); err == nil {
+			p.FallXVelocity, p.HasFallXVelocity = v, true
+		}
+	}
+	p.GroundVelocityX = velocityX(params["ground.velocity"])
+	p.AirVelocityX = velocityX(params["air.velocity"])
 	p.GroundFall = parseIntOr(params["fall"], 0) != 0
 	p.AirFall = parseIntOr(params["air.fall"], boolInt(p.GroundFall)) != 0
 	return p
+}
+
+// velocityX is the x of an "x, y" velocity parameter, 0 when it is absent or
+// not a literal number.
+func velocityX(raw string) float64 {
+	x, _, _ := strings.Cut(raw, ",")
+	return parseFloatOr(x, 0)
 }
 
 // velocityY is the y of an "x, y" velocity parameter, 0 when it has no y or

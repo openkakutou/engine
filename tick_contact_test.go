@@ -178,7 +178,7 @@ func TestTick_LandedHit_RecordsTheFallAndVelocityGetHitVars(t *testing.T) {
 		want  evaluator.GetHit
 	}{
 		{"defaults of a standing hit", nil, evaluator.GetHit{
-			Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, GroundType: 1, AirType: 1,
+			FallKill: true, Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, GroundType: 1, AirType: 1,
 			Yaccel: 0.35, FallYvel: -4.5, FallRecover: true, FallRecoverTime: 4, CtrlTime: 11,
 		}},
 		{"a launching hit on a standing defender", func(a, d map[int]cns.StateDef) {
@@ -190,15 +190,16 @@ func TestTick_LandedHit_RecordsTheFallAndVelocityGetHitVars(t *testing.T) {
 			setHitDefParam(a, "fall.recovertime", "7")
 			setHitDefParam(a, "id", "4")
 		}, evaluator.GetHit{
-			Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, AnimType: 3, GroundType: 1, AirType: 1,
+			FallKill: true, Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, AnimType: 3, GroundType: 1, AirType: 1,
 			Yvel: -7, Yaccel: 0.5, Fall: true, FallYvel: -5.5, FallRecoverTime: 7, CtrlTime: 11, HitID: 4,
+			Xvel: 2.5, // -2.5 from an attacker facing right pushes right, away (char.go:11793)
 		}},
 		// char.go:11796-11799: a falling ground hit with no vertical velocity
 		// gets -0.001 "as some form of internal workaround".
 		{"a falling hit without a y velocity", func(a, d map[int]cns.StateDef) {
 			setHitDefParam(a, "fall", "1")
 		}, evaluator.GetHit{
-			Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, AnimType: 3, GroundType: 1, AirType: 1,
+			FallKill: true, Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, AnimType: 3, GroundType: 1, AirType: 1,
 			Yvel: -0.001, Yaccel: 0.35, Fall: true, FallYvel: -4.5, FallRecover: true, FallRecoverTime: 4, CtrlTime: 11,
 		}},
 		// char.go:8102-8113 (gethitAnimtype): a ground Back/Up/DiagUp hit that
@@ -208,7 +209,7 @@ func TestTick_LandedHit_RecordsTheFallAndVelocityGetHitVars(t *testing.T) {
 		{"a Back animtype without lift reads Hard", func(a, d map[int]cns.StateDef) {
 			setHitDefParam(a, "animtype", "Back")
 		}, evaluator.GetHit{
-			Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, AnimType: 2, GroundType: 1, AirType: 1,
+			FallKill: true, Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, AnimType: 2, GroundType: 1, AirType: 1,
 			Yaccel: 0.35, FallYvel: -4.5, FallRecover: true, FallRecoverTime: 4, CtrlTime: 11,
 		}},
 		{"a falling hit reads its fall.animtype", func(a, d map[int]cns.StateDef) {
@@ -216,13 +217,13 @@ func TestTick_LandedHit_RecordsTheFallAndVelocityGetHitVars(t *testing.T) {
 			setHitDefParam(a, "fall", "1")
 			setHitDefParam(a, "fall.animtype", "Up")
 		}, evaluator.GetHit{
-			Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, AnimType: 4, GroundType: 1, AirType: 1,
+			FallKill: true, Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, AnimType: 4, GroundType: 1, AirType: 1,
 			Yvel: -0.001, Yaccel: 0.35, Fall: true, FallYvel: -4.5, FallRecover: true, FallRecoverTime: 4, CtrlTime: 11,
 		}},
 		{"a falling hit defaults fall.animtype to Back", func(a, d map[int]cns.StateDef) {
 			setHitDefParam(a, "fall", "1")
 		}, evaluator.GetHit{
-			Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, AnimType: 3, GroundType: 1, AirType: 1,
+			FallKill: true, Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, AnimType: 3, GroundType: 1, AirType: 1,
 			Yvel: -0.001, Yaccel: 0.35, Fall: true, FallYvel: -4.5, FallRecover: true, FallRecoverTime: 4, CtrlTime: 11,
 		}},
 		// char.go:11763-11772: an airborne defender takes air.velocity, air.fall
@@ -235,8 +236,9 @@ func TestTick_LandedHit_RecordsTheFallAndVelocityGetHitVars(t *testing.T) {
 			setHitDefParam(a, "fall", "1")
 			setHitDefParam(a, "air.fall", "0")
 		}, evaluator.GetHit{
-			Active: true, HitShakeTime: 8, HitTime: 15, SlideTime: 5, GroundType: 1, AirType: 1,
+			FallKill: true, Active: true, HitShakeTime: 8, HitTime: 15, SlideTime: 5, GroundType: 1, AirType: 1,
 			Yvel: -9.25, Yaccel: 0.35, FallYvel: -4.5, FallRecover: true, FallRecoverTime: 4, CtrlTime: 15,
+			Xvel: 1, // air.velocity x -1, attacker facing right
 		}},
 	}
 	for _, tc := range cases {

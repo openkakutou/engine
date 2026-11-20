@@ -359,11 +359,19 @@ func RegisterController(controllerType string, handler ControllerHandler) {
 	controllerHandlers[strings.ToLower(controllerType)] = handler
 }
 
+// isStateChange reports whether a controller type (any case) changes the
+// state: ChangeState, or SelfState, which Ikemen GO runs within the
+// fighter's own states (bytecode.go selfState.Run) -- the engine has no
+// custom states, so it is ChangeState.
+func isStateChange(controllerType string) bool {
+	return strings.EqualFold(controllerType, ControllerTypeChangeState) || strings.EqualFold(controllerType, "SelfState")
+}
+
 // IsSupportedController reports whether controllerType (case-insensitive)
 // is ChangeState or a type registered through RegisterController.
 func IsSupportedController(controllerType string) bool {
 	t := strings.ToLower(controllerType)
-	if t == strings.ToLower(ControllerTypeChangeState) {
+	if isStateChange(t) {
 		return true
 	}
 	_, ok := controllerHandlers[t]
@@ -390,7 +398,7 @@ func IsSupportedController(controllerType string) bool {
 // type), which Step surfaces as Result.Unsupported. HitDef is the exception:
 // it has no handler here because the root package's Tick acts on it.
 func ApplyController(ctrl cns.Controller, ctx *evaluator.Context, exists func(int) bool) (bool, error) {
-	if strings.EqualFold(ctrl.Type, ControllerTypeChangeState) {
+	if isStateChange(ctrl.Type) {
 		return true, applyChangeState(ctrl, ctx, exists)
 	}
 	t := lowerType(ctrl.Type)

@@ -579,6 +579,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	ctx := runtime.Context
 	ctx.ScreenLeft, ctx.ScreenRight = screen[0], screen[1]
 	ctx.HitPauseTime = runtime.HitPause
+	ctx.PosFreeze = false // a PosFreeze controller holds for the tick it runs
 	ctx.FighterState = fighter
 	ctx.P2 = opponent
 	// A target that left its hit states is dropped before the fighter acts
@@ -691,6 +692,11 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	moved, err := physics.Step(newCtx.FighterState, bounds, gravityFor(&newCtx, newCtx.YAccel))
 	if err != nil {
 		return fighterTickOutput{}, fmt.Errorf("physics: %w", err)
+	}
+	if newCtx.PosFreeze {
+		// CSF_posfreeze keeps the position; the velocity still changes
+		// (char.go:10102-10105, then the physics types).
+		moved.Position = newCtx.Position
 	}
 	newCtx.FighterState = moved
 	applyFriction(&newCtx)
@@ -1201,7 +1207,7 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 		target = 5020
 		hitTime = params.AirHitTime
 	}
-	ctx.GetHit = getHitFor(params, ctx, hitTime)
+	ctx.GetHit = getHitFor(params, ctx, hitTime, runtimes[attacker].Context.Facing)
 	// Ikemen GO makes the defender's move type H before entering the get-hit
 	// state, whose StateDef may then set its own (char.go:13123-13129).
 	ctx.MoveType = 'H'
@@ -1227,7 +1233,7 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 // shortcut: a defender lying down (type L) takes the ground branch, where
 // Ikemen GO uses down.velocity and down.hittime (char.go:11773-11787); Tick does
 // not put a lying fighter into a get-hit state yet.
-func getHitFor(params combat.HitDefParams, defender *evaluator.Context, hitTime int) evaluator.GetHit {
+func getHitFor(params combat.HitDefParams, defender *evaluator.Context, hitTime int, attackerFacing match.Facing) evaluator.GetHit {
 	g := evaluator.GetHit{
 		Active:          true,
 		HitShakeTime:    params.PauseTime[1],
@@ -1241,13 +1247,24 @@ func getHitFor(params combat.HitDefParams, defender *evaluator.Context, hitTime 
 		FallRecoverTime: params.FallRecoverTime,
 		HitID:           params.HitID,
 		Fall:            defender.GetHit.Fall,
+		FallXvel:        params.FallXVelocity,
+		HasFallXvel:     params.HasFallXVelocity,
+		FallDamage:      params.FallDamage,
+		FallKill:        params.FallKill,
+	}
+	// ghv.xvel = velocity x * -attacker facing (char.go:11690-11793).
+	byf := 1.0
+	if attackerFacing == match.FacingLeft {
+		byf = -1
 	}
 	airborne := defender.StateType == 'A'
 	if airborne {
+		g.Xvel = -params.AirVelocityX * byf
 		g.Yvel = params.AirVelocityY
 		g.Fall = g.Fall || params.AirFall
 		g.CtrlTime = params.AirHitTime
 	} else {
+		g.Xvel = -params.GroundVelocityX * byf
 		g.Yvel = params.GroundVelocityY
 		g.Fall = g.Fall || params.GroundFall
 		g.CtrlTime = params.GroundHitTime

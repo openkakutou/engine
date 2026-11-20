@@ -562,3 +562,13 @@ func TestEnterState_PersistentCounters_AreZeroed(t *testing.T) {
 		t.Errorf("Persistent = %v, want all zero (Ikemen GO char.go:6896-6903)", ctx.Persistent)
 	}
 }
+
+// char.go:10102-10105: under PosFreeze the position stays, the velocity
+// still takes the controllers.
+func TestTick_PosFreezeKeepsThePositionThatTick(t *testing.T) {
+	prog := FighterProgram{States: stateWith(ctrl("VelSet", "x", "3"), ctrl("PosFreeze"))}
+	got := p1After(t, prog, match.FighterState{Position: match.Position{X: -10}, Health: 1000}, 0)
+	if got.Position.X != -10 || got.Velocity.X != 3 {
+		t.Errorf("Position.X, Velocity.X = %v, %v, want -10 kept, 3", got.Position.X, got.Velocity.X)
+	}
+}

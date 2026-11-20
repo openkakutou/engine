@@ -94,6 +94,10 @@ type Context struct {
 	// The map is shared by the copies of a Context, like the fighter it
 	// belongs to; nil until the first write.
 	Maps map[string]Value
+	// PosFreeze, set by the PosFreeze controller, keeps the fighter's
+	// position this tick (Ikemen GO CSF_posfreeze, char.go:10102-10105); the
+	// engine clears it at the start of each tick.
+	PosFreeze bool
 	// HitPauseTime is the attacker's remaining hit pause (Ikemen GO
 	// c.hitPauseTime), copied from the runtime each tick.
 	HitPauseTime int
@@ -250,10 +254,21 @@ type GetHit struct {
 	// fall_recovertime, fall_time, hitid, char.go:11680-11810). Yvel, Yaccel
 	// and FallYvel are in the content's units, Y down, as GetHitVar returns
 	// them. FallTime counts the ticks spent in a hit state with Fall set.
-	CtrlTime        int
-	Yvel, Yaccel    float64
-	Fall            bool
-	FallYvel        float64
+	CtrlTime     int
+	Yvel, Yaccel float64
+	// Xvel is the knock-back x velocity in world space (Ikemen GO ghv.xvel:
+	// the HitDef's x times minus the attacker's facing, char.go:11690-11793),
+	// which HitVelSet x gives the fighter.
+	Xvel     float64
+	Fall     bool
+	FallYvel float64
+	// FallXvel is fall.xvelocity relative to the fighter's facing, used by
+	// HitFallVel when HasFallXvel; FallDamage and FallKill are fall.damage
+	// and fall.kill, applied by HitFallDamage (char.go:9572-9604).
+	FallXvel        float64
+	HasFallXvel     bool
+	FallDamage      int
+	FallKill        bool
 	FallRecover     bool
 	FallRecoverTime int
 	FallTime        int

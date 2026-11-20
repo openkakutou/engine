@@ -290,7 +290,7 @@ func TestTick_LandedHit_RecordsTheKfmGetHitVars(t *testing.T) {
 	s := newHitScenario(t, nil)
 	s.step()
 	want := evaluator.GetHit{Active: true, HitShakeTime: 8, HitTime: 11, SlideTime: 5, AnimType: 0, GroundType: 1, AirType: 1,
-		Yaccel: 0.35, FallYvel: -4.5, FallRecover: true, FallRecoverTime: 4, CtrlTime: 11}
+		Yaccel: 0.35, FallYvel: -4.5, FallKill: true, FallRecover: true, FallRecoverTime: 4, CtrlTime: 11}
 	if got := s.ctx(match.SideP2).GetHit; got != want {
 		t.Errorf("defender GetHit = %+v, want %+v", got, want)
 	}
@@ -337,7 +337,7 @@ func TestTick_LandedHit_WithNoHitDefParameters_UsesTheDocumentedDefaults(t *test
 	s := newHitScenario(t, strip)
 	s.step()
 	want := evaluator.GetHit{Active: true, HitShakeTime: 0, HitTime: 0, SlideTime: 0, AnimType: 0, GroundType: 1, AirType: 1,
-		Yaccel: 0.35, FallYvel: -4.5, FallRecover: true, FallRecoverTime: 4}
+		Yaccel: 0.35, FallYvel: -4.5, FallKill: true, FallRecover: true, FallRecoverTime: 4}
 	if got := s.ctx(match.SideP2).GetHit; got != want {
 		t.Errorf("defender GetHit = %+v, want %+v", got, want)
 	}

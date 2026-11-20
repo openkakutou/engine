@@ -16,3 +16,5 @@ Accept PalFX, RemapPal, MakeDust, GameMakeAnim, ForceFeedback and a minimal Expl
 
 ## Notes
 Split out of item 035 (Product Owner, 2026-11-18): the reference files are the `common1.cns` and `common1.cns.zss` shipped with Ikemen GO (MIT, roadmap decision `037`); acceptance characters are Ikemen GO's `kfm` and `kfm_zss`.
+
+- 2026-11-21: also FallEnvShake (from item 049): the HitDef's fall.envshake.* reported as a screen-shake event when the controller runs.
