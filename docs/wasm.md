@@ -75,6 +75,11 @@ controller the fighter's states ran that tick, for the client to draw:
 `EnvShake`). Each parameter keeps its text in `raw`; `values` holds its
 comma-separated parts evaluated, or is absent when one does not evaluate (an
 `F`-prefixed animation such as `F5000`). Like `sounds`, it is a per-tick log.
+A landed or guarded hit adds a `HitSpark` event on the attacker's side:
+`anim` is the HitDef's `sparkno` (`guard.sparkno` when guarded) as written —
+no prefix is the common `fightfx`, `S` the character's own animations — and
+`x`, `y` the spark's world position (Y up). Its `hitsound` / `guardsound` is a
+sound event, `common` unless prefixed `S`.
 
 ### Example
 

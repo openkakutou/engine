@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.36.0] - 2026-11-21
+
+### Added
+- A landed or guarded hit reports its hit spark, a `HitSpark` event on the attacker (`sparkno` or `guard.sparkno`, else the character's `data.sparkno` / `data.guard.sparkno`, placed at the target's edge with `sparkxy` as Ikemen GO's hitspark), and plays its `hitsound` or `guardsound` (from the common sound file unless prefixed `S`).
+
 ## [2.35.0] - 2026-11-21
 
 ### Added

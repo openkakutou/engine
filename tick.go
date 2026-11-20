@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/openkakutou/character/air"
@@ -484,10 +485,11 @@ func Tick(
 
 	armHitDef(&runtimesOut[match.SideP1], p1Out)
 	armHitDef(&runtimesOut[match.SideP2], p2Out)
-	if err := landHit(&state, events, &programs, &runtimesOut, match.SideP1, cfg); err != nil {
+	var hitSounds [2][]evaluator.SoundEvent
+	if err := landHit(&state, events, &programs, &runtimesOut, match.SideP1, cfg, &hitSounds); err != nil {
 		return TickResult{}, err
 	}
-	if err := landHit(&state, events, &programs, &runtimesOut, match.SideP2, cfg); err != nil {
+	if err := landHit(&state, events, &programs, &runtimesOut, match.SideP2, cfg, &hitSounds); err != nil {
 		return TickResult{}, err
 	}
 
@@ -499,8 +501,8 @@ func Tick(
 	state.Fighters[match.SideP2].Power = runtimesOut[match.SideP2].Context.Power
 
 	var sounds [2][]evaluator.SoundEvent
-	sounds[match.SideP1] = p1Out.Sounds
-	sounds[match.SideP2] = p2Out.Sounds
+	sounds[match.SideP1] = append(p1Out.Sounds, hitSounds[match.SideP1]...)
+	sounds[match.SideP2] = append(p2Out.Sounds, hitSounds[match.SideP2]...)
 
 	var warnings [2][]string
 	warnings[match.SideP1] = p1Out.Warnings
@@ -655,7 +657,7 @@ func getUp(ctx *evaluator.Context, prog FighterProgram, runs *stateRuns) error {
 // landHit lands attacker's armed HitDef on a contact this tick: the defender
 // guards it when it can (guards), taking the guard damage and the guard
 // reaction, else it takes the hit.
-func landHit(state *match.MatchState, events []hitdetect.HitEvent, programs *[2]FighterProgram, runtimes *[2]FighterRuntime, attacker match.Side, cfg TickConfig) error {
+func landHit(state *match.MatchState, events []hitdetect.HitEvent, programs *[2]FighterProgram, runtimes *[2]FighterRuntime, attacker match.Side, cfg TickConfig, hitSounds *[2][]evaluator.SoundEvent) error {
 	rt := &runtimes[attacker]
 	if !hitDefReady(rt) {
 		return nil
@@ -675,10 +677,90 @@ func landHit(state *match.MatchState, events []hitdetect.HitEvent, programs *[2]
 	if !damage.Guarded {
 		rt.Combo = newCombo
 	}
+	if hit.Hit {
+		rt.Context.Events = append(rt.Context.Events, hitSpark(&rt.Context, defender, rt.HitDef.Parameters, damage.Guarded))
+		key := "hitsound"
+		if damage.Guarded {
+			key = "guardsound"
+		}
+		if snd, ok := hitSound(rt.HitDef.Parameters[key], &rt.Context); ok {
+			hitSounds[attacker] = append(hitSounds[attacker], snd)
+		}
+	}
 	if err := applyHitReaction(programs, runtimes, attacker, params, hit, damage.Guarded); err != nil {
 		return fmt.Errorf("engine: Tick: side %v: %w", attacker, err)
 	}
 	return nil
+}
+
+// hitSound is a HitDef's hitsound or guardsound, char.go:12100-12130: none
+// by default; "S" reads the character's own sounds, no prefix or "F" the
+// common sound file; played on the character's hit sound channel (-1).
+// shortcut: hitsound.channel and the data.hitsound.channel constant are not
+// read.
+func hitSound(raw string, ctx *evaluator.Context) (evaluator.SoundEvent, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return evaluator.SoundEvent{}, false
+	}
+	common := true
+	switch raw[0] {
+	case 'S', 's':
+		common, raw = false, raw[1:]
+	case 'F', 'f':
+		raw = raw[1:]
+	}
+	groupRaw, sampleRaw, _ := strings.Cut(raw, ",")
+	group, err := evaluator.EvaluateMut(strings.TrimSpace(groupRaw), ctx)
+	if err != nil || group.Int() < 0 {
+		return evaluator.SoundEvent{}, false
+	}
+	sample := 0
+	if strings.TrimSpace(sampleRaw) != "" {
+		v, err := evaluator.EvaluateMut(strings.TrimSpace(sampleRaw), ctx)
+		if err != nil || v.Int() < 0 {
+			return evaluator.SoundEvent{}, false
+		}
+		sample = v.Int()
+	}
+	return evaluator.SoundEvent{Group: group.Int(), Sample: sample, Common: common, Channel: -1}, true
+}
+
+// hitSpark is the spark a landed (or guarded) hit shows, Ikemen GO hitspark
+// (char.go:11313-11411), reported as a HitSpark event: anim is sparkno (or
+// guard.sparkno) as written, else the attacker's data.sparkno (data.guard.
+// sparkno); x is the target's edge facing the attacker less sparkxy's x
+// toward the target, y the attacker's height plus sparkxy's y, in world space
+// (Y up).
+func hitSpark(attacker, defender *evaluator.Context, params map[string]string, guarded bool) evaluator.ControllerEvent {
+	anim := strings.TrimSpace(params["sparkno"])
+	if anim == "" {
+		anim = strconv.Itoa(attacker.Consts.Lookup("data.sparkno").Int())
+	}
+	if guarded {
+		anim = strings.TrimSpace(params["guard.sparkno"])
+		if anim == "" {
+			anim = strconv.Itoa(attacker.Consts.Lookup("data.guard.sparkno").Int())
+		}
+	}
+	var offset [2]float64
+	for i, part := range strings.SplitN(params["sparkxy"], ",", 2) {
+		if v, err := evaluator.EvaluateMut(strings.TrimSpace(part), attacker); err == nil {
+			offset[i] = v.Float()
+		}
+	}
+	edge := defender.Consts.Lookup("size.ground.back").Number
+	if attacker.Facing != defender.Facing {
+		edge = defender.Consts.Lookup("size.ground.front").Number
+	}
+	defFacing, attFacing := facingSign(defender.Facing), facingSign(attacker.Facing)
+	x := defender.Position.X + edge*defFacing - offset[0]*attFacing
+	y := attacker.Position.Y - offset[1]
+	return evaluator.ControllerEvent{Type: "HitSpark", Params: []evaluator.EventParam{
+		{Name: "anim", Raw: anim},
+		{Name: "x", Values: []float64{x}},
+		{Name: "y", Values: []float64{y}},
+	}}
 }
 
 // armHitDef keeps the fighter's active HitDef: a HitDef its states ran this
