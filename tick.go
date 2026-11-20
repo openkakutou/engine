@@ -484,25 +484,11 @@ func Tick(
 
 	armHitDef(&runtimesOut[match.SideP1], p1Out)
 	armHitDef(&runtimesOut[match.SideP2], p2Out)
-	if hitDefReady(&runtimesOut[match.SideP1]) {
-		damage := combat.DamageParams{Damage: runtimesOut[match.SideP1].HitDef.Parameters["damage"], Multiplier: damageMultiplier(&runtimesOut[match.SideP1].Context, &runtimesOut[match.SideP2].Context)}
-		newState, newCombo, hit := combat.ApplyHits(state, events, match.SideP1, damage, runtimesOut[match.SideP1].Combo, cfg.Tick, cfg.ComboWindow)
-		state = newState
-		runtimesOut[match.SideP1].Combo = newCombo
-		runtimesOut[match.SideP1].HitDefHit = hit.Hit
-		if err := applyHitReaction(&programs, &runtimesOut, match.SideP1, runtimesOut[match.SideP1].HitDef.Parameters, hit); err != nil {
-			return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
-		}
+	if err := landHit(&state, events, &programs, &runtimesOut, match.SideP1, cfg); err != nil {
+		return TickResult{}, err
 	}
-	if hitDefReady(&runtimesOut[match.SideP2]) {
-		damage := combat.DamageParams{Damage: runtimesOut[match.SideP2].HitDef.Parameters["damage"], Multiplier: damageMultiplier(&runtimesOut[match.SideP2].Context, &runtimesOut[match.SideP1].Context)}
-		newState, newCombo, hit := combat.ApplyHits(state, events, match.SideP2, damage, runtimesOut[match.SideP2].Combo, cfg.Tick, cfg.ComboWindow)
-		state = newState
-		runtimesOut[match.SideP2].Combo = newCombo
-		runtimesOut[match.SideP2].HitDefHit = hit.Hit
-		if err := applyHitReaction(&programs, &runtimesOut, match.SideP2, runtimesOut[match.SideP2].HitDef.Parameters, hit); err != nil {
-			return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
-		}
+	if err := landHit(&state, events, &programs, &runtimesOut, match.SideP2, cfg); err != nil {
+		return TickResult{}, err
 	}
 
 	// A get-hit state entered by applyHitReaction and a PowerAdd live on the
@@ -581,6 +567,70 @@ var specialStates = [...]int{-3, -2, -1}
 // of this tick (position/facing/health, sourced from match.MatchState, the
 // single source of truth Tick reconciles runtime.Context against every
 // call).
+// inGuardState is Ikemen GO's inGuardState (char.go:9958-9961): the guard
+// start, guarding, guard end and guard hit states.
+func inGuardState(no int) bool {
+	return no == 120 || no >= 130 && no <= 132 || no == 140 || no >= 150 && no <= 155
+}
+
+// canGuardNow is Ikemen GO's SCF_guard (char.go:12531-12537), set after the
+// states run: idle with control (or landing, 52), or already guarding,
+// holding back (or under autoguard), in a stance whose guard the states have
+// not turned off.
+func canGuardNow(ctx *evaluator.Context, d input.Directions) bool {
+	idle := (ctx.Ctrl || ctx.StateNo == 52) && ctx.MoveType == 'I'
+	if !idle && !inGuardState(ctx.StateNo) {
+		return false
+	}
+	if !d.Back && !ctx.Asserted.Has("autoguard") {
+		return false
+	}
+	switch ctx.StateType {
+	case 'S':
+		return !ctx.Asserted.Has("nostandguard")
+	case 'C':
+		return !ctx.Asserted.Has("nocrouchguard")
+	case 'A':
+		return !ctx.Asserted.Has("noairguard")
+	}
+	return false
+}
+
+// guards reports whether the defender guards an attack of params, Ikemen GO
+// hitResultCheck (char.go:11466-11503): it can guard, is not already being
+// hit by an unguarded hit, the attacker is not unguardable, the guardflag
+// covers its stance, and it survives the guard damage.
+func guards(attacker, defender *evaluator.Context, params combat.HitDefParams, guardDamage int) bool {
+	if !defender.Guarding || attacker.Asserted.Has("unguardable") {
+		return false
+	}
+	if defender.MoveType == 'H' && !defender.GetHit.Guarded {
+		return false
+	}
+	covered := false
+	switch defender.StateType {
+	case 'S':
+		covered = params.GuardFlag&combat.GuardHigh != 0
+	case 'C':
+		covered = params.GuardFlag&combat.GuardLow != 0
+	case 'A':
+		covered = params.GuardFlag&combat.GuardAir != 0
+	}
+	if !covered {
+		return false
+	}
+	return defender.Health > guardChip(guardDamage, defender.Health, params) || defender.Asserted.Has("noko") || defender.Asserted.Has("noguardko")
+}
+
+// guardChip is the guard damage a defender of life takes: with guard.kill 0
+// it stops at life - 1 (computeDamage's kill flag, char.go:8907-8915).
+func guardChip(guardDamage, life int, params combat.HitDefParams) int {
+	if !params.GuardKill && guardDamage >= life {
+		return max(life-1, 0)
+	}
+	return guardDamage
+}
+
 // getUp is the engine's own end of a lie-down, Ikemen GO actionRun (char.go:
 // 12573-12577, 12702-12704): a fighter lying in state 5110 for at least a
 // tick whose down recover time ran out, alive and without
@@ -598,6 +648,35 @@ func getUp(ctx *evaluator.Context, prog FighterProgram, runs *stateRuns) error {
 	}
 	if ctx.GetHit.DownRecoverTime > 0 {
 		ctx.GetHit.DownRecoverTime--
+	}
+	return nil
+}
+
+// landHit lands attacker's armed HitDef on a contact this tick: the defender
+// guards it when it can (guards), taking the guard damage and the guard
+// reaction, else it takes the hit.
+func landHit(state *match.MatchState, events []hitdetect.HitEvent, programs *[2]FighterProgram, runtimes *[2]FighterRuntime, attacker match.Side, cfg TickConfig) error {
+	rt := &runtimes[attacker]
+	if !hitDefReady(rt) {
+		return nil
+	}
+	defender := &runtimes[1-attacker].Context
+	params := combat.ParseHitDef(rt.HitDef.Parameters)
+	damage := combat.DamageParams{Damage: rt.HitDef.Parameters["damage"], Multiplier: damageMultiplier(&rt.Context, defender)}
+	_, guardDamage := combat.Damages(damage)
+	damage.Guarded = guards(&rt.Context, defender, params, guardDamage)
+	lifeBefore := state.Fighters[1-attacker].Health
+	newState, newCombo, hit := combat.ApplyHits(*state, events, attacker, damage, rt.Combo, cfg.Tick, cfg.ComboWindow)
+	if damage.Guarded && hit.Hit {
+		newState.Fighters[1-attacker].Health = lifeBefore - guardChip(guardDamage, lifeBefore, params)
+	}
+	*state = newState
+	rt.HitDefHit = hit.Hit
+	if !damage.Guarded {
+		rt.Combo = newCombo
+	}
+	if err := applyHitReaction(programs, runtimes, attacker, params, hit, damage.Guarded); err != nil {
+		return fmt.Errorf("engine: Tick: side %v: %w", attacker, err)
 	}
 	return nil
 }
@@ -800,6 +879,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		}
 		sounds, warnings, unsupported, skippedCalls = runs.sounds, runs.warnings, runs.unsupported, runs.skippedCalls
 	}
+	newCtx.Guarding = canGuardNow(&newCtx, in.Directions(fighter.Facing))
 	if frozen {
 		frozenRuntime := FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: unsupported, SkippedCalls: skippedCalls, HitDef: runtime.HitDef, HitDefHit: runtime.HitDefHit}
 		if frozenRuntime.HitPause > 0 {
@@ -1041,6 +1121,12 @@ func hasAnimation(prog FighterProgram, number int) bool {
 // the round-over input lock (char.go:12309) are not done.
 func basicActions(ctx *evaluator.Context, prog FighterProgram, d input.Directions, asserted evaluator.AssertFlags) {
 	if asserted.Has("nohardcodedkeys") {
+		return
+	}
+	// The guard entry comes first (char.go:12306): the fighter could guard
+	// last tick, an attack is in reach and back is held.
+	if ctx.Ctrl && ctx.Guarding && d.Back && !inGuardState(ctx.StateNo) && evaluator.InGuardDist(ctx) {
+		basicChangeState(ctx, prog, 120)
 		return
 	}
 	if ctx.Ctrl {
@@ -1370,19 +1456,23 @@ func stepFall(ctx *evaluator.Context) {
 // keeps its current state (the freeze and variables still apply), no
 // error. It returns the error of a get-hit header expression the defender's
 // state entry could not evaluate. See .vibe/decisions/018.
-func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, attacker match.Side, hitDefParams map[string]string, hit combat.HitResult) error {
+func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, attacker match.Side, params combat.HitDefParams, hit combat.HitResult, guarded bool) error {
 	if !hit.Hit {
 		return nil
 	}
-	params := combat.ParseHitDef(hitDefParams)
-	runtimes[attacker].HitPause = params.PauseTime[0]
 	// The contact counter starts at 1 on the tick of the hit (Ikemen GO
 	// char.go:14270-14271, 13125-13126), and the defender becomes a target.
 	runtimes[attacker].Context.MoveContactTime = 1
+	runtimes[attacker].Context.ContactGuarded = guarded
 	runtimes[attacker].Context.HasTarget = true
 
 	ctx := &runtimes[hit.Defender].Context
 	defender := programs[hit.Defender]
+	if guarded {
+		runtimes[attacker].HitPause = params.GuardPauseTime[0]
+		return guardReaction(ctx, defender, params, runtimes[attacker].Context.Facing)
+	}
+	runtimes[attacker].HitPause = params.PauseTime[0]
 
 	hitTime := params.GroundHitTime
 	target := 0
@@ -1410,6 +1500,61 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 		}
 	}
 	return nil
+}
+
+// guardReaction is a guarded hit's effect on the defender, Ikemen GO
+// char.go:11710-11729 and 13163-13173: the guard pause, hit, slide and
+// control times (chained by character version, char.go:935-946), the guard
+// velocity, no fall, and the guard hit state for its stance (150 standing,
+// 152 crouching, 154 in the air) entered without control.
+func guardReaction(ctx *evaluator.Context, defender FighterProgram, params combat.HitDefParams, attackerFacing match.Facing) error {
+	hitTime := params.GuardHitTime
+	if hitTime < 0 {
+		hitTime = params.GroundSlideTime // MUGEN characters (char.go:937-938)
+		if ctx.IkemenChar {
+			hitTime = params.GroundHitTime
+		}
+	}
+	slideTime := params.GuardSlideTime
+	if slideTime < 0 {
+		slideTime = hitTime
+	}
+	ctrlTime := params.GuardCtrlTime
+	if ctrlTime < 0 {
+		ctrlTime = slideTime
+	}
+	byf := 1.0
+	if attackerFacing == match.FacingLeft {
+		byf = -1
+	}
+	g := evaluator.GetHit{
+		Active: true, Guarded: true,
+		HitShakeTime: params.GuardPauseTime[1], HitTime: hitTime, SlideTime: slideTime, CtrlTime: ctrlTime,
+		GroundType: params.GroundType, AirType: params.AirType, Yaccel: params.YAccel,
+		DownRecoverTime: ctx.GetHit.DownRecoverTime,
+		Xvel:            -params.GuardVelocityX * byf,
+	}
+	target := 150
+	switch ctx.StateType {
+	case 'C':
+		target = 152
+	case 'A':
+		target = 154
+		g.Xvel, g.Yvel = -params.AirGuardVelocityX*byf, params.AirGuardVelocityY
+		if params.AirGuardCtrlTime >= 0 {
+			g.CtrlTime = params.AirGuardCtrlTime
+		}
+	}
+	ctx.GetHit = g
+	def, ok := defender.stateHeader(target)
+	if !ok {
+		return nil
+	}
+	ctx.PrevStateNo = ctx.StateNo
+	ctx.StateNo = target
+	ctx.Ctrl = false
+	_, err := enterState(ctx, def)
+	return err
 }
 
 // getHitFor is the defender's get-hit variables for a landed hit, as Ikemen GO

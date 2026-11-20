@@ -46,6 +46,8 @@ type DamageParams struct {
 	// value, so the zero value here is a valid "no damage declared" input,
 	// not a special case callers need to guard against.
 	Damage string
+	// Guarded makes the hit take the guard damage (damage's second value).
+	Guarded bool
 	// Multiplier is the attacker's attack over the defender's final defence
 	// (Ikemen GO atkmul / finalDefense, char.go:8897); 0 reads as 1.
 	Multiplier float64
@@ -110,8 +112,10 @@ func ApplyHits(
 		return state, combo, HitResult{}
 	}
 
-	damage, guardDamage := parseDamage(hitDef)
-	damage = scaledDamage(damage, hitDef.Multiplier)
+	damage, guardDamage := Damages(hitDef)
+	if hitDef.Guarded {
+		damage = guardDamage
+	}
 
 	defenderState := state.Fighter(defender)
 	healthBefore := defenderState.Health
@@ -154,6 +158,13 @@ func findLandedHit(events []hitdetect.HitEvent, attacker match.Side) (match.Side
 		}
 	}
 	return 0, false
+}
+
+// Damages is the hit and guard damage of hitDef, each scaled by its
+// Multiplier (computeDamage, char.go:8889-8917).
+func Damages(hitDef DamageParams) (hit, guard int) {
+	hit, guard = parseDamage(hitDef)
+	return scaledDamage(hit, hitDef.Multiplier), scaledDamage(guard, hitDef.Multiplier)
 }
 
 // scaledDamage is computeDamage's scaling (char.go:8889-8917): damage times
@@ -267,6 +278,22 @@ type HitDefParams struct {
 	// DownRecoverTime is down.recovertime, -1 when absent (the defender\'s
 	// data.liedown.time then applies).
 	DownRecoverTime int
+	// GuardFlag is guardflag: how the HitDef can be guarded (GuardHigh
+	// standing, GuardLow crouching, GuardAir in the air; M is high and low).
+	GuardFlag int32
+	// GuardPauseTime is guard.pausetime (pausetime by default);
+	// GuardHitTime, GuardSlideTime and GuardCtrlTime are guard.hittime,
+	// guard.slidetime and guard.ctrltime, -1 when absent (the engine chains
+	// their defaults, char.go:935-946); AirGuardCtrlTime likewise.
+	GuardPauseTime                              [2]int
+	GuardHitTime, GuardSlideTime, GuardCtrlTime int
+	AirGuardCtrlTime                            int
+	// GuardVelocityX is guard.velocity (ground.velocity x by default);
+	// AirGuardVelocityX/Y airguard.velocity (air.velocity times 1.5 and 0.5).
+	GuardVelocityX                       float64
+	AirGuardVelocityX, AirGuardVelocityY float64
+	// GuardKill is guard.kill (true by default).
+	GuardKill bool
 	// HitID is the HitDef's id, the one NumTarget(id) filters on.
 	HitID int
 }
@@ -333,8 +360,57 @@ func ParseHitDef(params map[string]string) HitDefParams {
 	p.GroundVelocityX = velocityX(params["ground.velocity"])
 	p.AirVelocityX = velocityX(params["air.velocity"])
 	p.GroundFall = parseIntOr(params["fall"], 0) != 0
+	p.GuardFlag = guardFlag(params["guardflag"])
+	p.GuardPauseTime = p.PauseTime
+	if raw, ok := params["guard.pausetime"]; ok {
+		first, second, _ := strings.Cut(raw, ",")
+		p.GuardPauseTime = [2]int{max(parseIntOr(first, 0), 0), max(parseIntOr(second, 0), 0)}
+	}
+	p.GuardHitTime = parseIntOr(params["guard.hittime"], -1)
+	p.GuardSlideTime = parseIntOr(params["guard.slidetime"], -1)
+	p.GuardCtrlTime = parseIntOr(params["guard.ctrltime"], -1)
+	p.AirGuardCtrlTime = parseIntOr(params["airguard.ctrltime"], -1)
+	p.GuardVelocityX = parseFloatOr(velocityXRaw(params["guard.velocity"]), p.GroundVelocityX)
+	p.AirGuardVelocityX = p.AirVelocityX * 1.5
+	p.AirGuardVelocityY = p.AirVelocityY * 0.5
+	if raw, ok := params["airguard.velocity"]; ok {
+		p.AirGuardVelocityX = velocityX(raw)
+		p.AirGuardVelocityY = velocityY(raw)
+	}
+	p.GuardKill = parseIntOr(params["guard.kill"], 1) != 0
 	p.AirFall = parseIntOr(params["air.fall"], boolInt(p.GroundFall)) != 0
 	return p
+}
+
+// The guardflag bits (Ikemen GO HF_H, HF_L, HF_A).
+const (
+	GuardHigh int32 = 1 << iota
+	GuardLow
+	GuardAir
+)
+
+// guardFlag is hitFlagMask (bytecode.go:142-167) for the guard letters.
+func guardFlag(raw string) int32 {
+	var f int32
+	for _, c := range raw {
+		switch c {
+		case 'H', 'h':
+			f |= GuardHigh
+		case 'L', 'l':
+			f |= GuardLow
+		case 'M', 'm':
+			f |= GuardHigh | GuardLow
+		case 'A', 'a':
+			f |= GuardAir
+		}
+	}
+	return f
+}
+
+// velocityXRaw is the x part of a velocity parameter as written.
+func velocityXRaw(raw string) string {
+	x, _, _ := strings.Cut(raw, ",")
+	return x
 }
 
 // velocityX is the x of an "x, y" velocity parameter, 0 when it is absent or

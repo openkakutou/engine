@@ -117,6 +117,12 @@ type Context struct {
 	// fighter against the screen edges this tick (Ikemen GO widthEdge, reset
 	// each tick, char.go:12401-12406).
 	WidthEdge [2]float64
+	// Guarding is Ikemen GO's SCF_guard: the fighter can guard this tick
+	// (char.go:12531-12537), computed by the engine after its states run.
+	Guarding bool
+	// ContactGuarded is true when the attacker's last contact was guarded,
+	// for MoveHit and MoveGuarded (Ikemen GO mctype MC_Guarded).
+	ContactGuarded bool
 	// Asserted are the AssertSpecial flags the fighter's states asserted
 	// this tick; the engine clears them each tick after the built-in
 	// actions read them (Ikemen GO char.go:12300-12345, 12430-12434).
@@ -302,6 +308,8 @@ type GetHit struct {
 	FallKill        bool
 	FallRecover     bool
 	FallRecoverTime int
+	// Guarded is true when the hit was guarded (Ikemen GO ghv.guarded).
+	Guarded bool
 	// DownRecoverTime is the ticks left lying down before the engine gets
 	// the fighter up (Ikemen GO ghv.down_recovertime).
 	DownRecoverTime int

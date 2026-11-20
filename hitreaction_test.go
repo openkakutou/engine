@@ -431,17 +431,17 @@ func ticksAllocs(s *hitScenario) float64 {
 
 func TestApplyHitReaction_AllocatesNothingOnALandedHit(t *testing.T) {
 	s := newHitScenario(t, nil)
-	params := s.programs[match.SideP1].States[200].Controllers[len(s.programs[match.SideP1].States[200].Controllers)-1].Parameters
+	params := combat.ParseHitDef(s.programs[match.SideP1].States[200].Controllers[len(s.programs[match.SideP1].States[200].Controllers)-1].Parameters)
 	hit := combatHit(match.SideP2)
 	allocs := testing.AllocsPerRun(100, func() {
 		rts := s.runtimes
-		applyHitReaction(&s.programs, &rts, match.SideP1, params, hit)
+		applyHitReaction(&s.programs, &rts, match.SideP1, params, hit, false)
 	})
 	if allocs != 0 {
 		t.Errorf("applyHitReaction allocated %v times on a landed hit, want 0", allocs)
 	}
 	rts := s.runtimes
-	applyHitReaction(&s.programs, &rts, match.SideP1, params, hit)
+	applyHitReaction(&s.programs, &rts, match.SideP1, params, hit, false)
 	if rts[match.SideP2].Context.StateNo != 5000 {
 		t.Fatalf("test setup: the measured call did not enter the get-hit state (StateNo %d)", rts[match.SideP2].Context.StateNo)
 	}

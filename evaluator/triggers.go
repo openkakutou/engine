@@ -110,10 +110,19 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		// char.go:5967-5973: |mctime| unless the last contact was a reversal.
 		return intValue(float64(ctx.MoveContactTime)), true, nil
 	case "movehit":
+		// char.go:5975-5980: the contact time of a contact that hit.
+		if ctx.ContactGuarded {
+			return intValue(0), true, nil
+		}
 		return intValue(float64(ctx.MoveContactTime)), true, nil
-	case "moveguarded", "movereversed":
-		// char.go:5981-5999. shortcut: the engine has no guarding or ReversalDef
-		// yet, so no contact is ever of these types.
+	case "moveguarded":
+		// char.go:5981-5986: the contact time of a guarded contact.
+		if !ctx.ContactGuarded {
+			return intValue(0), true, nil
+		}
+		return intValue(float64(ctx.MoveContactTime)), true, nil
+	case "movereversed":
+		// char.go:5993-5999. shortcut: no ReversalDef yet.
 		return intValue(0), true, nil
 	case "hitfall":
 		return boolValue(ctx.GetHit.Fall), true, nil
@@ -394,6 +403,9 @@ func edgeDist(ctx *Context, front bool) float64 {
 	}
 	return ctx.Position.X - ctx.ScreenLeft
 }
+
+// InGuardDist is the InGuardDist trigger, for the engine's own guard entry.
+func InGuardDist(ctx *Context) bool { return inGuardDist(ctx) }
 
 // inGuardDist is Ikemen GO's guard distance check (char.go:14159-14183) seen
 // from the defender: the opponent attacks with an active HitDef whose

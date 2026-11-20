@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.35.0] - 2026-11-21
+
+### Added
+- Guarding, as Ikemen GO: a fighter holding back can guard (standing, crouching or in the air, unless its states turn that stance's guard off), the engine moves it into the guard start state 120 when an attack is in guard distance, and an attack whose `guardflag` covers its stance is guarded — guard damage (chip) instead of the hit damage, `guard.pausetime`, `guard.hittime`, `guard.slidetime`, `guard.ctrltime`, `guard.velocity` / `airguard.velocity`, the guard hit state 150, 152 or 154, and `MoveGuarded` for the attacker. A guard that would not survive the chip fails, unless `guard.kill = 0` keeps the defender at 1 life.
+
 ## [2.34.0] - 2026-11-21
 
 ### Added

@@ -50,3 +50,25 @@ func TestParseHitDef_FallEnvShake(t *testing.T) {
 		t.Errorf("defaults = %d %v, want 0 60", d.FallEnvShakeTime, d.FallEnvShakeFreq)
 	}
 }
+
+// bytecode.go:142-167 hitFlagMask and char.go:779-789, 933-952: guardflag
+// letters H, L, M (H and L), A; guard.pausetime follows pausetime;
+// guard.velocity follows ground.velocity x; airguard.velocity is
+// air.velocity x 1.5 and y 0.5; guard.hittime, slidetime and ctrltime are
+// left unset (-1) for the engine to chain by character version.
+func TestParseHitDef_GuardParameters(t *testing.T) {
+	p := ParseHitDef(map[string]string{"guardflag": "MA", "pausetime": "12, 11", "ground.velocity": "-4, 0", "air.velocity": "-2, -4"})
+	if p.GuardFlag != GuardHigh|GuardLow|GuardAir {
+		t.Errorf("guardflag MA = %b", p.GuardFlag)
+	}
+	if p.GuardPauseTime != [2]int{12, 11} || p.GuardVelocityX != -4 || p.AirGuardVelocityX != -3 || p.AirGuardVelocityY != -2 {
+		t.Errorf("guard = %v %v %v %v", p.GuardPauseTime, p.GuardVelocityX, p.AirGuardVelocityX, p.AirGuardVelocityY)
+	}
+	if p.GuardHitTime != -1 || p.GuardSlideTime != -1 || p.GuardCtrlTime != -1 || !p.GuardKill {
+		t.Errorf("unset guard times = %d %d %d, kill %v", p.GuardHitTime, p.GuardSlideTime, p.GuardCtrlTime, p.GuardKill)
+	}
+	q := ParseHitDef(map[string]string{"guardflag": "l", "guard.pausetime": "3, 4", "guard.hittime": "9", "guard.velocity": "-7", "guard.kill": "0"})
+	if q.GuardFlag != GuardLow || q.GuardPauseTime != [2]int{3, 4} || q.GuardHitTime != 9 || q.GuardVelocityX != -7 || q.GuardKill {
+		t.Errorf("explicit guard = %+v", q)
+	}
+}
