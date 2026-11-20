@@ -512,6 +512,40 @@ func evalIndexedFloatVar(n callNode, ctx *Context, fnName string, slot []float32
 
 var errAssignNeedsMut = errors.New("evaluator: an expression with := needs EvalMut/EvaluateMut: Eval works on a copy and would drop the write")
 
+// VarValue reads var, sysvar, fvar or sysfvar idx, an error naming it when
+// idx is out of range.
+func (c *Context) VarValue(target string, idx int) (Value, error) {
+	switch target {
+	case "var":
+		if err := checkSlot(target, idx, len(c.Vars)); err != nil {
+			return Value{}, err
+		}
+		return intValue(float64(c.Vars[idx])), nil
+	case "sysvar":
+		if err := checkSlot(target, idx, len(c.SysVars)); err != nil {
+			return Value{}, err
+		}
+		return intValue(float64(c.SysVars[idx])), nil
+	case "fvar":
+		if err := checkSlot(target, idx, len(c.FVars)); err != nil {
+			return Value{}, err
+		}
+		return floatValue(float64(c.FVars[idx])), nil
+	case "sysfvar":
+		if err := checkSlot(target, idx, len(c.SysFVars)); err != nil {
+			return Value{}, err
+		}
+		return floatValue(float64(c.SysFVars[idx])), nil
+	}
+	return Value{}, fmt.Errorf("evaluator: unknown variable kind %q", target)
+}
+
+// IntValue is an int Value, FloatValue a float one.
+func IntValue(n int) Value { return intValue(float64(n)) }
+
+// FloatValue is a float Value.
+func FloatValue(f float64) Value { return floatValue(f) }
+
 // AssignVar stores v in var(idx), sysvar(idx), fvar(idx) or sysfvar(idx) (target
 // names the function, lower-case) and returns the stored value, as Ikemen
 // GO's varSet family does (char.go:8325-8404): an int variable keeps v

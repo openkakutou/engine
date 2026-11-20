@@ -304,6 +304,8 @@ var controllerHandlers = map[string]ControllerHandler{}
 
 func init() {
 	RegisterController(ControllerTypeVarSet, applyVarSet)
+	RegisterController("VarAdd", applyVarAdd)
+	RegisterController("VarRangeSet", applyVarRangeSet)
 	RegisterController(ControllerTypePowerAdd, applyPowerAdd)
 	RegisterController(ControllerTypePlaySnd, applyPlaySnd)
 	RegisterController("MapSet", func(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
@@ -506,6 +508,17 @@ func parseVarSetKey(key string) (prefix, index string, ok bool) {
 // a negative one, char.go:8295-8365). It runs on the per-tick hot path, so
 // it tracks the first match and a count instead of building a slice.
 func applyVarSet(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+	return applyVarAssign(ctrl, ctx, "VarSet", false)
+}
+
+// applyVarAdd is VarAdd: VarSet's forms, the value added to the variable
+// (compiler_functions.go:2889-2898, varSetSub with add). An int variable
+// adds the value truncated to an int first, as Ikemen GO compiles it.
+func applyVarAdd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+	return applyVarAssign(ctrl, ctx, "VarAdd", true)
+}
+
+func applyVarAssign(ctrl cns.Controller, ctx evaluator.Context, name string, add bool) (evaluator.Context, error) {
 	var form varSetForm
 	count := 0
 	for key, raw := range ctrl.Parameters {
@@ -525,32 +538,95 @@ func applyVarSet(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 		}
 	}
 	if count > 1 {
-		return evaluator.Context{}, fmt.Errorf("VarSet can only set one variable at a time")
+		return evaluator.Context{}, fmt.Errorf("%s can only set one variable at a time", name)
 	}
 	if count == 0 {
-		return evaluator.Context{}, fmt.Errorf("VarSet needs a variable: var(N), sysvar(N), fvar(N), sysfvar(N), or v/sysv/fv/sysfv and value")
+		return evaluator.Context{}, fmt.Errorf("%s needs a variable: var(N), sysvar(N), fvar(N), sysfvar(N), or v/sysv/fv/sysfv and value", name)
 	}
 	if oldForm {
 		raw, ok := ctrl.Parameters["value"]
 		if !ok {
-			return evaluator.Context{}, fmt.Errorf(`VarSet is missing its required "value" parameter`)
+			return evaluator.Context{}, fmt.Errorf(`%s is missing its required "value" parameter`, name)
 		}
 		form.valueRaw = raw
 	}
 
 	if strings.TrimSpace(form.indexRaw) == "" {
-		return evaluator.Context{}, fmt.Errorf("VarSet: Missing variable index")
+		return evaluator.Context{}, fmt.Errorf("%s: Missing variable index", name)
 	}
 	idxVal, err := evaluator.EvaluateMut(form.indexRaw, &ctx)
 	if err != nil {
-		return evaluator.Context{}, fmt.Errorf("VarSet %s index %q: %w", form.prefix, form.indexRaw, err)
+		return evaluator.Context{}, fmt.Errorf("%s %s index %q: %w", name, form.prefix, form.indexRaw, err)
 	}
 	val, err := evaluator.EvaluateMut(form.valueRaw, &ctx)
 	if err != nil {
-		return evaluator.Context{}, fmt.Errorf("VarSet %s value %q: %w", form.prefix, form.valueRaw, err)
+		return evaluator.Context{}, fmt.Errorf("%s %s value %q: %w", name, form.prefix, form.valueRaw, err)
+	}
+	if add {
+		cur, err := ctx.VarValue(form.prefix, idxVal.Int())
+		if err != nil {
+			return evaluator.Context{}, fmt.Errorf("%s: %w", name, err)
+		}
+		if cur.Kind == evaluator.KindInt {
+			val = evaluator.IntValue(val.Int())
+		}
+		if val, err = evaluator.Add(cur, val); err != nil {
+			return evaluator.Context{}, fmt.Errorf("%s: %w", name, err)
+		}
 	}
 	if _, err := ctx.AssignVar(form.prefix, idxVal.Int(), val); err != nil {
-		return evaluator.Context{}, fmt.Errorf("VarSet: %w", err)
+		return evaluator.Context{}, fmt.Errorf("%s: %w", name, err)
+	}
+	return ctx, nil
+}
+
+// applyVarRangeSet is VarRangeSet (bytecode.go:12025-12050, char.go:
+// 8424-8476): var(first..last) to value, or fvar(first..last) to fvalue;
+// first defaults to 0 and last to 59, and a range with first < 0 or first >
+// last sets nothing. Indices past the variables the fighter has are left
+// out (Ikemen GO's variables are unbounded maps).
+func applyVarRangeSet(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+	first, _, err := evalOptional(ctrl, "first", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	last, hasLast, err := evalOptional(ctrl, "last", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	if !hasLast {
+		last = 59 // Ikemen GO's legacy default
+	}
+	value, isInt, err := evalOptional(ctrl, "value", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	target := "var"
+	if !isInt {
+		var isFloat bool
+		value, isFloat, err = evalOptional(ctrl, "fvalue", &ctx)
+		if err != nil {
+			return ctx, err
+		}
+		if !isFloat {
+			return ctx, fmt.Errorf("VarRangeSet value parameter not specified")
+		}
+		target = "fvar"
+	}
+	lo, hi := int(first), int(last)
+	if lo < 0 || lo > hi {
+		return ctx, nil
+	}
+	size := len(ctx.Vars)
+	v := evaluator.IntValue(int(value))
+	if target == "fvar" {
+		size = len(ctx.FVars)
+		v = evaluator.FloatValue(value)
+	}
+	for i := lo; i <= min(hi, size-1); i++ {
+		if _, err := ctx.AssignVar(target, i, v); err != nil {
+			return ctx, fmt.Errorf("VarRangeSet: %w", err)
+		}
 	}
 	return ctx, nil
 }
