@@ -108,6 +108,15 @@ type Context struct {
 	// between this tick (Ikemen GO sys.xmin, sys.xmax), read by the edge
 	// distance triggers.
 	ScreenLeft, ScreenRight float64
+	// Events are the visual and feedback controllers the fighter's states ran
+	// this tick, cleared by the engine at the start of each tick.
+	Events []ControllerEvent
+	// SprPriority is the fighter's draw priority (SprPriority controller).
+	SprPriority int
+	// WidthEdge is the front and back width the Width controller gives the
+	// fighter against the screen edges this tick (Ikemen GO widthEdge, reset
+	// each tick, char.go:12401-12406).
+	WidthEdge [2]float64
 	// Asserted are the AssertSpecial flags the fighter's states asserted
 	// this tick; the engine clears them each tick after the built-in
 	// actions read them (Ikemen GO char.go:12300-12345, 12430-12434).
@@ -281,8 +290,11 @@ type GetHit struct {
 	// FallXvel is fall.xvelocity relative to the fighter's facing, used by
 	// HitFallVel when HasFallXvel; FallDamage and FallKill are fall.damage
 	// and fall.kill, applied by HitFallDamage (char.go:9572-9604).
-	FallXvel        float64
-	HasFallXvel     bool
+	FallXvel    float64
+	HasFallXvel bool
+	// FallEnvShake is the HitDef\'s fall.envshake, which FallEnvShake reports
+	// once (its Time then spent).
+	FallEnvShake    EnvShake
 	FallDamage      int
 	FallKill        bool
 	FallRecover     bool

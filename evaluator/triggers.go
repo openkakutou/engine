@@ -51,10 +51,10 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 	case "frontedgedist":
 		return floatValue(edgeDist(ctx, true)), true, nil // char.go:5779-5784
 	case "backedgebodydist":
-		// char.go:5627-5639; widthEdge is 0 until a Width controller sets it.
-		return floatValue(edgeDist(ctx, false) - mugenBodyOffset(ctx)), true, nil
+		// char.go:5627-5639; widthEdge is the Width controller's.
+		return floatValue(edgeDist(ctx, false) - ctx.WidthEdge[1] - mugenBodyOffset(ctx)), true, nil
 	case "frontedgebodydist":
-		return floatValue(edgeDist(ctx, true) - mugenBodyOffset(ctx)), true, nil // char.go:5766-5777
+		return floatValue(edgeDist(ctx, true) - ctx.WidthEdge[0] - mugenBodyOffset(ctx)), true, nil // char.go:5766-5777
 	case "inguarddist":
 		return boolValue(inGuardDist(ctx)), true, nil
 	case "numproj":

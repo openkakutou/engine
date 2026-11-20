@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.32.0] - 2026-11-21
+
+### Added
+- Visual and feedback controllers are reported for the game to draw: `PalFX`, `RemapPal`, `MakeDust`, `GameMakeAnim`, `ForceFeedback`, `Explod` and `EnvShake` become `TickResult.Events` (and the WASM tick's `events`) with their parameters evaluated; `FallEnvShake` reports the hit's `fall.envshake` once.
+- `SprPriority` sets `Context.SprPriority`; `Width`'s `edge` widens the fighter against the screen edges for the tick (the edge body distances read it).
+
 ## [2.31.0] - 2026-11-21
 
 ### Added

@@ -263,6 +263,10 @@ type tickResponse struct {
 	// own Go API keeps the idiomatic nil-slice-means-empty instead; see
 	// .vibe/decisions/017.
 	Sounds [2][]evaluator.SoundEvent `json:"sounds"`
+	// Events is each fighter's visual and feedback controllers of this tick
+	// (PalFX, Explod, EnvShake, ...) with their parameters, for the client
+	// to draw; a per-tick log like Sounds, each side always a JSON array.
+	Events [2][]evaluator.ControllerEvent `json:"events"`
 	// Unsupported is each fighter's controller types that fired this tick
 	// without an engine implementation, lower-cased and deduplicated,
 	// indexed by match.Side. Each side is always a JSON array (`[]` when
@@ -301,6 +305,14 @@ func normalizeUnsupported(names []string) []string {
 func normalizeSoundEvents(events []evaluator.SoundEvent) []evaluator.SoundEvent {
 	if events == nil {
 		return []evaluator.SoundEvent{}
+	}
+	return events
+}
+
+// normalizeEvents is normalizeSoundEvents for the controller events.
+func normalizeEvents(events []evaluator.ControllerEvent) []evaluator.ControllerEvent {
+	if events == nil {
+		return []evaluator.ControllerEvent{}
 	}
 	return events
 }
@@ -355,6 +367,10 @@ func tickJS(args []js.Value) (any, error) {
 		Sounds: [2][]evaluator.SoundEvent{
 			match.SideP1: normalizeSoundEvents(result.Sounds[match.SideP1]),
 			match.SideP2: normalizeSoundEvents(result.Sounds[match.SideP2]),
+		},
+		Events: [2][]evaluator.ControllerEvent{
+			match.SideP1: normalizeEvents(result.Events[match.SideP1]),
+			match.SideP2: normalizeEvents(result.Events[match.SideP2]),
 		},
 		Unsupported: [2][]string{
 			match.SideP1: normalizeUnsupported(result.Unsupported[match.SideP1]),

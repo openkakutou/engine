@@ -65,6 +65,17 @@ own `.snd`; no prefix and the `S` prefix both read the character's sounds.
 channel is busy (Ikemen GO `SoundChannels.Request`). An `M` prefixed value
 plays nothing, as in Ikemen GO at commit `54d4148a`, and records no event.
 
+### Controller events
+
+Each entry of `tick`'s `events` (one array per side) is a visual or feedback
+controller the fighter's states ran that tick, for the client to draw:
+`{ type, params: [{ name, raw, values }] }`. `type` is one of `PalFX`,
+`RemapPal`, `MakeDust`, `GameMakeAnim`, `ForceFeedback`, `Explod` and
+`EnvShake` (a `FallEnvShake` reports the hit's `fall.envshake` as an
+`EnvShake`). Each parameter keeps its text in `raw`; `values` holds its
+comma-separated parts evaluated, or is absent when one does not evaluate (an
+`F`-prefixed animation such as `F5000`). Like `sounds`, it is a per-tick log.
+
 ### Example
 
 ```js

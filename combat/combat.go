@@ -257,8 +257,13 @@ type HitDefParams struct {
 	HasFallXVelocity bool
 	FallDamage       int
 	FallKill         bool
-	FallRecover      bool
-	FallRecoverTime  int
+	// FallEnvShakeTime, Freq, Ampl and Phase are fall.envshake.* (time 0,
+	// freq 60, ampl -4, phase 0 by default, char.go:852-855).
+	FallEnvShakeTime                   int
+	FallEnvShakeFreq, FallEnvShakeAmpl float64
+	FallEnvShakePhase                  float64
+	FallRecover                        bool
+	FallRecoverTime                    int
 	// HitID is the HitDef's id, the one NumTarget(id) filters on.
 	HitID int
 }
@@ -272,15 +277,19 @@ type HitDefParams struct {
 // the hit path of the per-tick hot loop.
 func ParseHitDef(params map[string]string) HitDefParams {
 	p := HitDefParams{
-		AirHitTime:      defaultAirHitTime,
-		GroundType:      defaultGroundType,
-		YAccel:          parseFloatOr(params["yaccel"], defaultYAccel),
-		FallYVelocity:   parseFloatOr(params["fall.yvelocity"], defaultFallYVelocity),
-		FallDamage:      parseIntOr(params["fall.damage"], 0),
-		FallKill:        parseIntOr(params["fall.kill"], 1) != 0,
-		FallRecover:     parseIntOr(params["fall.recover"], 1) != 0,
-		FallRecoverTime: parseIntOr(params["fall.recovertime"], defaultFallRecoverTime),
-		HitID:           parseIntOr(params["id"], 0),
+		AirHitTime:        defaultAirHitTime,
+		GroundType:        defaultGroundType,
+		YAccel:            parseFloatOr(params["yaccel"], defaultYAccel),
+		FallYVelocity:     parseFloatOr(params["fall.yvelocity"], defaultFallYVelocity),
+		FallDamage:        parseIntOr(params["fall.damage"], 0),
+		FallKill:          parseIntOr(params["fall.kill"], 1) != 0,
+		FallEnvShakeTime:  parseIntOr(params["fall.envshake.time"], 0),
+		FallEnvShakeFreq:  parseFloatOr(params["fall.envshake.freq"], 60),
+		FallEnvShakeAmpl:  parseFloatOr(params["fall.envshake.ampl"], -4),
+		FallEnvShakePhase: parseFloatOr(params["fall.envshake.phase"], 0),
+		FallRecover:       parseIntOr(params["fall.recover"], 1) != 0,
+		FallRecoverTime:   parseIntOr(params["fall.recovertime"], defaultFallRecoverTime),
+		HitID:             parseIntOr(params["id"], 0),
 	}
 	if raw, ok := params["pausetime"]; ok {
 		first, second := raw, ""

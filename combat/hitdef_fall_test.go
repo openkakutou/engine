@@ -37,3 +37,16 @@ func TestScaledDamage(t *testing.T) {
 		}
 	}
 }
+
+// char.go:703-710, 852-855: fall.envshake.time (0), freq (60), ampl and
+// phase.
+func TestParseHitDef_FallEnvShake(t *testing.T) {
+	p := ParseHitDef(map[string]string{"fall.envshake.time": "15", "fall.envshake.freq": "100", "fall.envshake.ampl": "-6", "fall.envshake.phase": "90"})
+	if p.FallEnvShakeTime != 15 || p.FallEnvShakeFreq != 100 || p.FallEnvShakeAmpl != -6 || p.FallEnvShakePhase != 90 {
+		t.Errorf("fall.envshake = %d %v %v %v", p.FallEnvShakeTime, p.FallEnvShakeFreq, p.FallEnvShakeAmpl, p.FallEnvShakePhase)
+	}
+	d := ParseHitDef(nil)
+	if d.FallEnvShakeTime != 0 || d.FallEnvShakeFreq != 60 {
+		t.Errorf("defaults = %d %v, want 0 60", d.FallEnvShakeTime, d.FallEnvShakeFreq)
+	}
+}

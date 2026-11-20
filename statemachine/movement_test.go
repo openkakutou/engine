@@ -476,8 +476,8 @@ func TestStep_VelSetAndPosAdd_ApplyOnTheTickTheirTriggersHold(t *testing.T) {
 func unsupportedStates() map[int]cns.StateDef {
 	return map[int]cns.StateDef{
 		0: {Number: 0, Controllers: []cns.Controller{
-			{Type: "Explod", Triggers: []string{"1"}},
-			{Type: "explod", Triggers: []string{"1"}},
+			{Type: "BindToRoot", Triggers: []string{"1"}},
+			{Type: "bindtoroot", Triggers: []string{"1"}},
 			{Type: "Helper", Triggers: []string{"1"}},
 			{Type: "Projectile", Triggers: []string{"0"}},
 			{Type: "HitDef", Triggers: []string{"1"}},
@@ -490,7 +490,7 @@ func TestStep_UnsupportedControllerTypes_AreReportedByNameOncePerCall(t *testing
 	if err != nil {
 		t.Fatalf("Step: %v", err)
 	}
-	if want := []string{"explod", "helper"}; !reflect.DeepEqual(result.Unsupported, want) {
+	if want := []string{"bindtoroot", "helper"}; !reflect.DeepEqual(result.Unsupported, want) {
 		t.Errorf("Unsupported = %v, want %v (lower-cased, deduplicated; false-trigger Projectile and Tick-handled HitDef absent)", result.Unsupported, want)
 	}
 	if want := []int{0, 1, 2, 4}; !intSlicesEqual(result.Applied, want) {

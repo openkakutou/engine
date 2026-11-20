@@ -344,6 +344,10 @@ type TickResult struct {
 	// (JSON-null-vs-empty-array normalization is cmd/wasm's own
 	// boundary-only responsibility). See .vibe/decisions/017.
 	Sounds [2][]evaluator.SoundEvent
+	// Events is each fighter's visual and feedback controllers of this tick
+	// (PalFX, Explod, EnvShake, ...), in the order they ran, for the game to
+	// draw; nil for a side with none.
+	Events [2][]evaluator.ControllerEvent
 	// Warnings is each fighter's Ikemen GO console warnings of this tick, in
 	// the order they happened: a state change to a state the character does
 	// not have reads "changed to invalid state N (from state M)"
@@ -528,6 +532,7 @@ func Tick(
 		Fighters:     runtimesOut,
 		Round:        result,
 		Sounds:       sounds,
+		Events:       [2][]evaluator.ControllerEvent{runtimesOut[match.SideP1].Context.Events, runtimesOut[match.SideP2].Context.Events},
 		Warnings:     warnings,
 		Unsupported:  unsupported,
 		SkippedCalls: skippedCalls,
@@ -630,6 +635,8 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	ctx.ScreenLeft, ctx.ScreenRight = screen[0], screen[1]
 	ctx.HitPauseTime = runtime.HitPause
 	ctx.PosFreeze = false // a PosFreeze controller holds for the tick it runs
+	ctx.Events = nil      // events are reported for the tick they happen in
+	ctx.WidthEdge = [2]float64{}
 	countDownHitBy(&ctx)
 	ctx.FighterState = fighter
 	ctx.P2 = opponent
@@ -1366,6 +1373,10 @@ func getHitFor(params combat.HitDefParams, defender *evaluator.Context, hitTime 
 		HasFallXvel:     params.HasFallXVelocity,
 		FallDamage:      params.FallDamage,
 		FallKill:        params.FallKill,
+		FallEnvShake: evaluator.EnvShake{
+			Time: params.FallEnvShakeTime, Freq: params.FallEnvShakeFreq,
+			Ampl: params.FallEnvShakeAmpl, Phase: params.FallEnvShakePhase,
+		},
 	}
 	// ghv.xvel = velocity x * -attacker facing (char.go:11690-11793).
 	byf := 1.0
