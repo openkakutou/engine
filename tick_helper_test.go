@@ -148,3 +148,22 @@ func TestTick_AHelperIntoAMissingStateIsSkippedWithAWarning(t *testing.T) {
 		t.Error("want a warning naming the missing state")
 	}
 }
+
+// numHelper reads sys.chars, which newHelper appends to at once
+// (char.go:6162-6177, 7156-7210): a helper made earlier in the tick counts,
+// so a "!numhelper(5)" guard makes only one.
+func TestTick_AHelperMadeThisTickCountsForNumHelperAtOnce(t *testing.T) {
+	prog := spawnerProgram(nil)
+	zero := prog.States[0]
+	guarded := ctrlWith("Helper", "!numhelper(5)", map[string]string{"id": "5", "stateno": "1000"})
+	zero.Controllers = []cns.Controller{guarded}
+	prog.States[0] = zero
+	one := prog.States[1000]
+	one.Controllers = append([]cns.Controller{ctrlWith("Helper", "!numhelper(5)", map[string]string{"id": "5", "stateno": "1000"})}, one.Controllers...)
+	prog.States[1000] = one
+	state, progs, rts := projMatch(t, prog, 900)
+	_, all := runProj(t, state, progs, rts, 3)
+	if n := len(all[2].Helpers[match.SideP1]); n != 1 {
+		t.Errorf("helpers = %d, want 1", n)
+	}
+}

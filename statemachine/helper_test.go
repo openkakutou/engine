@@ -9,11 +9,11 @@ import (
 
 func TestHelper_RecordsItsSpawn(t *testing.T) {
 	ctx := evaluator.Context{}
-	ctrl := cns.Controller{Type: "Helper", Parameters: map[string]string{"id": "1000+5", "stateno": "1100", "pos": "30, -40", "facing": "-1", "name": `"Fireball"`, "postype": "P2"}}
+	ctrl := cns.Controller{Type: "Helper", Parameters: map[string]string{"id": "1000+5", "stateno": "1100", "pos": "30, -40", "facing": "-1", "name": `"Fireball"`, "postype": "P2", "keyctrl": "1, 3"}}
 	if _, err := ApplyController(ctrl, &ctx, nil); err != nil {
 		t.Fatal(err)
 	}
-	want := evaluator.HelperSpawn{ID: 1005, StateNo: 1100, PosType: "p2", Pos: [2]float64{30, -40}, Facing: -1, Name: "Fireball"}
+	want := evaluator.HelperSpawn{ID: 1005, StateNo: 1100, PosType: "p2", Pos: [2]float64{30, -40}, Facing: -1, Name: "Fireball", KeyCtrl: [3]bool{true, false, true}}
 	if len(ctx.NewHelpers) != 1 || ctx.NewHelpers[0] != want {
 		t.Errorf("spawns = %+v, want %+v", ctx.NewHelpers, want)
 	}

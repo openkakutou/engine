@@ -12,4 +12,7 @@ type HelperSpawn struct {
 	// Facing is -1 to face away from the spawner, else 1.
 	Facing int
 	Name   string
+	// KeyCtrl is keyctrl: [0] reads the player's commands and runs state
+	// -1, [1] runs -2, [2] runs -3 (char.go:12506-12527).
+	KeyCtrl [3]bool
 }

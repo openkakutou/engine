@@ -489,11 +489,11 @@ func Tick(
 	p2Out.Runtime.Projectiles = slices.Clone(p2Out.Runtime.Projectiles)
 	// Helpers act after both players, P1's first (charList creation order).
 	p2Seen = snapshotOf(state.Fighter(match.SideP2), &p2Out.Runtime.Context)
-	p1Helpers, err := tickHelpers(&p1Out.Runtime, programs[match.SideP1], p2Seen, cfg, screen, state.Round, &state.RandSeed)
+	p1Helpers, err := tickHelpers(&p1Out.Runtime, programs[match.SideP1], p2Seen, inputs[match.SideP1], cfg, screen, state.Round, &state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
 	}
-	p2Helpers, err := tickHelpers(&p2Out.Runtime, programs[match.SideP2], p1Seen, cfg, screen, state.Round, &state.RandSeed)
+	p2Helpers, err := tickHelpers(&p2Out.Runtime, programs[match.SideP2], p1Seen, inputs[match.SideP2], cfg, screen, state.Round, &state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
 	}
@@ -955,8 +955,8 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		basicActions(&ctx, prog, in.Directions(fighter.Facing), asserted)
 	}
 	for _, number := range specialStates {
-		// A helper runs none of them without keyctrl (char.go:12506-12527).
-		if !prog.hasState(number) || ctx.IsHelper {
+		// A helper runs one only with its keyctrl (char.go:12506-12527).
+		if !prog.hasState(number) || (ctx.IsHelper && !ctx.KeyCtrl[-1-number]) {
 			continue
 		}
 		special, err := prog.step(ctx, number, frozen)

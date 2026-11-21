@@ -116,6 +116,8 @@ type Context struct {
 	// IsHelper is set on a helper, HelperID its helper id.
 	IsHelper bool
 	HelperID int
+	// KeyCtrl is a helper's keyctrl (see HelperSpawn).
+	KeyCtrl [3]bool
 	// Parent and Root are a helper's parent and root as the engine saw them
 	// before the helper acted (zero on a player); Helpers are the player's
 	// helpers, for helper(id) and NumHelper, on the player and its helpers.

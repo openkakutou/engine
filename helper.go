@@ -37,10 +37,12 @@ type helperTick struct {
 // the players in creation order (char.go:7214-7247 actionPrepare); helpers
 // they spawn run in the same tick too. A destroyed helper is dropped. It
 // leaves the player's Helpers snapshots for NumHelper and helper(id).
-// shortcut: helpers cannot be hit, pushed or screen-bound, and have no
-// keyctrl.
-func tickHelpers(rt *FighterRuntime, prog FighterProgram, opponent evaluator.Opponent, cfg TickConfig, screen [2]float64, round int, seed *int32) (helperTick, error) {
+// shortcut: helpers cannot be hit, pushed or screen-bound; a keyctrl
+// helper matches the player's commands with its own buffer, from its spawn.
+func tickHelpers(rt *FighterRuntime, prog FighterProgram, opponent evaluator.Opponent, in input.TickInput, cfg TickConfig, screen [2]float64, round int, seed *int32) (helperTick, error) {
 	var out helperTick
+	// A fresh list: the snapshot slice of the tick before belongs to it.
+	rt.Context.Helpers = helperSnapshots(nil, rt.Helpers)
 	out.warnings = spawnHelpers(rt, &rt.Context, 0, prog, opponent, out.warnings)
 	for i := 0; i < len(rt.Helpers); i++ {
 		h := &rt.Helpers[i]
@@ -50,7 +52,13 @@ func tickHelpers(rt *FighterRuntime, prog FighterProgram, opponent evaluator.Opp
 			h.Context.Parent = snapshotOf(parent.Context.FighterState, &parent.Context)
 		}
 		h.Context.Helpers = rt.Context.Helpers
-		res, err := tickFighter(prog, h.FighterRuntime, h.Context.FighterState, opponent, input.TickInput{}, cfg.Tick, cfg.Bounds, screen, cfg.Gravity, round, *seed)
+		// A helper with keyctrl reads the player's input, so its commands are
+		// the player's (char.go:5672); the others read none.
+		var helperIn input.TickInput
+		if h.Context.KeyCtrl[0] {
+			helperIn = in
+		}
+		res, err := tickFighter(prog, h.FighterRuntime, h.Context.FighterState, opponent, helperIn, cfg.Tick, cfg.Bounds, screen, cfg.Gravity, round, *seed)
 		if err != nil {
 			return out, fmt.Errorf("helper %d: %w", h.Context.HelperID, err)
 		}
@@ -112,11 +120,14 @@ func spawnHelpers(rt *FighterRuntime, spawner *evaluator.Context, serial int, pr
 			warnings = append(warnings, fmt.Sprintf("helper %d: %v", s.ID, err))
 			continue
 		}
-		hrt.Context.IsHelper, hrt.Context.HelperID = true, s.ID
+		hrt.Context.IsHelper, hrt.Context.HelperID, hrt.Context.KeyCtrl = true, s.ID, s.KeyCtrl
 		hrt.Context.AILevel = rt.Context.AILevel
 		hrt.Context.IkemenChar, hrt.Context.MugenVersion = rt.Context.IkemenChar, rt.Context.MugenVersion
 		rt.NextHelper++
 		rt.Helpers = append(rt.Helpers, Helper{FighterRuntime: hrt, Serial: rt.NextHelper, Parent: serial})
+		// The new helper counts at once for NumHelper and helper(id)
+		// (char.go:6162-6177 reads sys.chars, which newHelper appended to).
+		rt.Context.Helpers = append(rt.Context.Helpers, snapshotOf(hrt.Context.FighterState, &hrt.Context))
 	}
 	spawner.NewHelpers = nil
 	return warnings

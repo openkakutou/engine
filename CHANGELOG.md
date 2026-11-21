@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.39.0] - 2026-11-21
+
+### Added
+- Helper `keyctrl`: a helper with keyctrl 1 reads its player's commands and runs state -1 (2: -2, 3: -3), as in Ikemen GO, which characters such as Ryu (SVC) use for their command buffer.
+
+### Fixed
+- A helper made earlier in a tick now counts for `NumHelper` and `helper(id)` at once, so a `!numhelper(id)` guard makes only one.
+
 ## [2.38.0] - 2026-11-21
 
 ### Added

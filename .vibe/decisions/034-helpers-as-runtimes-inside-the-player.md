@@ -12,4 +12,4 @@ status: accepted
 
 **Rejected alternatives:** A flat list of every entity in `MatchState` (Ikemen GO's charList) rewrites `Tick`, the round flow and the WASM state for every caller at once. Pointers from a helper to its parent and root make `Context` escape through the controller registry (decision 016).
 
-Shortcuts, marked in code: helpers cannot be hit, pushed or screen-bound; keyctrl, postype front/back/left/right; a helper into a missing state is skipped with a warning instead of entering an empty state.
+Shortcuts, marked in code: helpers cannot be hit, pushed or screen-bound; a keyctrl helper matches the commands with its own buffer from its spawn; postype front/back/left/right are read as p1; a helper into a missing state is skipped with a warning instead of entering an empty state.

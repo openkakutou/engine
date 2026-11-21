@@ -16,7 +16,7 @@ func init() {
 // bytecode.go:6161-6300): it records a spawn the engine turns into a helper
 // running state stateno (0 by default) at pos from postype (p1 by default),
 // facing the spawner's way, or away with a negative facing.
-// shortcut: keyctrl, ownpal, size.*, supermovetime, pausemovetime and the
+// shortcut: ownpal, size.*, supermovetime, pausemovetime and the
 // Ikemen GO extensions (immortal, preserve, standby...) are not read.
 func applyHelper(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
 	s := evaluator.HelperSpawn{PosType: "p1", Facing: 1, Name: strings.Trim(strings.TrimSpace(ctrl.Parameters["name"]), `"`)}
@@ -31,6 +31,19 @@ func applyHelper(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 		}
 		if ok {
 			*p.dst = int(v)
+		}
+	}
+	// keyctrl lists the numbers 1 to 3, each turning one on (bytecode.go
+	// helper_keyctrl).
+	if raw, ok := ctrl.Parameters["keyctrl"]; ok {
+		for _, part := range evaluator.SplitList(raw) {
+			v, err := evaluator.EvaluateMut(part, &ctx)
+			if err != nil {
+				return ctx, err
+			}
+			if m := v.Int(); m >= 1 && m <= len(s.KeyCtrl) {
+				s.KeyCtrl[m-1] = true
+			}
 		}
 	}
 	if raw, ok := ctrl.Parameters["postype"]; ok {
