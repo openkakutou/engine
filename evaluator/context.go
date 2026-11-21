@@ -280,6 +280,9 @@ type Context struct {
 	Angle          float64
 	AngleDraw      bool
 	AngleDrawScale [2]float64
+	// DrawOffset is an Offset's drawing offset (x, y down) for the tick
+	// (Ikemen GO c.offset, back to 0 each unfrozen tick).
+	DrawOffset [2]float64
 	// ParentVarOps are the ParentVarSet and ParentVarAdd writes a helper
 	// made this tick, for the engine to apply to its parent.
 	ParentVarOps   []VarOp

@@ -1084,6 +1084,7 @@ func tickFighter(progs fighterPrograms, runtime FighterRuntime, fighter match.Fi
 		ctx.ScreenBound, ctx.MoveCamera = true, [2]bool{true, true}
 		ctx.Trans, ctx.TransAlpha = "", [2]int{}
 		ctx.AngleDraw, ctx.AngleDrawScale = false, [2]float64{1, 1}
+		ctx.DrawOffset = [2]float64{}
 	}
 	asserted := ctx.Asserted
 	ctx.Asserted = evaluator.AssertFlags{} // the states assert them again (char.go:12430-12434)

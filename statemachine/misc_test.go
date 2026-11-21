@@ -77,3 +77,15 @@ func TestHitAdd_AddsToTheHitCountAndTheTargetsCombo(t *testing.T) {
 		t.Error("HitAdd 0 queued a target op")
 	}
 }
+
+func TestOffsetAndExplodBindTime(t *testing.T) {
+	ctx := evaluator.Context{}
+	run(t, &ctx, "Offset", map[string]string{"x": "5", "y": "-3"})
+	if ctx.DrawOffset != [2]float64{5, -3} {
+		t.Errorf("offset %v", ctx.DrawOffset)
+	}
+	run(t, &ctx, "ExplodBindTime", map[string]string{"id": "4", "time": "-1"})
+	if m := ctx.ModifiedExplods; len(m) != 1 || m[0].ID != 4 || !m[0].SetBindTime || m[0].BindTime != -1 || m[0].SetPos {
+		t.Errorf("modification %+v", m)
+	}
+}

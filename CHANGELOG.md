@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.74.0] - 2026-11-21
+
+### Added
+- Offset (the fighter's drawing offset for the tick, `Context.DrawOffset`) and ExplodBindTime (a ModifyExplod of the bindtime alone), as Ikemen GO.
+
 ## [2.73.0] - 2026-11-21
 
 ### Added

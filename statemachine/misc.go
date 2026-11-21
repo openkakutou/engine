@@ -12,6 +12,8 @@ func init() {
 	RegisterController("MoveHitReset", applyMoveHitReset)
 	RegisterController("HitAdd", applyHitAdd)
 	RegisterController("AttackDist", applyAttackDist)
+	RegisterController("Offset", applyOffset)
+	RegisterController("ExplodBindTime", applyExplodBindTime)
 }
 
 // applyVarRandom is varRandom.Run (bytecode.go): var(v) gets a random
@@ -120,5 +122,39 @@ func applyAttackDist(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Cont
 		}
 		ctx.HitDefGuardDist[i] = max(v.Float(), 0)
 	}
+	return ctx, nil
+}
+
+// applyOffset is offset.Run: x and y offset the fighter's drawing this tick.
+func applyOffset(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+	for i, key := range [...]string{"x", "y"} {
+		v, ok, err := evalOptional(ctrl, key, &ctx)
+		if err != nil {
+			return ctx, err
+		}
+		if ok {
+			ctx.DrawOffset[i] = v
+		}
+	}
+	return ctx, nil
+}
+
+// applyExplodBindTime is explodBindTime.Run: the fighter's explods with id
+// (every one for -1) take bindtime time (0), a ModifyExplod of it alone.
+func applyExplodBindTime(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+	m := evaluator.ExplodModification{ID: -1, SetBindTime: true}
+	id, ok, err := evalOptional(ctrl, "id", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	if ok {
+		m.ID = int(id)
+	}
+	t, _, err := evalOptional(ctrl, "time", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	m.BindTime = int(t)
+	ctx.ModifiedExplods = append(ctx.ModifiedExplods, m)
 	return ctx, nil
 }
