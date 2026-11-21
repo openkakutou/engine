@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.64.0] - 2026-11-21
+
+### Added
+- Multi-hit projectiles, as Ikemen GO plays them: a projectile lands its projhits hits, freezing for its HitDef pausetime after each and unable to hit for its projmisstime, before becoming a hit projectile; with projremove 0 it stays active out of hits.
+
 ## [2.63.0] - 2026-11-21
 
 ### Added

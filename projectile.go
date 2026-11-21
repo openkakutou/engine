@@ -45,7 +45,12 @@ type Projectile struct {
 	HitAnim, RemAnim, CancelAnim int
 	// Hits and Priority are what is left of projhits and projpriority for
 	// trades with other projectiles.
-	Hits, Priority                  int
+	Hits, Priority int
+	// MissTime is projmisstime; missLeft counts down the ticks after a hit
+	// it cannot hit; HitPause is its own freeze after landing a hit.
+	MissTime, missLeft, HitPause int
+	// KeepsOnHit is projremove 0.
+	KeepsOnHit                      bool
 	Velocity, Accel, VelMul, RemVel [2]float64
 	HitDef                          cns.Controller
 	contact                         bool
@@ -63,7 +68,7 @@ func spawnProjectiles(thrower *evaluator.Context, rt *FighterRuntime) {
 		rt.Projectiles = append(rt.Projectiles, Projectile{
 			ID: s.ID, Anim: s.Anim, Position: pos, Facing: thrower.Facing,
 			RemoveTime: s.RemoveTime, HitAnim: s.HitAnim, RemAnim: s.RemAnim, CancelAnim: s.CancelAnim,
-			Hits: s.Hits, Priority: s.Priority,
+			Hits: s.Hits, Priority: s.Priority, MissTime: s.MissTime, KeepsOnHit: s.KeepsOnHit,
 			Velocity: s.Velocity, Accel: s.Accel, VelMul: s.VelMul, RemVel: s.RemVel,
 			HitDef: cns.Controller{Type: "HitDef", Parameters: s.HitDef},
 		})
@@ -81,6 +86,11 @@ func updateProjectiles(rt *FighterRuntime, prog FighterProgram, screen [2]float6
 	anims := prog.animationTable()
 	kept := rt.Projectiles[:0]
 	for _, p := range rt.Projectiles {
+		// A projectile in its hit pause holds where it is.
+		if p.Status == ProjectileActive && p.HitPause > 0 {
+			kept = append(kept, p)
+			continue
+		}
 		if p.Status == ProjectileActive && projectileOut(p, screen, cfg) {
 			p.Status = ProjectileRemoved
 		}
@@ -142,18 +152,30 @@ func projectileOut(p Projectile, screen [2]float64, cfg TickConfig) bool {
 }
 
 // tickProjectiles is Ikemen GO's Projectile.tick (char.go:3182-3215): a
-// projectile that hit this tick becomes a hit projectile, the remove time
-// counts down and the animation advances.
-// shortcut: projhits above 1 and projremove 0 are not read: a hit ends it.
+// projectile that hit this tick loses a hit and starts its miss time, and
+// out of hits (unless projremove 0) becomes a hit projectile; while in its
+// hit pause it holds, else the remove and miss times count down and the
+// animation advances.
 func tickProjectiles(rt *FighterRuntime) {
 	for i := range rt.Projectiles {
 		p := &rt.Projectiles[i]
 		if p.contact {
 			p.contact = false
-			p.Status = ProjectileHit
+			p.missLeft = max(p.MissTime, 0)
+			p.Hits--
+			if p.Hits <= 0 && !p.KeepsOnHit {
+				p.Status = ProjectileHit
+			}
+		}
+		if p.HitPause > 0 {
+			p.HitPause--
+			continue
 		}
 		if p.RemoveTime > 0 {
 			p.RemoveTime--
+		}
+		if p.missLeft > 0 {
+			p.missLeft--
 		}
 		p.AnimTime++
 	}
@@ -162,8 +184,7 @@ func tickProjectiles(rt *FighterRuntime) {
 // hitWithProjectiles lands attacker's active projectiles whose hit boxes
 // touch the defender's hurt boxes, each like a HitDef, the first one
 // touching only: a defender is hit once a tick.
-// shortcut: the owner's contact counters and the projectile's own hit pause
-// are not modelled; the defender
+// shortcut: the owner's contact counters are not modelled; the defender
 // is knocked away along the owner's facing.
 func hitWithProjectiles(state *match.MatchState, programs *[2]FighterProgram, runtimes *[2]FighterRuntime, attacker match.Side, defFrameClsn2 []air.ClsnBox, cfg TickConfig, hitSounds *[2][]evaluator.SoundEvent) error {
 	rt := &runtimes[attacker]
@@ -171,7 +192,9 @@ func hitWithProjectiles(state *match.MatchState, programs *[2]FighterProgram, ru
 	anims := programs[attacker].animationTable()
 	for i := range rt.Projectiles {
 		p := &rt.Projectiles[i]
-		if p.Status != ProjectileActive {
+		// A projectile out of hits, in its hit pause or its miss time cannot
+		// hit (char.go:14396, 14511).
+		if p.Status != ProjectileActive || p.Hits <= 0 || p.HitPause > 0 || p.missLeft > 0 {
 			continue
 		}
 		frame := currentFrame(anims[p.Anim], p.AnimTime)
@@ -190,6 +213,7 @@ func hitWithProjectiles(state *match.MatchState, programs *[2]FighterProgram, ru
 			continue
 		}
 		p.contact = true
+		p.HitPause = max(params.PauseTime[0], 0)
 		rt.Context.ProjContacts = recordProjContact(rt.Context.ProjContacts, p.ID, cfg.Tick, guarded)
 		err = applyHitReaction(programs, runtimes, attacker, params, hit, guarded)
 		rt.HitPause, rt.Context.MoveContactTime, rt.Context.ContactGuarded, rt.Context.HasTarget = owner.pause, owner.moveContact, owner.guarded, owner.target

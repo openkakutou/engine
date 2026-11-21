@@ -6,9 +6,13 @@ package evaluator
 // offsets are in the content's units: x forward, y down.
 type ProjectileSpawn struct {
 	ID, Anim, HitAnim, RemAnim, CancelAnim int
-	// Hits and Priority are projhits and projpriority (1 each): how many
-	// trades with other projectiles it takes, and how many it wins first.
+	// Hits and Priority are projhits and projpriority (1 each): how many hits
+	// it lands or trades it takes, and how many trades it wins first.
 	Hits, Priority int
+	// MissTime is projmisstime (0): the ticks after a hit it cannot hit.
+	MissTime int
+	// KeepsOnHit is projremove 0: out of hits, it stays active.
+	KeepsOnHit bool
 	// RemoveTime is projremovetime: -1 never, -2 when the animation ends.
 	RemoveTime                      int
 	Velocity, Accel, VelMul, RemVel [2]float64

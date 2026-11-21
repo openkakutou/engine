@@ -71,3 +71,32 @@ func TestTick_HigherPriorityProjectileWinsTheTrade(t *testing.T) {
 		t.Errorf("P1 cancelled %v, P2 cancelled %v; want only P2's", p1Cancelled, p2Cancelled)
 	}
 }
+
+// char.go:3182-3200, 14511: a projhits 3 projectile lands three hits, each
+// followed by its hit pause and miss time, then becomes a hit projectile.
+func TestTick_AMultiHitProjectileLandsEachHit(t *testing.T) {
+	state, progs, rts := projMatch(t, casterProgram(map[string]string{"projhits": "3", "projmisstime": "2", "velocity": "1, 0", "pausetime": "2, 2"}), 60)
+	_, all := runProj(t, state, progs, rts, 80)
+	last := all[len(all)-1].State.Fighters[1].Health
+	if last != 1000-3*40 {
+		t.Errorf("defender health %d, want 3 hits of 40", last)
+	}
+	for _, p := range all[len(all)-1].Fighters[0].Projectiles {
+		if p.Status == ProjectileActive {
+			t.Errorf("projectile still active after its 3 hits: %+v", p)
+		}
+	}
+}
+
+// projremove 0: out of hits the projectile stays active (and harmless).
+func TestTick_ProjRemoveZeroKeepsTheProjectile(t *testing.T) {
+	state, progs, rts := projMatch(t, casterProgram(map[string]string{"projremove": "0", "velocity": "2, 0"}), 60)
+	_, all := runProj(t, state, progs, rts, 30)
+	ps := all[len(all)-1].Fighters[0].Projectiles
+	if len(ps) != 1 || ps[0].Status != ProjectileActive || ps[0].Hits > 0 {
+		t.Errorf("projectiles %+v, want one active out of hits", ps)
+	}
+	if h := all[len(all)-1].State.Fighters[1].Health; h != 960 {
+		t.Errorf("defender health %d, want one hit", h)
+	}
+}

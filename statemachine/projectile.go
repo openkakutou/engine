@@ -22,16 +22,16 @@ var projectileKeys = map[string]bool{
 // compiler_functions.go:2404-2585, defaults char.go:2719-2760): it records a
 // spawn the engine turns into a projectile. projhitanim and projremanim
 // default to -1 and projhitanim; projremovetime to -1; velmul to 1.
-// projhits and projpriority default to 1, projcancelanim to projremanim.
-// shortcut: projremove 0, projmisstime, projhits above 1 against fighters,
-// postype other than p1 and the bounds are not read.
+// projhits and projpriority default to 1, projcancelanim to projremanim,
+// projmisstime to 0, projremove to 1.
+// shortcut: postype other than p1 and the bounds are not read.
 func applyProjectile(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
 	s := evaluator.ProjectileSpawn{RemoveTime: -1, HitAnim: -1, VelMul: [2]float64{1, 1}, HitDef: map[string]string{}, Hits: 1, Priority: 1}
 	ints := []struct {
 		key string
 		dst *int
 	}{{"projid", &s.ID}, {"projanim", &s.Anim}, {"projhitanim", &s.HitAnim}, {"projremovetime", &s.RemoveTime},
-		{"projhits", &s.Hits}, {"projpriority", &s.Priority}}
+		{"projhits", &s.Hits}, {"projpriority", &s.Priority}, {"projmisstime", &s.MissTime}}
 	for _, p := range ints {
 		v, ok, err := evalOptional(ctrl, p.key, &ctx)
 		if err != nil {
@@ -76,6 +76,11 @@ func applyProjectile(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Cont
 	if !hasRemAnim {
 		s.RemAnim = s.HitAnim // projhitanim unless given (bytecode.go:9021-9023)
 	}
+	remove, hasRemove, err := evalOptional(ctrl, "projremove", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	s.KeepsOnHit = hasRemove && remove == 0
 	s.CancelAnim = s.RemAnim // projremanim unless given (bytecode.go:9025-9027)
 	cancelAnim, hasCancelAnim, err := evalOptional(ctrl, "projcancelanim", &ctx)
 	if err != nil {
