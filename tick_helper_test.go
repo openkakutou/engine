@@ -187,3 +187,22 @@ func TestTick_AHelperWritesItsParentsVariables(t *testing.T) {
 		t.Errorf("player var(9) = %d, want 0: a player's ParentVarSet does nothing", p.Vars[9])
 	}
 }
+
+// bindToPlayer (char.go:10262-10312): a BindToParent helper stands at its
+// parent plus pos, x toward the parent's facing, y down, for its time.
+func TestTick_ABoundHelperFollowsItsParent(t *testing.T) {
+	prog := spawnerProgram(nil, ctrlWith("VelSet", "1", map[string]string{"x": "3"}))
+	st := prog.States[1000]
+	st.Controllers = append(st.Controllers, ctrlWith("BindToParent", "1", map[string]string{"pos": "10, -20", "time": "-1", "facing": "-1"}))
+	prog.States[1000] = st
+	state, progs, rts := projMatch(t, prog, 900)
+	_, all := runProj(t, state, progs, rts, 3)
+	p := all[2].Fighters[match.SideP1].Context
+	h := all[2].Helpers[match.SideP1][0].Context
+	if h.Position.X != p.Position.X+10 || h.Position.Y != p.Position.Y+20 {
+		t.Errorf("helper at %v, player at %v, want the player plus 10, 20 up", h.Position, p.Position)
+	}
+	if h.Facing == p.Facing {
+		t.Errorf("helper facing %v, want away from the player's %v (facing -1)", h.Facing, p.Facing)
+	}
+}

@@ -179,3 +179,38 @@ func TestE2E_RyusConfigHelperSetsItsPlayersVariables(t *testing.T) {
 		t.Errorf("Ryu var(32), var(33) = %d, %d, want 6, 12 from the config helper", c.Vars[32], c.Vars[33])
 	}
 }
+
+// Ryu (SVC)'s state 1050 spawns its "Raikou Effect" helper 1055, held with
+// BindToParent at -25,-60 (Ryu-EX.cns) while Ryu stays in 1050: 25 behind
+// him, 60 up.
+func TestE2E_RyusRaikouEffectIsBoundToHim(t *testing.T) {
+	path := corpusChar(t, "Street Fighter/Ryu (SVC)/Ryu_SS.def")
+	prog, _, err := LoadFighterProgram(loadChar(t, path), path, referenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := newE2EMatchAt(t, prog, 1050)
+	checked := 0
+	for i := 0; i < 60; i++ {
+		if err := m.step(input.TickInput{}); err != nil {
+			t.Fatal(err)
+		}
+		ryu := m.runtimes[match.SideP1]
+		if ryu.Context.StateNo != 1050 {
+			continue
+		}
+		for _, h := range ryu.Helpers {
+			if h.Context.HelperID != 1055 {
+				continue
+			}
+			checked++
+			want := match.Position{X: ryu.Context.Position.X - 25*facingSign(ryu.Context.Facing), Y: ryu.Context.Position.Y + 60}
+			if h.Context.Position != want {
+				t.Fatalf("tick %d: helper 1055 at %v, want %v", i, h.Context.Position, want)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("helper 1055 never stood bound to Ryu in 1050")
+	}
+}

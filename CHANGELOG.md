@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.70.0] - 2026-11-21
+
+### Added
+- BindToParent and BindToRoot: a helper stands at its parent (or root) plus pos, x toward its facing, facing its way or away when asked, for time ticks (1; -1 for ever), as Ikemen GO's bindToPlayer. E2E: the corpus Ryu (SVC)'s Raikou effect helper follows him.
+
 ## [2.69.0] - 2026-11-21
 
 ### Added

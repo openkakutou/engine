@@ -272,6 +272,8 @@ type Context struct {
 	TransAlpha [2]int
 	// AttackMul is an AttackMulSet's damage multiplier, while HasAttackMul
 	// (Ikemen GO attackMul[0], 1 otherwise).
+	// Bind is the helper's BindToParent or BindToRoot.
+	Bind HelperBind
 	// ParentVarOps are the ParentVarSet and ParentVarAdd writes a helper
 	// made this tick, for the engine to apply to its parent.
 	ParentVarOps   []VarOp
@@ -481,6 +483,17 @@ type HitOverride struct {
 	StateNo   int
 	Time      int
 	KeepState bool
+}
+
+// HelperBind is a BindToParent or BindToRoot holding a helper on its parent
+// (or root, Root) at Pos (x toward the parent's facing, y down) for Time
+// more ticks (-1 for ever, 0 unbound), facing the parent's way for a Facing
+// of 1, away for -1.
+type HelperBind struct {
+	Root   bool
+	Pos    [2]float64
+	Facing int
+	Time   int
 }
 
 // VarOp is a write to a variable: Target (var, fvar, sysvar, sysfvar)

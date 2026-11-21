@@ -130,8 +130,8 @@ func TestStep_MovementControllerWithBadParameter_ReturnsDescriptiveError(t *test
 
 func TestStep_UnsupportedController_IsReportedByNameAndDoesNotLeak(t *testing.T) {
 	ctx := evaluator.Context{Unsupported: []string{"stale"}}
-	result := stepBody(t, ctx, "BindToRoot{id: 1}", "bindToRoot{id: 2}", "SndPan{value: 1}")
-	if want := []string{"bindtoroot", "sndpan"}; !reflect.DeepEqual(result.Unsupported, want) {
+	result := stepBody(t, ctx, "AppendToClipboard{id: 1}", "bindToRoot{id: 2}", "SndPan{value: 1}")
+	if want := []string{"appendtoclipboard", "sndpan"}; !reflect.DeepEqual(result.Unsupported, want) {
 		t.Errorf("Unsupported = %v, want %v", result.Unsupported, want)
 	}
 	if len(result.Context.Unsupported) != 0 {

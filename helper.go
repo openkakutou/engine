@@ -73,6 +73,7 @@ func tickHelpers(state *match.MatchState, rt *FighterRuntime, prog FighterProgra
 		if err := applyParentVarOps(rt, h); err != nil {
 			return out, fmt.Errorf("helper %d: %w", h.Context.HelperID, err)
 		}
+		bindHelper(rt, h)
 		armHitDef(&h.FighterRuntime, res)
 		out.sounds = append(out.sounds, res.Sounds...)
 		out.warnings = append(out.warnings, res.Warnings...)
@@ -212,4 +213,28 @@ func applyParentVarOps(rt *FighterRuntime, h *Helper) error {
 		}
 	}
 	return nil
+}
+
+// bindHelper holds a bound helper on its parent or root (bindToPlayer,
+// char.go:10262-10312): at its position plus pos, x toward its facing,
+// facing its way or away when the bind asks, then counts the bind down.
+func bindHelper(rt *FighterRuntime, h *Helper) {
+	b := &h.Context.Bind
+	if b.Time == 0 {
+		return
+	}
+	to := &rt.Context
+	if p := findHelper(rt.Helpers, h.Parent); p != nil && !b.Root {
+		to = &p.Context
+	}
+	h.Context.Position = match.Position{X: to.Position.X + b.Pos[0]*facingSign(to.Facing), Y: to.Position.Y - b.Pos[1]}
+	switch b.Facing {
+	case 1:
+		h.Context.Facing = to.Facing
+	case -1:
+		h.Context.Facing = 1 - to.Facing
+	}
+	if b.Time > 0 {
+		b.Time--
+	}
 }
