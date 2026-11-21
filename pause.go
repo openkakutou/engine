@@ -66,7 +66,7 @@ func startPause(state *match.MatchState, rt *FighterRuntime) {
 	c.Power = min(max(c.Power+r.PowerAdd, 0), maxPower(c))
 	state.Fighters[c.Side].Power = c.Power
 	if r.Anim >= 0 && len(rt.Explods) < explodMax {
-		rt.Explods = append(rt.Explods, Explod{Time: 1, Anim: r.Anim, Common: r.AnimCommon, Facing: c.Facing,
+		rt.Explods = append(rt.Explods, Explod{Time: 1, Anim: r.Anim, Common: r.AnimCommon, Facing: c.Facing, Scale: [2]float64{1, 1},
 			Position: explodAt(c.Position, c.Facing, r.Pos), RemoveTime: -2, OnTop: true, MovesInPause: true, PosType: "p1"})
 	}
 	if r.Unhittable {

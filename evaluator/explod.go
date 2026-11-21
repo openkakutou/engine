@@ -12,6 +12,8 @@ type ExplodSpawn struct {
 	// for "none").
 	PosType         string
 	Pos, Vel, Accel [2]float64
+	// Scale is the drawing scale, 1,1 by default.
+	Scale           [2]float64
 	Facing, VFacing int
 	BindTime        int
 	RemoveTime      int
@@ -35,7 +37,7 @@ type ExplodModification struct {
 	ExplodSpawn
 	SetPosType, SetFacing, SetVFacing, SetPos, SetVel, SetAccel bool
 	SetBindTime, SetRemoveTime, SetSprPriority, SetOnTop        bool
-	SetRemoveOnGetHit, SetAnim, SetMovesInPause                 bool
+	SetRemoveOnGetHit, SetAnim, SetMovesInPause, SetScale       bool
 	// Relative makes bindtime and removetime count from the explod's age
 	// (an Ikemen GO character).
 	Relative bool

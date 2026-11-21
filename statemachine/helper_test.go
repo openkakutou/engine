@@ -67,11 +67,11 @@ func TestHitBy_AnEmptyValueIsGiven(t *testing.T) {
 func TestExplod_RecordsItsSpawn(t *testing.T) {
 	ctx := evaluator.Context{}
 	ctx.Vars[0] = 2
-	ctrl := cns.Controller{Type: "Explod", Parameters: map[string]string{"anim": "F5000+var(0)", "id": "-3", "pos": "10, -20", "postype": "Back", "facing": "-1", "vfacing": "-1", "bindtime": "-1", "removetime": "30", "vel": "1.5", "ontop": "1", "removeongethit": "1", "sprpriority": "4"}}
+	ctrl := cns.Controller{Type: "Explod", Parameters: map[string]string{"anim": "F5000+var(0)", "id": "-3", "pos": "10, -20", "postype": "Back", "facing": "-1", "vfacing": "-1", "bindtime": "-1", "removetime": "30", "vel": "1.5", "ontop": "1", "removeongethit": "1", "sprpriority": "4", "scale": "2"}}
 	if _, err := ApplyController(ctrl, &ctx, nil); err != nil {
 		t.Fatal(err)
 	}
-	want := evaluator.ExplodSpawn{ID: 0, Anim: 5002, Common: true, PosType: "back", Pos: [2]float64{10, -20}, Vel: [2]float64{1.5, 0}, Facing: -1, VFacing: -1, BindTime: -1, RemoveTime: 30, SprPriority: 4, OnTop: true, RemoveOnGetHit: true}
+	want := evaluator.ExplodSpawn{ID: 0, Anim: 5002, Common: true, PosType: "back", Pos: [2]float64{10, -20}, Vel: [2]float64{1.5, 0}, Facing: -1, VFacing: -1, BindTime: -1, RemoveTime: 30, SprPriority: 4, OnTop: true, RemoveOnGetHit: true, Scale: [2]float64{2, 1}}
 	if len(ctx.NewExplods) != 1 || ctx.NewExplods[0] != want {
 		t.Errorf("spawns = %+v, want %+v", ctx.NewExplods, want)
 	}

@@ -32,6 +32,8 @@ type Explod struct {
 	// MovesInPause keeps it going during a pause (a SuperPause's effect, an
 	// explod with supermovetime or pausemovetime).
 	MovesInPause bool
+	// Scale is its drawing scale.
+	Scale [2]float64
 }
 
 // updateExplods is Ikemen GO's Explod.update (char.go:2135-2310) for every
@@ -137,7 +139,7 @@ func spawnExplods(rt *FighterRuntime, serial int, opponent evaluator.Opponent, s
 		// (char.go:2147-2154), so it lives removetime ticks.
 		e := Explod{Time: 1, ID: s.ID, Anim: s.Anim, Common: s.Common, Owner: serial, BindTime: s.BindTime, RemoveTime: s.RemoveTime,
 			Rel: s.Pos, Vel: s.Vel, Accel: s.Accel, PosType: s.PosType, RemoveOnGetHit: s.RemoveOnGetHit,
-			SprPriority: s.SprPriority, OnTop: s.OnTop, VFlip: s.VFacing < 0, Facing: ctx.Facing, MovesInPause: s.MovesInPause}
+			SprPriority: s.SprPriority, OnTop: s.OnTop, VFlip: s.VFacing < 0, Facing: ctx.Facing, MovesInPause: s.MovesInPause, Scale: s.Scale}
 		switch s.PosType {
 		case "p1":
 			e.Position = explodAt(ctx.Position, ctx.Facing, s.Pos)
@@ -199,6 +201,9 @@ func modifyExplod(e *Explod, m evaluator.ExplodModification) {
 	}
 	if m.SetRemoveOnGetHit {
 		e.RemoveOnGetHit = m.RemoveOnGetHit
+	}
+	if m.SetScale {
+		e.Scale = m.Scale
 	}
 	if m.SetMovesInPause {
 		e.MovesInPause = m.MovesInPause

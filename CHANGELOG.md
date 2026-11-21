@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.55.0] - 2026-11-21
+
+### Added
+- An explod's scale (Explod and ModifyExplod `scale`, 1,1 by default) rides on `Explod.Scale` for the game to draw.
+
 ## [2.54.0] - 2026-11-21
 
 ### Added

@@ -18,10 +18,10 @@ func init() {
 // defaults to 0, F names a common fightfx animation; postype p1, bindtime 1,
 // removetime -2 (until the animation ends), facing and vfacing 1. A MUGEN
 // 1.1 character's postype defaults to none.
-// shortcut: space, random, scale, trans, the interpolation, palfx,
+// shortcut: space, random, trans, the interpolation, palfx,
 // afterimage, angle and the Ikemen GO extensions are not read.
 func applyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
-	e := evaluator.ExplodSpawn{PosType: "p1", Facing: 1, VFacing: 1, BindTime: 1, RemoveTime: -2}
+	e := evaluator.ExplodSpawn{PosType: "p1", Facing: 1, VFacing: 1, BindTime: 1, RemoveTime: -2, Scale: [2]float64{1, 1}}
 	if ctx.MugenVersion == [2]int{1, 1} && !ctx.IkemenChar {
 		e.PosType = ""
 	}
@@ -107,7 +107,7 @@ func readExplod(ctrl cns.Controller, ctx *evaluator.Context, e *evaluator.Explod
 	pairs := []struct {
 		key string
 		dst *[2]float64
-	}{{"pos", &e.Pos}, {"vel", &e.Vel}, {"accel", &e.Accel}}
+	}{{"pos", &e.Pos}, {"vel", &e.Vel}, {"accel", &e.Accel}, {"scale", &e.Scale}}
 	for _, p := range pairs {
 		raw, ok := ctrl.Parameters[p.key]
 		// vel, else velocity (compiler_functions.go:894-906).
@@ -156,7 +156,7 @@ func applyRemoveExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Co
 // ignored.
 func applyModifyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
 	m := evaluator.ExplodModification{ID: -1, Relative: ctx.IkemenChar}
-	m.Facing, m.VFacing = 1, 1
+	m.Facing, m.VFacing, m.Scale = 1, 1, [2]float64{1, 1}
 	if err := readExplod(ctrl, &ctx, &m.ExplodSpawn); err != nil {
 		return ctx, err
 	}
@@ -183,6 +183,7 @@ func applyModifyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Co
 	m.SetVFacing = unlocked && has("vfacing")
 	m.SetBindTime, m.SetRemoveTime, m.SetSprPriority = has("bindtime"), has("removetime"), has("sprpriority")
 	m.SetOnTop, m.SetRemoveOnGetHit, m.SetAnim = has("ontop"), has("removeongethit"), has("anim")
+	m.SetScale = has("scale")
 	m.SetMovesInPause = has("supermove") || has("supermovetime") || has("pausemovetime")
 	ctx.ModifiedExplods = append(ctx.ModifiedExplods, m)
 	return ctx, nil
