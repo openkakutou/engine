@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.52.0] - 2026-11-21
+
+### Added
+- Pause and SuperPause, as Ikemen GO plays them: the pause starts on the next tick for its time and freezes every fighter, helper, projectile and explod without move time (the pauser's movetime, a helper's or an explod's pausemovetime / supermovetime); the round timer stops. A SuperPause also darkens the screen (`MatchState.SuperTime`, `SuperDarken`), adds its poweradd, shows its effect (common fightfx 100 by default) and makes the pauser unhittable for its time.
+
+### Changed
+- A fighter's runtime after its tick is the one it came in with, updated, so a field added to it can no longer be dropped by a tick.
+
 ## [2.51.0] - 2026-11-21
 
 ### Added

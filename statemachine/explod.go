@@ -52,6 +52,15 @@ func applyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 		}
 	}
 	e.ID = max(e.ID, 0)
+	for _, key := range [...]string{"supermovetime", "pausemovetime"} {
+		v, ok, err := evalOptional(ctrl, key, &ctx)
+		if err != nil {
+			return ctx, err
+		}
+		if ok && v != 0 {
+			e.MovesInPause = true
+		}
+	}
 	flags := []struct {
 		key string
 		dst *int
@@ -68,7 +77,7 @@ func applyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 	bools := []struct {
 		key string
 		dst *bool
-	}{{"ontop", &e.OnTop}, {"removeongethit", &e.RemoveOnGetHit}}
+	}{{"ontop", &e.OnTop}, {"removeongethit", &e.RemoveOnGetHit}, {"supermove", &e.MovesInPause}}
 	for _, p := range bools {
 		v, ok, err := evalOptional(ctrl, p.key, &ctx)
 		if err != nil {

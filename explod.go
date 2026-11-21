@@ -29,6 +29,9 @@ type Explod struct {
 	Rel, Vel, Accel      [2]float64
 	PosType              string
 	RemoveOnGetHit       bool
+	// MovesInPause keeps it going during a pause (a SuperPause's effect, an
+	// explod with supermovetime or pausemovetime).
+	MovesInPause bool
 }
 
 // updateExplods is Ikemen GO's Explod.update (char.go:2135-2310) for every
@@ -37,10 +40,15 @@ type Explod struct {
 // owner, then it moves by its velocity, which grows by its acceleration.
 // shortcut: friction, explods paused by Pause or SuperPause, and binding to
 // another fighter than the owner are not modelled.
-func updateExplods(rt *FighterRuntime, prog FighterProgram) {
+func updateExplods(rt *FighterRuntime, prog FighterProgram, paused bool) {
 	anims := prog.animationTable()
 	kept := rt.Explods[:0]
 	for _, e := range rt.Explods {
+		// A pause holds every explod but those that move in it.
+		if paused && !e.MovesInPause {
+			kept = append(kept, e)
+			continue
+		}
 		owner := explodOwner(rt, e.Owner)
 		if e.RemoveTime >= 0 && e.Time >= e.RemoveTime {
 			continue
@@ -121,7 +129,7 @@ func spawnExplods(rt *FighterRuntime, serial int, opponent evaluator.Opponent, s
 		// (char.go:2147-2154), so it lives removetime ticks.
 		e := Explod{Time: 1, ID: s.ID, Anim: s.Anim, Common: s.Common, Owner: serial, BindTime: s.BindTime, RemoveTime: s.RemoveTime,
 			Rel: s.Pos, Vel: s.Vel, Accel: s.Accel, PosType: s.PosType, RemoveOnGetHit: s.RemoveOnGetHit,
-			SprPriority: s.SprPriority, OnTop: s.OnTop, VFlip: s.VFacing < 0, Facing: ctx.Facing}
+			SprPriority: s.SprPriority, OnTop: s.OnTop, VFlip: s.VFacing < 0, Facing: ctx.Facing, MovesInPause: s.MovesInPause}
 		switch s.PosType {
 		case "p1":
 			e.Position = explodAt(ctx.Position, ctx.Facing, s.Pos)
@@ -162,13 +170,13 @@ func explodIDs(explods []Explod, owner int) []int {
 
 // tickExplods updates the player's live explods, then makes those the player
 // and its helpers asked for this tick, and leaves each its explod ids.
-func tickExplods(rt *FighterRuntime, prog FighterProgram, opponent evaluator.Opponent, screen [2]float64) {
+func tickExplods(rt *FighterRuntime, prog FighterProgram, opponent evaluator.Opponent, screen [2]float64, paused bool) {
 	// Nothing to do allocates nothing: most ticks of most characters.
 	if len(rt.Explods) == 0 && len(rt.Context.NewExplods) == 0 && len(rt.Context.RemovedExplods) == 0 && len(rt.Helpers) == 0 {
 		rt.Context.ExplodIDs = nil
 		return
 	}
-	updateExplods(rt, prog)
+	updateExplods(rt, prog, paused)
 	spawnExplods(rt, 0, opponent, screen)
 	for i := range rt.Helpers {
 		spawnExplods(rt, rt.Helpers[i].Serial, opponent, screen)

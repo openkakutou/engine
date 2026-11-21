@@ -134,6 +134,9 @@ type Context struct {
 	ReversalAttr     int32
 	Reversal         map[string]string
 	MoveReversedTime int
+	// Pause is the Pause or SuperPause controller that ran this tick, for the
+	// engine to start.
+	Pause PauseRequest
 	// HitOverrides are the fighter's HitOverride slots (bytecode.go:11047-
 	// 11100).
 	HitOverrides [8]HitOverride
@@ -457,4 +460,19 @@ type HitOverride struct {
 	StateNo   int
 	Time      int
 	KeepState bool
+}
+
+// PauseRequest is a Pause or SuperPause that ran (bytecode.go pause.Run,
+// superPause.Run, 11160-11245): its time (30 for a SuperPause), the move
+// time the fighter keeps, and for a SuperPause the darkening, the power it
+// adds, its effect animation (100 of the common fightfx unless anim, -1 for
+// none) at pos, and whether the fighter is unhittable during it.
+type PauseRequest struct {
+	Set, Super         bool
+	Time, MoveTime     int
+	Darken, Unhittable bool
+	PowerAdd           int
+	Anim               int
+	AnimCommon         bool
+	Pos                [2]float64
 }

@@ -15,4 +15,7 @@ type HelperSpawn struct {
 	// KeyCtrl is keyctrl: [0] reads the player's commands and runs state
 	// -1, [1] runs -2, [2] runs -3 (char.go:12506-12527).
 	KeyCtrl [3]bool
+	// PauseMoveTime and SuperMoveTime let the helper move during a Pause
+	// and a SuperPause.
+	PauseMoveTime, SuperMoveTime int
 }

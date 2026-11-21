@@ -39,13 +39,17 @@ type helperTick struct {
 // leaves the player's Helpers snapshots for NumHelper and helper(id).
 // shortcut: helpers cannot be hit, pushed or screen-bound; a keyctrl
 // helper matches the player's commands with its own buffer, from its spawn.
-func tickHelpers(rt *FighterRuntime, prog FighterProgram, opponent evaluator.Opponent, in input.TickInput, cfg TickConfig, screen [2]float64, round int, seed *int32) (helperTick, error) {
+func tickHelpers(state *match.MatchState, rt *FighterRuntime, prog FighterProgram, opponent evaluator.Opponent, in input.TickInput, cfg TickConfig, screen [2]float64, round int, seed *int32) (helperTick, error) {
 	var out helperTick
 	// A fresh list: the snapshot slice of the tick before belongs to it.
 	rt.Context.Helpers = helperSnapshots(nil, rt.Helpers)
 	out.warnings = spawnHelpers(rt, &rt.Context, 0, prog, opponent, out.warnings)
 	for i := 0; i < len(rt.Helpers); i++ {
 		h := &rt.Helpers[i]
+		// A helper without move time stands frozen through a pause.
+		if pausedFor(state, h.SuperMoveTime, h.PauseMoveTime) {
+			continue
+		}
 		h.Context.Root = snapshotOf(rt.Context.FighterState, &rt.Context)
 		h.Context.Parent = h.Context.Root
 		if parent := findHelper(rt.Helpers, h.Parent); parent != nil {
@@ -122,6 +126,7 @@ func spawnHelpers(rt *FighterRuntime, spawner *evaluator.Context, serial int, pr
 			continue
 		}
 		hrt.Context.IsHelper, hrt.Context.HelperID, hrt.Context.KeyCtrl = true, s.ID, s.KeyCtrl
+		hrt.PauseMoveTime, hrt.SuperMoveTime = s.PauseMoveTime, s.SuperMoveTime
 		hrt.Context.AILevel = rt.Context.AILevel
 		hrt.Context.IkemenChar, hrt.Context.MugenVersion = rt.Context.IkemenChar, rt.Context.MugenVersion
 		rt.NextHelper++

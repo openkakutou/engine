@@ -305,6 +305,9 @@ type FighterRuntime struct {
 	NextHelper int
 	// Explods are the player's and its helpers' live explods.
 	Explods []Explod
+	// PauseMoveTime and SuperMoveTime are the ticks the fighter still moves
+	// during a Pause and a SuperPause it started.
+	PauseMoveTime, SuperMoveTime int
 }
 
 // NewFighterRuntime builds a fresh FighterRuntime for a fighter entering
@@ -486,7 +489,8 @@ func Tick(
 	runtimes[match.SideP2].Context.ProjectileIDs = projectileIDs(runtimes[match.SideP2].Projectiles)
 	p2Seen := snapshotOf(state.Fighter(match.SideP2), &runtimes[match.SideP2].Context)
 	screen := screenEdges(cfg)
-	p1Out, err := tickFighter(fighterPrograms{programs[match.SideP1], programs[match.SideP2]}, runtimes[match.SideP1], state.Fighter(match.SideP1), p2Seen, inputs[match.SideP1], cfg.Tick, cfg.Bounds, screen, cfg.Gravity, state.Round, state.RandSeed)
+	paused := state.PauseTime > 0 || state.SuperTime > 0
+	p1Out, err := tickOrFreeze(&state, fighterPrograms{programs[match.SideP1], programs[match.SideP2]}, runtimes[match.SideP1], state.Fighter(match.SideP1), p2Seen, inputs[match.SideP1], cfg.Tick, cfg.Bounds, screen, cfg.Gravity, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
 	}
@@ -505,7 +509,7 @@ func Tick(
 	// effect is immediate.
 	state.Fighters[match.SideP1] = p1Out.Runtime.Context.FighterState
 	p1Seen := snapshotOf(state.Fighter(match.SideP1), &p1Out.Runtime.Context)
-	p2Out, err := tickFighter(fighterPrograms{programs[match.SideP2], programs[match.SideP1]}, runtimes[match.SideP2], state.Fighter(match.SideP2), p1Seen, inputs[match.SideP2], cfg.Tick, cfg.Bounds, screen, cfg.Gravity, state.Round, state.RandSeed)
+	p2Out, err := tickOrFreeze(&state, fighterPrograms{programs[match.SideP2], programs[match.SideP1]}, runtimes[match.SideP2], state.Fighter(match.SideP2), p1Seen, inputs[match.SideP2], cfg.Tick, cfg.Bounds, screen, cfg.Gravity, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
 	}
@@ -529,17 +533,17 @@ func Tick(
 	p2Out.Runtime.Explods = slices.Clone(p2Out.Runtime.Explods)
 	// Helpers act after both players, P1's first (charList creation order).
 	p2Seen = snapshotOf(state.Fighter(match.SideP2), &p2Out.Runtime.Context)
-	p1Helpers, err := tickHelpers(&p1Out.Runtime, programs[match.SideP1], p2Seen, inputs[match.SideP1], cfg, screen, state.Round, &state.RandSeed)
+	p1Helpers, err := tickHelpers(&state, &p1Out.Runtime, programs[match.SideP1], p2Seen, inputs[match.SideP1], cfg, screen, state.Round, &state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
 	}
-	p2Helpers, err := tickHelpers(&p2Out.Runtime, programs[match.SideP2], p1Seen, inputs[match.SideP2], cfg, screen, state.Round, &state.RandSeed)
+	p2Helpers, err := tickHelpers(&state, &p2Out.Runtime, programs[match.SideP2], p1Seen, inputs[match.SideP2], cfg, screen, state.Round, &state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
 	}
 	// Then the explods: the live ones update, the new ones appear.
-	tickExplods(&p1Out.Runtime, programs[match.SideP1], p2Seen, screen)
-	tickExplods(&p2Out.Runtime, programs[match.SideP2], p1Seen, screen)
+	tickExplods(&p1Out.Runtime, programs[match.SideP1], p2Seen, screen, paused)
+	tickExplods(&p2Out.Runtime, programs[match.SideP2], p1Seen, screen, paused)
 
 	var frames [2]air.Frame
 	frames[match.SideP1] = p1Out.Frame
@@ -566,8 +570,11 @@ func Tick(
 	// all move before collisions (Ikemen GO charUpdate, system.go:2715-2718).
 	spawnProjectiles(&runtimesOut[match.SideP1].Context, &runtimesOut[match.SideP1])
 	spawnProjectiles(&runtimesOut[match.SideP2].Context, &runtimesOut[match.SideP2])
-	updateProjectiles(&runtimesOut[match.SideP1], programs[match.SideP1], screen, cfg)
-	updateProjectiles(&runtimesOut[match.SideP2], programs[match.SideP2], screen, cfg)
+	// Projectiles stand still through a pause.
+	if !paused {
+		updateProjectiles(&runtimesOut[match.SideP1], programs[match.SideP1], screen, cfg)
+		updateProjectiles(&runtimesOut[match.SideP2], programs[match.SideP2], screen, cfg)
+	}
 	var hitSounds [2][]evaluator.SoundEvent
 	// A ReversalDef beats the HitDef it reverses (char.go:11226-11240).
 	if err := reverse(&state, frames, &programs, &runtimesOut, match.SideP1, cfg, &hitSounds); err != nil {
@@ -582,11 +589,13 @@ func Tick(
 	if err := landHit(&state, events, &programs, &runtimesOut, match.SideP2, cfg, &hitSounds); err != nil {
 		return TickResult{}, err
 	}
-	if err := hitWithProjectiles(&state, &programs, &runtimesOut, match.SideP1, frames[match.SideP2].Clsn2, cfg, &hitSounds); err != nil {
-		return TickResult{}, err
-	}
-	if err := hitWithProjectiles(&state, &programs, &runtimesOut, match.SideP2, frames[match.SideP1].Clsn2, cfg, &hitSounds); err != nil {
-		return TickResult{}, err
+	if !paused {
+		if err := hitWithProjectiles(&state, &programs, &runtimesOut, match.SideP1, frames[match.SideP2].Clsn2, cfg, &hitSounds); err != nil {
+			return TickResult{}, err
+		}
+		if err := hitWithProjectiles(&state, &programs, &runtimesOut, match.SideP2, frames[match.SideP1].Clsn2, cfg, &hitSounds); err != nil {
+			return TickResult{}, err
+		}
 	}
 	if err := hitWithHelpers(&state, &programs, &runtimesOut, match.SideP1, frames[match.SideP2].Clsn2, cfg, &hitSounds); err != nil {
 		return TickResult{}, err
@@ -594,8 +603,10 @@ func Tick(
 	if err := hitWithHelpers(&state, &programs, &runtimesOut, match.SideP2, frames[match.SideP1].Clsn2, cfg, &hitSounds); err != nil {
 		return TickResult{}, err
 	}
-	tickProjectiles(&runtimesOut[match.SideP1])
-	tickProjectiles(&runtimesOut[match.SideP2])
+	if !paused {
+		tickProjectiles(&runtimesOut[match.SideP1])
+		tickProjectiles(&runtimesOut[match.SideP2])
+	}
 
 	// A get-hit state entered by applyHitReaction and a PowerAdd live on the
 	// runtime context: copy them onto the match state.
@@ -624,9 +635,20 @@ func Tick(
 	// (MUGEN/Ikemen's "unlimited time" convention): it neither counts down
 	// nor ends on time. Otherwise the timer counts down one tick, and
 	// reaching 0 is a timeout, which CheckOutcome resolves.
+	// The running pause counts down, then the pauses asked for this tick
+	// start (in the next one).
+	switch {
+	case state.SuperTime > 0:
+		state.SuperTime--
+	case state.PauseTime > 0:
+		state.PauseTime--
+	}
+	startPause(&state, &runtimesOut[match.SideP1])
+	startPause(&state, &runtimesOut[match.SideP2])
+
 	// Only the fight (RoundState 2) counts the time and decides the round.
 	fighting := cfg.Round == nil || cfg.Round.State == 2
-	untimed := state.RoundTimer <= 0 || !fighting
+	untimed := state.RoundTimer <= 0 || !fighting || paused
 	if !untimed {
 		state.RoundTimer--
 	}
@@ -652,6 +674,16 @@ func Tick(
 		Unsupported:  unsupported,
 		SkippedCalls: skippedCalls,
 	}, nil
+}
+
+// ranRuntime is the runtime after an unfrozen tick: the one that came in
+// with this tick's context, input and reports, its hit pause over; every
+// other field carries over.
+func ranRuntime(runtime FighterRuntime, ctx evaluator.Context, in input.State, unsupported, skippedCalls []string) FighterRuntime {
+	runtime.Context, runtime.Input = ctx, in
+	runtime.Unsupported, runtime.SkippedCalls = unsupported, skippedCalls
+	runtime.HitPause = 0
+	return runtime
 }
 
 // fighterPrograms are the programs a fighter's tick reads: its own, and its
@@ -1106,7 +1138,11 @@ func tickFighter(progs fighterPrograms, runtime FighterRuntime, fighter match.Fi
 	}
 	newCtx.Guarding = canGuardNow(&newCtx, in.Directions(fighter.Facing))
 	if frozen {
-		frozenRuntime := FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: unsupported, SkippedCalls: skippedCalls, HitDef: runtime.HitDef, HitDefHit: runtime.HitDefHit, Projectiles: runtime.Projectiles, Helpers: runtime.Helpers, NextHelper: runtime.NextHelper, Explods: runtime.Explods}
+		// The runtime as it came in, with this tick's context, input and
+		// reports: every other field carries over.
+		frozenRuntime := runtime
+		frozenRuntime.Context, frozenRuntime.Input = newCtx, newInputState
+		frozenRuntime.Unsupported, frozenRuntime.SkippedCalls = unsupported, skippedCalls
 		if frozenRuntime.HitPause > 0 {
 			frozenRuntime.HitPause--
 		}
@@ -1172,7 +1208,7 @@ func tickFighter(progs fighterPrograms, runtime FighterRuntime, fighter match.Fi
 	}
 
 	return fighterTickOutput{
-		Runtime:   FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, Unsupported: unsupported, SkippedCalls: skippedCalls, HitDef: runtime.HitDef, HitDefHit: runtime.HitDefHit, Projectiles: runtime.Projectiles, Helpers: runtime.Helpers, NextHelper: runtime.NextHelper, Explods: runtime.Explods},
+		Runtime:   ranRuntime(runtime, newCtx, newInputState, unsupported, skippedCalls),
 		Frame:     frame,
 		HasHitDef: runs.hasHitDef,
 		HitDef:    runs.hitDef,

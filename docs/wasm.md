@@ -89,6 +89,10 @@ A fighter's `animations` entry carries `fromOpponent` when it shows its
 opponent's animation (a thrown fighter in the thrower's state, after
 ChangeAnim2): draw it with the opponent's animations and sprites.
 
+The match `state` carries `pauseTime` and `superTime`, the ticks left of a
+Pause and a SuperPause, and `superDarken`: darken the screen while
+`superTime` runs.
+
 `helpers` is each player's helpers after the tick, always an array: `id`
 (the helper id), `stateNo`, `anim` (one of the player's animations) and
 `animTime`, `x`, `y` (world position, Y up) and `facing`; draw each like a

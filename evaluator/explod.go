@@ -18,6 +18,9 @@ type ExplodSpawn struct {
 	SprPriority     int
 	OnTop           bool
 	RemoveOnGetHit  bool
+	// MovesInPause is a supermove, supermovetime or pausemovetime: the explod
+	// goes on during a pause.
+	MovesInPause bool
 }
 
 // ExplodRemoval is a RemoveExplod that ran: the fighter's explods with that

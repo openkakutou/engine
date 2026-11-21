@@ -106,6 +106,12 @@ type MatchState struct {
 	// global seed). Two matches started from the same seed and fed the same
 	// inputs play out identically. Zero is a valid seed.
 	RandSeed int32 `json:"randSeed"`
+	// PauseTime and SuperTime are the ticks left of a Pause and a SuperPause
+	// (Ikemen GO sys.pausetime, sys.supertime): every fighter without move
+	// time stands frozen; SuperDarken darkens the screen during a SuperPause.
+	PauseTime   int  `json:"pauseTime"`
+	SuperTime   int  `json:"superTime"`
+	SuperDarken bool `json:"superDarken"`
 }
 
 // NewMatchState builds a MatchState for the given round and round timer

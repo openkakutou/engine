@@ -16,14 +16,16 @@ func init() {
 // bytecode.go:6161-6300): it records a spawn the engine turns into a helper
 // running state stateno (0 by default) at pos from postype (p1 by default),
 // facing the spawner's way, or away with a negative facing.
-// shortcut: ownpal, size.*, supermovetime, pausemovetime and the
+// pausemovetime and supermovetime let it move during a pause.
+// shortcut: ownpal, size.* and the
 // Ikemen GO extensions (immortal, preserve, standby...) are not read.
 func applyHelper(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
 	s := evaluator.HelperSpawn{PosType: "p1", Facing: 1, Name: strings.Trim(strings.TrimSpace(ctrl.Parameters["name"]), `"`)}
 	ints := []struct {
 		key string
 		dst *int
-	}{{"id", &s.ID}, {"stateno", &s.StateNo}, {"facing", &s.Facing}}
+	}{{"id", &s.ID}, {"stateno", &s.StateNo}, {"facing", &s.Facing},
+		{"pausemovetime", &s.PauseMoveTime}, {"supermovetime", &s.SuperMoveTime}}
 	for _, p := range ints {
 		v, ok, err := evalOptional(ctrl, p.key, &ctx)
 		if err != nil {
