@@ -30,7 +30,10 @@ type step struct {
 	// inputs are held. Without it the step matches only on the tick they
 	// become pressed (Ikemen GO input.go:2621-2625, "t == 1"), so a held
 	// direction is one press, never a repeated one.
-	hold    bool
+	hold bool
+	// dollar is set by a "$" prefix: the step's directions are held whatever
+	// else is (Ikemen GO input.go:901-960): $F holds on F, UF and DF.
+	dollar  bool
 	hasDir  bool
 	dirs    directionSet
 	buttons []string
@@ -55,8 +58,8 @@ var directionCodes = map[string]directionSet{
 }
 
 // commandModifiers are the MUGEN/Ikemen GO command-string prefix
-// modifiers this package recognizes. Only hold "/" has its own semantics
-// (step.hold); release-detection "~", 4-way-guarantee "$" and the
+// modifiers this package recognizes. Hold "/" (step.hold) and "$"
+// (step.dollar) have their own semantics; release-detection "~" and the
 // strict-timing step separator ">" are matched the same as the unmodified
 // step. See .vibe/decisions/006 and 028.
 const commandModifiers = "~$/>"
@@ -109,6 +112,7 @@ func parseStep(tok string) step {
 	// A "/" anywhere in the prefix holds the whole step, as Ikemen GO
 	// propagates it (input.go:2480-2503).
 	s.hold = strings.Contains(prefix, "/")
+	s.dollar = strings.Contains(prefix, "$")
 	for _, part := range strings.Split(tok, "+") {
 		part = strings.TrimSpace(part)
 		if part == "" {

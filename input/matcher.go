@@ -215,10 +215,10 @@ func commit(p commandProgress, steps []step, tick, matchedStep int) commandProgr
 // (Ikemen GO input.go:2621-2625).
 func matches(s step, now keys) bool {
 	if s.hasDir {
-		if s.dirs != now.dirs {
+		if !dirsHeld(s, now.dirs) {
 			return false
 		}
-		if !s.hold && s.dirs == now.prevDirs {
+		if !s.hold && dirsHeld(s, now.prevDirs) {
 			return false
 		}
 	}
@@ -231,6 +231,16 @@ func matches(s step, now keys) bool {
 		}
 	}
 	return true
+}
+
+// dirsHeld reports s's directions held in held: exactly, or, for a "$"
+// step, each of them whatever else is held (input.go:901-960).
+func dirsHeld(s step, held directionSet) bool {
+	if !s.dollar {
+		return s.dirs == held
+	}
+	return (!s.dirs.up || held.up) && (!s.dirs.down || held.down) &&
+		(!s.dirs.forward || held.forward) && (!s.dirs.back || held.back)
 }
 
 // Directions are the directions a fighter holds, relative to its facing.

@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.75.0] - 2026-11-21
+
+### Fixed
+- A "$" command step holds its directions whatever else is held, as Ikemen GO: `/$F` (holdfwd) now holds on up-forward and down-forward, so a diagonal jump goes forward instead of straight up. E2E: the reference kfm jumps over its opponent and both end facing each other.
+
 ## [2.74.0] - 2026-11-21
 
 ### Added

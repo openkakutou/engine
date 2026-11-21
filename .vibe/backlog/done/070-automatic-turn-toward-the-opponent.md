@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Automatic Turn Toward the Opponent
 
@@ -11,8 +11,9 @@ Ikemen GO turns a fighter toward its opponent on its own when it is standing, cr
 ## Acceptance Criteria
 - [x] A fighter whose opponent passes behind it turns as Ikemen GO does, with the source cited
 - [x] `noautoturn` keeps it from turning
-- [ ] End-to-end scenario on the reference kfm: a jump over the opponent ends with both fighters facing each other
+- [x] End-to-end scenario on the reference kfm: a jump over the opponent ends with both fighters facing each other
 
 ## Notes
 Found by item 050 (2026-11-21).
 - 2026-11-21: autoTurn done (tick_autoturn_test.go on the reference kfm); left: the jump-over scenario, the opponent's noturntarget, the stage autoturn switch and a MUGEN character's turn on a ChangeState with control.
+- 2026-11-21 (v2.75.0): `TestE2E_AJumpOverTheOpponentEndsFacingEachOther`. Writing it found that a diagonal never matched `/$F` (holdfwd), so every forward jump was vertical: fixed with the "$" semantics (item 025).

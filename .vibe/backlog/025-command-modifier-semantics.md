@@ -14,3 +14,6 @@ Decision 006 deliberately recognised the command-string modifiers without implem
 
 ## Notes
 Combat-completeness milestone, step order in roadmap decision `036`.
+
+## Progress
+- 2026-11-21 (v2.75.0): "$" done as Ikemen GO (input.go:901-960): a step's directions held whatever else is, so `/$F` holds on UF and DF. Left: "~" release detection and ">" strict timing.

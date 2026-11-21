@@ -233,3 +233,32 @@ func TestStep_SameNameAlternativesKeepTheirOwnProgress(t *testing.T) {
 		t.Error("the short alternative did not activate the name")
 	}
 }
+
+// input.go:901-960: "$F" holds on F, UF and DF; plain "F" only on F.
+func TestStep_DollarDirectionsIgnoreTheOtherDirections(t *testing.T) {
+	cf := cmd.CommandFile{Commands: []cmd.Command{
+		{Name: "holdfwd", Input: "/$F", Time: 1},
+		{Name: "plainfwd", Input: "/F", Time: 1},
+		{Name: "holddown", Input: "/$D", Time: 1},
+	}}
+	cases := []struct {
+		in   TickInput
+		want map[string]bool
+	}{
+		{TickInput{Right: true}, map[string]bool{"holdfwd": true, "plainfwd": true}},
+		{TickInput{Up: true, Right: true}, map[string]bool{"holdfwd": true}},
+		{TickInput{Down: true, Left: true}, map[string]bool{"holddown": true}},
+	}
+	for _, c := range cases {
+		var st State
+		var act map[string]bool
+		for tick := 1; tick <= 2; tick++ {
+			st, act = Step(st, tick, match.FacingRight, c.in, cf)
+		}
+		for _, name := range []string{"holdfwd", "plainfwd", "holddown"} {
+			if act[name] != c.want[name] {
+				t.Errorf("%+v: %s = %v, want %v", c.in, name, act[name], c.want[name])
+			}
+		}
+	}
+}
