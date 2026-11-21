@@ -273,6 +273,9 @@ type tickResponse struct {
 	// Helpers is each player's helpers after the tick, for the client to
 	// draw like a fighter, each side always a JSON array. Additive.
 	Helpers [2][]helperView `json:"helpers"`
+	// Explods is each player's live explods after the tick, each side always
+	// a JSON array. Additive.
+	Explods [2][]explodView `json:"explods"`
 	// Unsupported is each fighter's controller types that fired this tick
 	// without an engine implementation, lower-cased and deduplicated,
 	// indexed by match.Side. Each side is always a JSON array (`[]` when
@@ -315,6 +318,31 @@ type helperView struct {
 	X        float64      `json:"x"`
 	Y        float64      `json:"y"`
 	Facing   match.Facing `json:"facing"`
+}
+
+// explodView is an explod as the client draws it: its animation (common is
+// the fightfx's, else the player's) and elapsed ticks, where it is (world
+// space, Y up), which way it faces, upside down or not, and its layer.
+type explodView struct {
+	ID          int          `json:"id"`
+	Anim        int          `json:"anim"`
+	Common      bool         `json:"common"`
+	AnimTime    int          `json:"animTime"`
+	X           float64      `json:"x"`
+	Y           float64      `json:"y"`
+	Facing      match.Facing `json:"facing"`
+	VFlip       bool         `json:"vflip"`
+	SprPriority int          `json:"sprPriority"`
+	OnTop       bool         `json:"onTop"`
+}
+
+// explodViews is explods as the response reports them, `[]` when none.
+func explodViews(explods []engine.Explod) []explodView {
+	views := make([]explodView, 0, len(explods))
+	for _, e := range explods {
+		views = append(views, explodView{ID: e.ID, Anim: e.Anim, Common: e.Common, AnimTime: e.AnimTime, X: e.Position.X, Y: e.Position.Y, Facing: e.Facing, VFlip: e.VFlip, SprPriority: e.SprPriority, OnTop: e.OnTop})
+	}
+	return views
 }
 
 // helperViews is helpers as the response reports them, `[]` when none.
@@ -430,6 +458,10 @@ func tickJS(args []js.Value) (any, error) {
 		Helpers: [2][]helperView{
 			match.SideP1: helperViews(result.Helpers[match.SideP1]),
 			match.SideP2: helperViews(result.Helpers[match.SideP2]),
+		},
+		Explods: [2][]explodView{
+			match.SideP1: explodViews(result.Explods[match.SideP1]),
+			match.SideP2: explodViews(result.Explods[match.SideP2]),
 		},
 		Unsupported: [2][]string{
 			match.SideP1: normalizeUnsupported(result.Unsupported[match.SideP1]),

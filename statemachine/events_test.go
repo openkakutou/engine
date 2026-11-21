@@ -14,7 +14,7 @@ func TestApplyController_VisualControllersAreReportedAsEvents(t *testing.T) {
 	if err := applyCtrl(t, &ctx, "PalFX", map[string]string{"time": "10", "add": "var(0)*10, 0, -5"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := applyCtrl(t, &ctx, "Explod", map[string]string{"anim": "F5000", "pos": "10, -20"}); err != nil {
+	if err := applyCtrl(t, &ctx, "EnvShake", map[string]string{"time": "5", "ampl": "-4, 2"}); err != nil {
 		t.Fatal(err)
 	}
 	if len(ctx.Events) != 2 {
@@ -25,8 +25,8 @@ func TestApplyController_VisualControllersAreReportedAsEvents(t *testing.T) {
 		t.Errorf("PalFX event = %+v", pal)
 	}
 	ex := ctx.Events[1]
-	if ex.Type != "Explod" || ex.Param("anim").Raw != "F5000" || !sameValues(ex.Param("pos").Values, []float64{10, -20}) {
-		t.Errorf("Explod event = %+v, want anim kept raw (F prefix) and pos evaluated", ex)
+	if ex.Type != "EnvShake" || ex.Param("ampl").Raw != "-4, 2" || !sameValues(ex.Param("ampl").Values, []float64{-4, 2}) {
+		t.Errorf("EnvShake event = %+v, want ampl kept raw and evaluated", ex)
 	}
 	if ex.Param("missing").Raw != "" {
 		t.Error("an absent parameter reads empty")

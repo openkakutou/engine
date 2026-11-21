@@ -303,6 +303,8 @@ type FighterRuntime struct {
 	// Helpers are the player's helpers; NextHelper numbers them.
 	Helpers    []Helper
 	NextHelper int
+	// Explods are the player's and its helpers' live explods.
+	Explods []Explod
 }
 
 // NewFighterRuntime builds a fresh FighterRuntime for a fighter entering
@@ -380,6 +382,9 @@ type TickResult struct {
 	// Helpers is each player's helpers after this tick, the runtime's own
 	// slice.
 	Helpers [2][]Helper
+	// Explods is each player's live explods after this tick, the runtime's
+	// own slice.
+	Explods [2][]Explod
 	// Warnings is each fighter's Ikemen GO console warnings of this tick, in
 	// the order they happened: a state change to a state the character does
 	// not have reads "changed to invalid state N (from state M)"
@@ -493,6 +498,8 @@ func Tick(
 	p2Out.Runtime.Helpers = slices.Clone(p2Out.Runtime.Helpers)
 	p1Out.Runtime.Projectiles = slices.Clone(p1Out.Runtime.Projectiles)
 	p2Out.Runtime.Projectiles = slices.Clone(p2Out.Runtime.Projectiles)
+	p1Out.Runtime.Explods = slices.Clone(p1Out.Runtime.Explods)
+	p2Out.Runtime.Explods = slices.Clone(p2Out.Runtime.Explods)
 	// Helpers act after both players, P1's first (charList creation order).
 	p2Seen = snapshotOf(state.Fighter(match.SideP2), &p2Out.Runtime.Context)
 	p1Helpers, err := tickHelpers(&p1Out.Runtime, programs[match.SideP1], p2Seen, inputs[match.SideP1], cfg, screen, state.Round, &state.RandSeed)
@@ -503,6 +510,9 @@ func Tick(
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
 	}
+	// Then the explods: the live ones update, the new ones appear.
+	tickExplods(&p1Out.Runtime, programs[match.SideP1], p2Seen, screen)
+	tickExplods(&p2Out.Runtime, programs[match.SideP2], p1Seen, screen)
 
 	var frames [2]air.Frame
 	frames[match.SideP1] = p1Out.Frame
@@ -598,6 +608,7 @@ func Tick(
 		Events:       [2][]evaluator.ControllerEvent{runtimesOut[match.SideP1].Context.Events, runtimesOut[match.SideP2].Context.Events},
 		Projectiles:  [2][]Projectile{runtimesOut[match.SideP1].Projectiles, runtimesOut[match.SideP2].Projectiles},
 		Helpers:      [2][]Helper{runtimesOut[match.SideP1].Helpers, runtimesOut[match.SideP2].Helpers},
+		Explods:      [2][]Explod{runtimesOut[match.SideP1].Explods, runtimesOut[match.SideP2].Explods},
 		Warnings:     warnings,
 		Unsupported:  unsupported,
 		SkippedCalls: skippedCalls,
@@ -1018,7 +1029,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	}
 	newCtx.Guarding = canGuardNow(&newCtx, in.Directions(fighter.Facing))
 	if frozen {
-		frozenRuntime := FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: unsupported, SkippedCalls: skippedCalls, HitDef: runtime.HitDef, HitDefHit: runtime.HitDefHit, Projectiles: runtime.Projectiles, Helpers: runtime.Helpers, NextHelper: runtime.NextHelper}
+		frozenRuntime := FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: unsupported, SkippedCalls: skippedCalls, HitDef: runtime.HitDef, HitDefHit: runtime.HitDefHit, Projectiles: runtime.Projectiles, Helpers: runtime.Helpers, NextHelper: runtime.NextHelper, Explods: runtime.Explods}
 		if frozenRuntime.HitPause > 0 {
 			frozenRuntime.HitPause--
 		}
@@ -1070,7 +1081,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	}
 
 	return fighterTickOutput{
-		Runtime:   FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, Unsupported: unsupported, SkippedCalls: skippedCalls, HitDef: runtime.HitDef, HitDefHit: runtime.HitDefHit, Projectiles: runtime.Projectiles, Helpers: runtime.Helpers, NextHelper: runtime.NextHelper},
+		Runtime:   FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, Unsupported: unsupported, SkippedCalls: skippedCalls, HitDef: runtime.HitDef, HitDefHit: runtime.HitDefHit, Projectiles: runtime.Projectiles, Helpers: runtime.Helpers, NextHelper: runtime.NextHelper, Explods: runtime.Explods},
 		Frame:     frame,
 		HasHitDef: runs.hasHitDef,
 		HitDef:    runs.hitDef,

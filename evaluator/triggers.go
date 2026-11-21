@@ -9,7 +9,7 @@ import (
 )
 
 // axisTriggers are the triggers written with an axis letter ("Pos Y").
-var axisTriggers = map[string]bool{"pos": true, "vel": true, "p2dist": true, "p2bodydist": true}
+var axisTriggers = map[string]bool{"pos": true, "vel": true, "p2dist": true, "p2bodydist": true, "camerapos": true}
 
 // firstPlayerID is player 1's ID, Ikemen GO's default HelperMax.
 const firstPlayerID = 56
@@ -142,8 +142,8 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		// bytecode.go:2657-2660 counts the player's helpers.
 		return intValue(float64(len(ctx.Helpers))), true, nil
 	case "numexplod":
-		// shortcut: explods are not kept yet (backlog item 029), none to count.
-		return intValue(0), true, nil
+		// The fighter's own explods (char.go:7326-7350 getMultipleExplods).
+		return intValue(float64(len(ctx.ExplodIDs))), true, nil
 	}
 	return Value{}, false, nil
 }
@@ -182,8 +182,8 @@ func drawRandom(ctx *Context) int32 {
 	return seed / (randomMax/1000 + 1)
 }
 
-// evalComponent evaluates "Pos X/Y/Z", "Vel X/Y/Z", "P2Dist X/Y/Z" and
-// "P2BodyDist X/Y/Z".
+// evalComponent evaluates "Pos X/Y/Z", "Vel X/Y/Z", "P2Dist X/Y/Z",
+// "P2BodyDist X/Y/Z" and "CameraPos X/Y".
 func evalComponent(n componentNode, ctx *Context) (Value, error) {
 	var x, y float64
 	switch n.name {
@@ -191,6 +191,10 @@ func evalComponent(n componentNode, ctx *Context) (Value, error) {
 		return evalP2Distance(n, ctx)
 	case "pos":
 		x, y = ctx.Position.X, ctx.Position.Y
+	case "camerapos":
+		// sys.cam.Pos (bytecode.go:2536-2539): the camera's centre,
+		// halfway between the screen edges; the camera does not move up.
+		x = (ctx.ScreenLeft + ctx.ScreenRight) / 2
 	case "vel":
 		// Vel X is relative to facing: positive is forward. The engine's
 		// Velocity.X is in world space; Ikemen GO moves by vel[0]*facing
@@ -269,17 +273,26 @@ func evalFighterCall(n callNode, ctx *Context) (v Value, ok bool, err error) {
 		}
 		return numTarget(ctx, id), true, nil
 	case "numexplod":
-		// The optional id picks which explods to count (compiler.go:3415-3425).
-		// shortcut: explods are not kept yet (backlog item 029), none to count.
+		// The optional id picks which of the fighter's explods to count, all
+		// for a negative one (compiler.go:3415-3425, Explod.matchId).
 		if len(n.args) > 1 {
-			return Value{}, true, fmt.Errorf("evaluator: %s() expects at most 1 argument, got %d", n.name, len(n.args))
+			return Value{}, true, fmt.Errorf("evaluator: numexplod() expects at most 1 argument, got %d", len(n.args))
 		}
+		id := -1
 		for _, arg := range n.args {
-			if _, err := evalNode(arg, ctx); err != nil {
+			v, err := evalNode(arg, ctx)
+			if err != nil {
 				return Value{}, true, err
 			}
+			id = v.Int()
 		}
-		return intValue(0), true, nil
+		count := 0
+		for _, e := range ctx.ExplodIDs {
+			if id < 0 || e == id {
+				count++
+			}
+		}
+		return intValue(float64(count)), true, nil
 	case "animelemtime", "animelemno", "animexist", "selfanimexist":
 		return evalAnimCall(n, ctx)
 	case "const240p":

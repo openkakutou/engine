@@ -90,6 +90,15 @@ into it), `x`, `y` (world position, Y up) and `facing`.
 `animTime`, `x`, `y` (world position, Y up) and `facing`; draw each like a
 fighter.
 
+`explods` is each player's live explods after the tick (Explod, as Ikemen
+GO keeps them: made by the controller, following the fighter while bound,
+moving by their velocity, gone at their removetime or at the end of their
+animation), always an array: `id`, `anim` and `animTime`, `common` (the
+animation is the common fightfx's, an `F` anim, else the player's), `x`, `y`
+(world position, Y up), `facing`, `vflip` (drawn upside down),
+`sprPriority` and `onTop` (drawn over everything). The `Explod` event is no
+longer reported.
+
 ### Example
 
 ```js

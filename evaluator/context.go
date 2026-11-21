@@ -19,7 +19,7 @@ const (
 	maxSysFVars = 5
 	// MaxPersistent is the number of persistent(N) counters a Statedef can
 	// hold; zssexec rejects a Statedef with more at parse time.
-	MaxPersistent = 16
+	MaxPersistent = 32
 )
 
 // Context is the per-fighter, per-tick data a trigger expression is
@@ -127,6 +127,12 @@ type Context struct {
 	// engine turns into helpers; Destroyed is set by DestroySelf on a helper.
 	NewHelpers []HelperSpawn
 	Destroyed  bool
+	// NewExplods and RemovedExplods are the Explod and RemoveExplod
+	// controllers that ran this tick; ExplodIDs are the ids of the fighter's
+	// live explods, for NumExplod.
+	NewExplods     []ExplodSpawn
+	RemovedExplods []ExplodRemoval
+	ExplodIDs      []int
 	// NewProjectiles are the Projectile controllers the fighter's states ran
 	// this tick, which the engine turns into projectiles.
 	NewProjectiles []ProjectileSpawn

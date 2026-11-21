@@ -10,7 +10,7 @@ import (
 // eventControllers are reported as events with their parameters, for the
 // game to draw (backlog item 052); the full Explod and helper lifecycle is
 // item 029.
-var eventControllers = [...]string{"PalFX", "RemapPal", "MakeDust", "GameMakeAnim", "ForceFeedback", "Explod", "EnvShake"}
+var eventControllers = [...]string{"PalFX", "RemapPal", "MakeDust", "GameMakeAnim", "ForceFeedback", "EnvShake"}
 
 func init() {
 	for _, t := range eventControllers {

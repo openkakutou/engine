@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.42.0] - 2026-11-21
+
+### Added
+- Explods as Ikemen GO keeps them: the Explod controller makes one at its postype (p1, p2, front, back, left, right or none, the MUGEN 1.1 default), bound to its fighter for bindtime, then moving by its velocity and acceleration, gone at its removetime or, by default, at the end of its animation (at most 512); RemoveExplod, NumExplod(id). `TickResult.Explods` and the WASM tick response's `explods` report them; the one-tick `Explod` event is gone.
+- `CameraPos X`.
+
+### Fixed
+- A `.cns` controller's `persistent` is honoured as in Ikemen GO: 0 runs it once per state entry, N every N ticks (negative states ignore it). Controllers such as kfm's intro wood pieces ran every tick.
+
 ## [2.41.0] - 2026-11-21
 
 ### Added

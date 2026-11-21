@@ -29,6 +29,7 @@ package statemachine
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/openkakutou/character/cns"
@@ -178,13 +179,36 @@ func stepState(ctx evaluator.Context, number int, states map[int]cns.StateDef, e
 	working.Unsupported = working.Unsupported[:0]
 	var applied []int
 
+	persistIdx := 0
 	for i, ctrl := range def.Controllers {
+		// A controller's persistent counter slot, -1 for an every-tick one
+		// (persistent 1, or any controller of a negative state).
+		slot := -1
+		persist := int32(1)
+		if number >= 0 {
+			persist = persistentValue(ctrl.Parameters["persistent"])
+		}
+		if persist != 1 && persistIdx < len(working.Persistent) {
+			slot = persistIdx
+			persistIdx++
+		}
 		if hitPause {
 			run, err := ignoresHitPause(ctrl, &working)
 			if err != nil {
 				return Result{}, fmt.Errorf("statemachine: state %d controller %d (%s): evaluating ignorehitpause: %w", number, i, ctrl.Type, err)
 			}
 			if !run {
+				continue
+			}
+		}
+		// StateBlock.Run (bytecode.go:5136-5143): the counter counts down
+		// before the triggers and the controller is skipped while it is
+		// above 0.
+		if slot >= 0 {
+			if working.Persistent[slot] != math.MaxInt32 {
+				working.Persistent[slot]--
+			}
+			if working.Persistent[slot] > 0 {
 				continue
 			}
 		}
@@ -203,6 +227,11 @@ func stepState(ctx evaluator.Context, number int, states map[int]cns.StateDef, e
 		}
 		if changedState {
 			break
+		}
+		// A run that kept the state sets the counter again: once for
+		// persistent 0, every N ticks for N.
+		if slot >= 0 {
+			working.Persistent[slot] = persist
 		}
 	}
 
@@ -808,4 +837,33 @@ func applyPlaySnd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context
 
 	ctx.Sounds = append(ctx.Sounds, event)
 	return ctx, nil
+}
+
+// persistentValue is a controller's persistent as Ikemen GO compiles it
+// (compiler.go:7319-7330): an integer read as Atoi, 1 when absent or above
+// 128, and "only once" (MaxInt32) when 0 or below.
+func persistentValue(raw string) int32 {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 1
+	}
+	neg := false
+	if raw[0] == '-' || raw[0] == '+' {
+		neg = raw[0] == '-'
+		raw = raw[1:]
+	}
+	n := 0
+	for i := 0; i < len(raw) && raw[i] >= '0' && raw[i] <= '9' && n <= 128; i++ {
+		n = n*10 + int(raw[i]-'0')
+	}
+	if neg {
+		n = -n
+	}
+	if n > 128 {
+		return 1
+	}
+	if n <= 0 {
+		return math.MaxInt32
+	}
+	return int32(n)
 }

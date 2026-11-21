@@ -1,6 +1,7 @@
 package statemachine
 
 import (
+	"math"
 	"testing"
 
 	"github.com/openkakutou/character/cns"
@@ -60,5 +61,78 @@ func TestHitBy_AnEmptyValueIsGiven(t *testing.T) {
 	}
 	if ctx.HitBy[0].Time != 1 || ctx.HitBy[0].Attr != 0 {
 		t.Errorf("slot 0 = %+v, want an empty attr for 1 tick", ctx.HitBy[0])
+	}
+}
+
+func TestExplod_RecordsItsSpawn(t *testing.T) {
+	ctx := evaluator.Context{}
+	ctx.Vars[0] = 2
+	ctrl := cns.Controller{Type: "Explod", Parameters: map[string]string{"anim": "F5000+var(0)", "id": "-3", "pos": "10, -20", "postype": "Back", "facing": "-1", "vfacing": "-1", "bindtime": "-1", "removetime": "30", "vel": "1.5", "ontop": "1", "removeongethit": "1", "sprpriority": "4"}}
+	if _, err := ApplyController(ctrl, &ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	want := evaluator.ExplodSpawn{ID: 0, Anim: 5002, Common: true, PosType: "back", Pos: [2]float64{10, -20}, Vel: [2]float64{1.5, 0}, Facing: -1, VFacing: -1, BindTime: -1, RemoveTime: 30, SprPriority: 4, OnTop: true, RemoveOnGetHit: true}
+	if len(ctx.NewExplods) != 1 || ctx.NewExplods[0] != want {
+		t.Errorf("spawns = %+v, want %+v", ctx.NewExplods, want)
+	}
+}
+
+// bytecode.go:6788-6791: a MUGEN 1.1 character's explod postype defaults to
+// none; an Ikemen GO one's stays p1.
+func TestExplod_AMugen11CharacterDefaultsToNoPosType(t *testing.T) {
+	ctx := evaluator.Context{MugenVersion: [2]int{1, 1}}
+	if _, err := ApplyController(cns.Controller{Type: "Explod"}, &ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := ctx.NewExplods[0].PosType; got != "" {
+		t.Errorf("postype = %q, want none", got)
+	}
+}
+
+func TestRemoveExplod_DefaultsToEveryExplod(t *testing.T) {
+	ctx := evaluator.Context{}
+	if _, err := ApplyController(cns.Controller{Type: "RemoveExplod"}, &ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(ctx.RemovedExplods) != 1 || ctx.RemovedExplods[0].ID != -1 {
+		t.Errorf("removals = %+v, want id -1", ctx.RemovedExplods)
+	}
+}
+
+// compiler.go:7319-7330 and bytecode.go:5136-5143: persistent 0 runs a
+// controller once per state entry, N every N ticks; a negative state ignores
+// it.
+func TestStep_PersistentControllers(t *testing.T) {
+	add := func(persistent string) cns.Controller {
+		return cns.Controller{Type: "VarAdd", Triggers: []string{"1"}, Parameters: map[string]string{"var(0)": "1", "persistent": persistent}}
+	}
+	run := func(number int, persistent string, ticks int) int {
+		states := map[int]cns.StateDef{number: {Number: number, Controllers: []cns.Controller{add(persistent)}}}
+		ctx := evaluator.Context{}
+		for range ticks {
+			r, err := StepState(ctx, number, states)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx = r.Context
+		}
+		return ctx.Vars[0]
+	}
+	for _, c := range []struct {
+		number     int
+		persistent string
+		want       int
+	}{{0, "0", 1}, {0, "1", 6}, {0, "", 6}, {0, "3", 2}, {0, "200", 6}, {-2, "0", 6}, {0, "-5", 1}} {
+		if got := run(c.number, c.persistent, 6); got != c.want {
+			t.Errorf("state %d persistent %q: ran %d times in 6 ticks, want %d", c.number, c.persistent, got, c.want)
+		}
+	}
+}
+
+func TestPersistentValue(t *testing.T) {
+	for raw, want := range map[string]int32{"": 1, "0": math.MaxInt32, "1": 1, "7": 7, "129": 1, "-1": math.MaxInt32, " 2 ": 2} {
+		if got := persistentValue(raw); got != want {
+			t.Errorf("persistentValue(%q) = %d, want %d", raw, got, want)
+		}
 	}
 }

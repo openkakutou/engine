@@ -2,6 +2,7 @@ package zssexec
 
 import (
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -300,7 +301,7 @@ func TestStep_PersistentBeforeIf_GatesTheConditionToo(t *testing.T) {
 }
 
 func TestCompile_BadBodies_ReportOneErrorNamingTheBlockAndTheText(t *testing.T) {
-	long := strings.Repeat("persistent(1) { }\n", 17)
+	long := strings.Repeat("persistent(1) { }\n", evaluator.MaxPersistent+1)
 	for _, tc := range []struct {
 		name   string
 		blocks []string
@@ -312,7 +313,7 @@ func TestCompile_BadBodies_ReportOneErrorNamingTheBlockAndTheText(t *testing.T) 
 		{"for", []string{"[Statedef 0]\nfor i = 0, 3 {\n}"}, []string{"Statedef 0", "for", "not supported yet"}},
 		{"while", []string{"[Statedef 0]\nwhile 1 {\n}"}, []string{"Statedef 0", "while", "not supported yet"}},
 		{"switch", []string{"[Statedef 0]\nswitch 1 {\n}"}, []string{"switch", "not supported yet"}},
-		{"persistent overflow", []string{"[Statedef 7]\n" + long}, []string{"Statedef 7", "persistent", "16"}},
+		{"persistent overflow", []string{"[Statedef 7]\n" + long}, []string{"Statedef 7", "persistent", strconv.Itoa(evaluator.MaxPersistent)}},
 		{"persistent negative state", []string{"[Statedef -1]\npersistent(2) { }"}, []string{"Statedef -1", "negative"}},
 		{"persistent in function", []string{"[Function F()]\npersistent(2) { }"}, []string{"Function f", "function"}},
 		{"else without if", []string{"[Statedef 0]\nelse { }"}, []string{"Statedef 0", "else"}},
