@@ -37,6 +37,20 @@ type Opponent struct {
 	WidthEdge               [2]float64
 	IkemenChar              bool
 	NumProjectiles          int
+	// Name and AuthorName are its character's, for P2Name and the
+	// redirected name triggers.
+	Name, AuthorName string
+	// Helpers are its player's helpers, for a redirected NumHelper.
+	Helpers []Opponent
+	// IsHelper and HelperID tell a helper (parent, root and helper(id)
+	// redirections read them).
+	IsHelper bool
+	HelperID int
+	// Vars, FVars and SysVars are what var(n), fvar(n) and sysvar(n) read
+	// through a redirection (root,var(5) in a helper's states).
+	Vars    [maxVars]int
+	FVars   [maxFVars]float32
+	SysVars [maxSysVars]int
 	// Consts is the opponent's constants, for its size box and Const(...).
 	Consts *Constants
 }
@@ -62,6 +76,14 @@ func (o *Opponent) context() Context {
 		WidthEdge:       o.WidthEdge,
 		IkemenChar:      o.IkemenChar,
 		NumProjectiles:  o.NumProjectiles,
+		Name:            o.Name,
+		AuthorName:      o.AuthorName,
+		IsHelper:        o.IsHelper,
+		HelperID:        o.HelperID,
+		Helpers:         o.Helpers,
+		Vars:            o.Vars,
+		FVars:           o.FVars,
+		SysVars:         o.SysVars,
 	}
 }
 
@@ -71,7 +93,7 @@ func (o *Opponent) context() Context {
 // be answered, and reading 0 would be wrong.
 var redirectKinds = map[string]bool{
 	"p2": true, "enemy": true, "enemynear": true, "target": true,
-	"root": false, "parent": false, "helper": false, "playerid": false,
+	"root": true, "parent": true, "helper": true, "playerid": false,
 	"player": false, "partner": false, "stateowner": false,
 }
 
@@ -108,7 +130,7 @@ var redirectableIdentifiers = map[string]bool{
 	"power": true, "alive": true, "facing": true, "prevstateno": true,
 	"hitshakeover": true, "hitover": true, "hitfall": true, "canrecover": true,
 	"movecontact": true, "movehit": true, "moveguarded": true, "movereversed": true,
-	"numproj": true, "id": true,
+	"numproj": true, "id": true, "ishelper": true, "numhelper": true,
 	"backedgedist": true, "backedgebodydist": true, "frontedgedist": true, "frontedgebodydist": true,
 }
 
@@ -122,7 +144,11 @@ func redirectable(inner node) (name string, ok bool) {
 	case componentNode:
 		return n.name, n.name == "pos" || n.name == "vel"
 	case callNode:
-		return n.name, n.name == "gethitvar" || n.name == "const"
+		switch n.name {
+		case "gethitvar", "const", "var", "fvar", "sysvar", "sysfvar", "numhelper", "ishelper":
+			return n.name, true
+		}
+		return n.name, false
 	case hitDefAttrNode:
 		return "hitdefattr", true
 	case binaryNode:
@@ -176,6 +202,19 @@ func redirectTarget(n redirectNode, ctx *Context) (target Opponent, found bool, 
 			index = -1
 		}
 		found = isTarget(ctx, index)
+	case "parent":
+		return ctx.Parent, ctx.Parent.Valid, nil
+	case "root":
+		return ctx.Root, ctx.Root.Valid, nil
+	case "helper":
+		// helper(id) is the first of the fighter's helpers with that id, helper
+		// the first of them (char.go:5383-5410).
+		for _, h := range ctx.Helpers {
+			if n.arg == nil || h.HelperID == index {
+				return h, true, nil
+			}
+		}
+		return Opponent{}, false, nil
 	}
 	return ctx.P2, found, nil
 }

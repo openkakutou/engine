@@ -361,19 +361,25 @@ func TestTick_LandedHit_WithNoHitDefParameters_UsesTheDocumentedDefaults(t *test
 	}
 }
 
-func TestTick_LandedHit_ExpressionHitDefValueFallsBackToItsDefault(t *testing.T) {
+// bytecode.go:8631-8650: a HitDef's parameters are evaluated when it runs,
+// in the attacker's context (item 065).
+func TestTick_LandedHit_ExpressionHitDefValuesAreEvaluatedWhenItRuns(t *testing.T) {
 	s := newHitScenario(t, func(a, d map[int]cns.StateDef) {
 		setHitDefParam(a, "pausetime", "var(0), 8")
 		setHitDefParam(a, "ground.hittime", "11 + 1")
+		setHitDefParam(a, "damage", "floor(10 * 2.5), 3")
 	})
 	s.step()
 	got := s.ctx(match.SideP2).GetHit
-	if got.HitShakeTime != 8 || got.HitTime != 0 {
-		t.Errorf("GetHit = %+v, want HitShakeTime 8 (literal) and HitTime 0 (expression -> default)", got)
+	if got.HitShakeTime != 8 || got.HitTime != 12 {
+		t.Errorf("GetHit = %+v, want HitShakeTime 8 and HitTime 12 (11 + 1)", got)
+	}
+	if life := s.state.Fighters[match.SideP2].Health; life != 1000-25 {
+		t.Errorf("defender life = %d, want 975 (floor(10 * 2.5))", life)
 	}
 	s.step()
-	if v := s.ctx(match.SideP1).Vars[0]; v != 2 {
-		t.Errorf("attacker var(0) = %d, want 2 (expression pause -> default 0, attacker not frozen)", v)
+	if v := s.ctx(match.SideP1).Vars[0]; v != 1 {
+		t.Errorf("attacker var(0) = %d, want 1 (pausetime var(0) = 1 when the HitDef ran: frozen on tick 2)", v)
 	}
 }
 

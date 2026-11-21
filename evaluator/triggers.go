@@ -57,6 +57,14 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		return floatValue(edgeDist(ctx, true) - ctx.WidthEdge[0] - mugenBodyOffset(ctx)), true, nil // char.go:5766-5777
 	case "inguarddist":
 		return boolValue(inGuardDist(ctx)), true, nil
+	case "gametime":
+		// sys.gameTime (system.go:1892-1903): the match's ticks plus the
+		// time before it. shortcut: it is the tick count the caller gives
+		// (TickConfig.Tick); the time before the match is not counted.
+		return intValue(float64(ctx.GameTime)), true, nil
+	case "numpartner":
+		// bytecode.go OC_numpartner: a one-on-one match has no partner.
+		return intValue(0), true, nil
 	case "numproj":
 		// char.go:6186-6191 counts live projectiles.
 		return intValue(float64(ctx.NumProjectiles)), true, nil
@@ -70,8 +78,7 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		// (bytecode.go:5888-5894); a one-on-one fighter is never on standby.
 		return boolValue(false), true, nil
 	case "ishelper":
-		// The engine has no helpers yet, so every fighter is a player.
-		return boolValue(false), true, nil
+		return boolValue(ctx.IsHelper), true, nil
 	case "random":
 		return intValue(float64(drawRandom(ctx))), true, nil
 	case "ailevel":
@@ -127,9 +134,11 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		return boolValue(ctx.GetHit.Fall), true, nil
 	case "canrecover":
 		return boolValue(ctx.GetHit.FallRecover && ctx.GetHit.FallTime >= ctx.GetHit.FallRecoverTime), true, nil
-	case "numhelper", "numexplod":
-		// bytecode.go:2657-2660. shortcut: the engine has no helpers or
-		// explods yet (backlog items 029 and 052), so there is none to count.
+	case "numhelper":
+		// bytecode.go:2657-2660 counts the player's helpers.
+		return intValue(float64(len(ctx.Helpers))), true, nil
+	case "numexplod":
+		// shortcut: explods are not kept yet (backlog item 029), none to count.
 		return intValue(0), true, nil
 	}
 	return Value{}, false, nil
@@ -206,7 +215,40 @@ func evalComponent(n componentNode, ctx *Context) (Value, error) {
 func evalFighterCall(n callNode, ctx *Context) (v Value, ok bool, err error) {
 	switch n.name {
 	case "ishelper":
-		return boolValue(false), true, nil
+		// isHelper (char.go:5841-5864): a helper, and with an id that helper
+		// id. shortcut: the second, index argument is not read.
+		if len(n.args) == 0 {
+			return boolValue(ctx.IsHelper), true, nil
+		}
+		id, err := evalNode(n.args[0], ctx)
+		if err != nil {
+			return Value{}, true, err
+		}
+		if id.Int() < 0 {
+			return boolValue(ctx.IsHelper), true, nil
+		}
+		return boolValue(ctx.IsHelper && ctx.HelperID == id.Int()), true, nil
+	case "numhelper":
+		// numHelper (char.go:6162-6177): the player's helpers with that id, all
+		// of them for an id of 0 or less.
+		if len(n.args) > 1 {
+			return Value{}, true, fmt.Errorf("evaluator: numhelper() expects at most 1 argument, got %d", len(n.args))
+		}
+		id := 0
+		for _, arg := range n.args {
+			v, err := evalNode(arg, ctx)
+			if err != nil {
+				return Value{}, true, err
+			}
+			id = v.Int()
+		}
+		count := 0
+		for _, h := range ctx.Helpers {
+			if id <= 0 || h.HelperID == id {
+				count++
+			}
+		}
+		return intValue(float64(count)), true, nil
 	case "numtarget":
 		// The optional id picks the targets hit by the HitDef with that id
 		// (compiler.go:3440-3445, char.go:6211-6224); none means every target.
@@ -222,9 +264,9 @@ func evalFighterCall(n callNode, ctx *Context) (v Value, ok bool, err error) {
 			id = v.Int()
 		}
 		return numTarget(ctx, id), true, nil
-	case "numhelper", "numexplod":
-		// The optional id picks which helpers or explods to count
-		// (compiler.go:3415-3425); with none to count it changes nothing.
+	case "numexplod":
+		// The optional id picks which explods to count (compiler.go:3415-3425).
+		// shortcut: explods are not kept yet (backlog item 029), none to count.
 		if len(n.args) > 1 {
 			return Value{}, true, fmt.Errorf("evaluator: %s() expects at most 1 argument, got %d", n.name, len(n.args))
 		}

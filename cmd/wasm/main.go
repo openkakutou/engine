@@ -270,6 +270,9 @@ type tickResponse struct {
 	// Projectiles is each fighter's live projectiles after the tick, for the
 	// client to draw, each side always a JSON array. Additive.
 	Projectiles [2][]projectileView `json:"projectiles"`
+	// Helpers is each player's helpers after the tick, for the client to
+	// draw like a fighter, each side always a JSON array. Additive.
+	Helpers [2][]helperView `json:"helpers"`
 	// Unsupported is each fighter's controller types that fired this tick
 	// without an engine implementation, lower-cased and deduplicated,
 	// indexed by match.Side. Each side is always a JSON array (`[]` when
@@ -299,6 +302,29 @@ type projectileView struct {
 	X        float64      `json:"x"`
 	Y        float64      `json:"y"`
 	Facing   match.Facing `json:"facing"`
+}
+
+// helperView is a helper as the client draws it: its id and state, its
+// animation (the player's) and elapsed ticks, where it is (world space, Y up)
+// and which way it faces.
+type helperView struct {
+	ID       int          `json:"id"`
+	StateNo  int          `json:"stateNo"`
+	Anim     int          `json:"anim"`
+	AnimTime int          `json:"animTime"`
+	X        float64      `json:"x"`
+	Y        float64      `json:"y"`
+	Facing   match.Facing `json:"facing"`
+}
+
+// helperViews is helpers as the response reports them, `[]` when none.
+func helperViews(helpers []engine.Helper) []helperView {
+	views := make([]helperView, 0, len(helpers))
+	for _, h := range helpers {
+		c := &h.Context
+		views = append(views, helperView{ID: c.HelperID, StateNo: c.StateNo, Anim: c.Anim, AnimTime: c.AnimElapsed, X: c.Position.X, Y: c.Position.Y, Facing: c.Facing})
+	}
+	return views
 }
 
 // projectileViews is projectiles as the response reports them, `[]` when
@@ -400,6 +426,10 @@ func tickJS(args []js.Value) (any, error) {
 		Projectiles: [2][]projectileView{
 			match.SideP1: projectileViews(result.Projectiles[match.SideP1]),
 			match.SideP2: projectileViews(result.Projectiles[match.SideP2]),
+		},
+		Helpers: [2][]helperView{
+			match.SideP1: helperViews(result.Helpers[match.SideP1]),
+			match.SideP2: helperViews(result.Helpers[match.SideP2]),
 		},
 		Unsupported: [2][]string{
 			match.SideP1: normalizeUnsupported(result.Unsupported[match.SideP1]),

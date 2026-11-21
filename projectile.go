@@ -44,22 +44,23 @@ type Projectile struct {
 	contact                         bool
 }
 
-// spawnProjectiles turns the Projectile controllers the owner ran this tick
-// into projectiles at its position plus offset, facing its way (postype p1,
+// spawnProjectiles turns the Projectile controllers the thrower (the player
+// or one of its helpers) ran this tick into the player's projectiles, at the
+// thrower's position plus offset, facing its way (postype p1,
 // commitProjectile).
-func spawnProjectiles(rt *FighterRuntime) {
-	for _, s := range rt.Context.NewProjectiles {
-		pos := rt.Context.Position
-		pos.X += s.Offset[0] * facingSign(rt.Context.Facing)
+func spawnProjectiles(thrower *evaluator.Context, rt *FighterRuntime) {
+	for _, s := range thrower.NewProjectiles {
+		pos := thrower.Position
+		pos.X += s.Offset[0] * facingSign(thrower.Facing)
 		pos.Y -= s.Offset[1]
 		rt.Projectiles = append(rt.Projectiles, Projectile{
-			ID: s.ID, Anim: s.Anim, Position: pos, Facing: rt.Context.Facing,
+			ID: s.ID, Anim: s.Anim, Position: pos, Facing: thrower.Facing,
 			RemoveTime: s.RemoveTime, HitAnim: s.HitAnim, RemAnim: s.RemAnim,
 			Velocity: s.Velocity, Accel: s.Accel, VelMul: s.VelMul, RemVel: s.RemVel,
 			HitDef: cns.Controller{Type: "HitDef", Parameters: s.HitDef},
 		})
 	}
-	rt.Context.NewProjectiles = nil
+	thrower.NewProjectiles = nil
 }
 
 // updateProjectiles is Ikemen GO's Projectile.update (char.go:2804-2930):
@@ -163,7 +164,7 @@ func hitWithProjectiles(state *match.MatchState, programs *[2]FighterProgram, ru
 			continue
 		}
 		frame := currentFrame(anims[p.Anim], p.AnimTime)
-		if !hitdetect.BoxesOverlap(p.Position, p.Facing, frame.Clsn1, defender.Position, defender.Facing, defFrameClsn2) {
+		if !hitBoxesTouch(p.Position, p.Facing, frame.Clsn1, defender, defFrameClsn2) {
 			continue
 		}
 		attr, err := evaluator.ParseAttr(p.HitDef.Parameters["attr"], true)
@@ -237,4 +238,10 @@ func animationLength(anim air.Animation) int {
 		total += f.Time
 	}
 	return total
+}
+
+// hitBoxesTouch reports whether hit boxes at pos, facing touch the
+// defender's hurt boxes.
+func hitBoxesTouch(pos match.Position, facing match.Facing, clsn1 []air.ClsnBox, defender *evaluator.Context, clsn2 []air.ClsnBox) bool {
+	return hitdetect.BoxesOverlap(pos, facing, clsn1, defender.Position, defender.Facing, clsn2)
 }

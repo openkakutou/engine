@@ -407,12 +407,14 @@ func ApplyController(ctrl cns.Controller, ctx *evaluator.Context, exists func(in
 		reportUnsupported(ctx, t)
 		return false, nil
 	}
+	wasDestroyed := ctx.Destroyed
 	updated, err := handler(ctrl, *ctx)
 	if err != nil {
 		return false, err
 	}
 	*ctx = updated
-	return false, nil
+	// DestroySelf ends the state's run like a state change (bytecode.go:6013).
+	return ctx.Destroyed && !wasDestroyed, nil
 }
 
 func applyChangeState(ctrl cns.Controller, ctx *evaluator.Context, exists func(int) bool) error {

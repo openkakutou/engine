@@ -168,6 +168,7 @@ func assembleFighterProgram(files fileAccess, ch *character.Character, dirs []st
 	prog = NewFighterProgramFromFiles(stateFiles, ch.Animations, ch.Commands)
 	prog.IkemenVersion = parseIkemenVersion(ch.IkemenVersion)
 	prog.MugenVersion = parseMugenVersion(ch.MugenVersion)
+	prog.Name, prog.Author = ch.Name, ch.Author
 	prog.Constants, err = loadConstants(files, dirs, ch.ConstantsFile)
 	if err != nil {
 		return FighterProgram{}, nil, err

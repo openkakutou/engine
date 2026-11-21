@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [024]
 ---
 # Helpers And Explods
@@ -8,11 +8,15 @@ depends_on: [024]
 Support the Helper controller (spawned sub-entities with their own state machine, owned by a parent) and Explod (animated, positioned visual effects). Most real characters use both for effects, partners' fireballs and hit sparks.
 
 ## Acceptance Criteria
-- [ ] Helper spawns a fighter-like entity that runs its own states each tick and is destroyed by DestroySelf or on round reset
-- [ ] Helper triggers (Parent, Root, HelperID, NumHelper) resolve correctly
+- [x] Helper spawns a fighter-like entity that runs its own states each tick and is destroyed by DestroySelf or on round reset
+- [x] Helper triggers (Parent, Root, HelperID, NumHelper) resolve correctly
 - [ ] Explod instances are reported per tick (animation, position, remaining time) so the game can draw them
 - [ ] A cap on live helpers and explods prevents unbounded growth, with a clear error beyond it
 
 ## Notes
 Interacts with projectiles (024) and game 024; keep the per-tick report format consistent with how projectiles are exposed. Match state must remain JSON-serializable across the WASM boundary. Compat is a MUST: MUGEN 1.0/1.1 and Ikemen GO, validated against real community files.
 Combat-completeness milestone, step order in roadmap decision `036`.
+
+## Done
+2026-11-21 - engine v2.38.0, helpers (decision 034): Helper and DestroySelf controllers, helpers running their own states each tick (no -3/-2/-1 without keyctrl), `parent,` / `root,` / `helper(id),` redirections (vars included), `IsHelper(id)`, `NumHelper(id)`, a cap of 56 (Ikemen GO HelperMax) with Ikemen GO's warning, helper HitDefs and projectiles, `helpers` in the WASM tick response, cleared on round reset (new runtimes). E2E: the corpus Ryu (SVC)'s hadouken helper crosses the stage and hits a real kfm for 90 (`TestE2E_RyusHadoukenHelperCrossesTheStageAndHits`, skipped without the corpus).
+The Explod criteria moved to item 072.

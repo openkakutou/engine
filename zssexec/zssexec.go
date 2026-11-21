@@ -372,7 +372,8 @@ func (r *runner) stmt(s stmt, fr frame, depth int) (bool, error) {
 		return r.call(st, fr, depth)
 
 	case ctrlStmt:
-		if !hasHitDef && strings.EqualFold(st.ctrl.Type, statemachine.ControllerTypeHitDef) {
+		// The last HitDef that runs wins (bytecode.go:8631-8650).
+		if strings.EqualFold(st.ctrl.Type, statemachine.ControllerTypeHitDef) {
 			params, err := hitDefParams(st.ctrl.Parameters, r.ctx)
 			if err != nil {
 				return false, fmt.Errorf("applying %s: %w", st.ctrl.Type, err)

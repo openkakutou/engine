@@ -476,6 +476,8 @@ func evalGetHitVar(n callNode, ctx *Context) (Value, error) {
 		return boolValue(g.FallRecover), nil
 	case "fall.recovertime":
 		return intValue(float64(g.FallRecoverTime)), nil
+	case "fallcount":
+		return intValue(float64(g.FallCount)), nil
 	case "isbound":
 		// bytecode.go:3511. shortcut: nothing binds a fighter yet (BindToTarget,
 		// backlog item 029 area), so it is never bound.
@@ -673,6 +675,9 @@ func evalBinary(n binaryNode, ctx *Context) (Value, error) {
 		if v, ok, err := evalTypeComparison(n, ctx); ok {
 			return v, err
 		}
+		if name, text, redirect, ok := nameComparison(n); ok {
+			return evalNameComparison(name, text, redirect, n.op == "!=", ctx)
+		}
 		if cmdName, ok := commandComparisonTarget(n); ok {
 			active := ctx.ActiveCommands[cmdName]
 			if n.op == "!=" {
@@ -865,6 +870,68 @@ func arithResult(left, right Value, result float64) Value {
 		return floatValue(result)
 	}
 	return intValue(result)
+}
+
+// nameTriggers are the triggers that read a character's name as a string
+// (compiler.go:3396-3413): only compared to a quoted name.
+var nameTriggers = map[string]bool{"name": true, "p1name": true, "p2name": true, "p3name": true, "p4name": true, "authorname": true}
+
+// nameComparison recognizes "Name = \"text\"" (or !=, either operand order)
+// for the name triggers, also redirected ("enemy,name = \"text\""), then
+// returned with its redirection.
+func nameComparison(n binaryNode) (name, text string, redirect *redirectNode, ok bool) {
+	operand := n.left
+	str, isStr := n.right.(stringNode)
+	if !isStr {
+		operand = n.right
+		str, isStr = n.left.(stringNode)
+	}
+	if !isStr {
+		return "", "", nil, false
+	}
+	if r, isRedirect := operand.(redirectNode); isRedirect {
+		redirect = &r
+		operand = r.inner
+	}
+	id, isID := operand.(identifierNode)
+	if !isID || !nameTriggers[id.name] {
+		return "", "", nil, false
+	}
+	return id.name, str.value, redirect, true
+}
+
+// evalNameComparison is a name comparison on the fighter, or on the one its
+// redirection names (none there: neither equal nor unequal).
+func evalNameComparison(name, text string, redirect *redirectNode, not bool, ctx *Context) (Value, error) {
+	if redirect == nil {
+		return boolValue(compareName(name, text, not, ctx)), nil
+	}
+	target, found, err := redirectTarget(*redirect, ctx)
+	if err != nil || !found {
+		return boolValue(false), err
+	}
+	redirected := target.context()
+	return boolValue(compareName(name, text, not, &redirected)), nil
+}
+
+// compareName is a name trigger compared to text, case-insensitively as
+// Ikemen GO's string eq (bytecode.go:1909-1923); a name that does not exist
+// (no opponent, no partner) is neither equal nor unequal (bytecode.go:3107-
+// 3114).
+func compareName(name, text string, not bool, ctx *Context) bool {
+	value := ctx.Name
+	switch name {
+	case "authorname":
+		value = ctx.AuthorName
+	case "p2name":
+		if !ctx.P2.Valid {
+			return false
+		}
+		value = ctx.P2.Name
+	case "p3name", "p4name":
+		return false // a one-on-one match has no partners
+	}
+	return strings.EqualFold(value, text) != not
 }
 
 // commandComparisonTarget recognizes MUGEN's special-form Command trigger:

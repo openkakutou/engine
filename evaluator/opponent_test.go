@@ -194,8 +194,8 @@ func TestEval_Redirections_ReadTheOpponent(t *testing.T) {
 	}
 }
 
-func TestParse_RedirectionToAHelperFamily_IsNotSupportedYet(t *testing.T) {
-	for _, expr := range []string{"root,life", "parent,life", "helper(3),life", "playerid(2),life", "partner,life", "stateowner,life", "player(2),life"} {
+func TestParse_RedirectionToAnotherPlayer_IsNotSupportedYet(t *testing.T) {
+	for _, expr := range []string{"playerid(2),life", "partner,life", "stateowner,life", "player(2),life"} {
 		_, err := Parse(expr)
 		if err == nil || !strings.Contains(err.Error(), "not supported yet") {
 			t.Errorf("Parse(%q) error = %v, want one saying the redirection is not supported yet", expr, err)
@@ -205,7 +205,7 @@ func TestParse_RedirectionToAHelperFamily_IsNotSupportedYet(t *testing.T) {
 
 func TestEval_Redirection_OfATriggerTheSnapshotLacks_IsAnUnknownTriggerNotAWrongValue(t *testing.T) {
 	ctx := duel(t, 0, match.FacingRight, 10, match.FacingLeft)
-	for _, expr := range []string{"p2,var(0)", "p2,noSuchTrigger", "p2,command = \"a\"", "p2,random"} {
+	for _, expr := range []string{"p2,animelemtime(1)", "p2,noSuchTrigger", "p2,command = \"a\"", "p2,random"} {
 		e, err := Parse(expr)
 		if err != nil {
 			t.Fatalf("Parse(%q): %v", expr, err)
@@ -319,5 +319,71 @@ func TestEval_RedirectedEdgeDistances(t *testing.T) {
 	}
 	if got := mustEval(t, "p2,FrontEdgeDist", ctx); got.Number != 150 {
 		t.Errorf("p2,FrontEdgeDist = %v, want 150", got.Number)
+	}
+}
+
+// A helper reads its parent and its root (char.go:5340-5382), and a player
+// its helpers by id (char.go:5383-5410), through the snapshots the engine
+// gives it; var(n) and fvar(n) read through them.
+func TestEval_HelperRedirections_ReadParentRootAndHelpers(t *testing.T) {
+	ctx := Context{IsHelper: true, HelperID: 7}
+	ctx.Parent = Opponent{Valid: true, IsHelper: true, HelperID: 3}
+	ctx.Parent.StateNo = 1100
+	ctx.Root = Opponent{Valid: true}
+	ctx.Root.StateNo = 1000
+	ctx.Root.Vars[5] = 9
+	ctx.Root.FVars[2] = 1.5
+	h1 := Opponent{Valid: true, IsHelper: true, HelperID: 3}
+	h1.StateNo = 1100
+	h2 := Opponent{Valid: true, IsHelper: true, HelperID: 7}
+	h2.StateNo = 1200
+	ctx.Helpers = []Opponent{h1, h2}
+	ctx.P2 = Opponent{Valid: true, Helpers: []Opponent{h1}}
+	for expr, want := range map[string]float64{
+		"parent,stateno": 1100, "root,stateno": 1000, "root,var(5)": 9, "root,fvar(2)": 1.5,
+		"parent,ishelper": 1, "root,ishelper": 0,
+		"helper(7),stateno": 1200, "helper,stateno": 1100, "helper(9),stateno": 0,
+		"ishelper": 1, "ishelper(7)": 1, "ishelper(3)": 0, "ishelper(-1)": 1,
+		"numhelper": 2, "numhelper(3)": 1, "numhelper(0)": 2, "numhelper(5)": 0,
+		"enemynear,numhelper": 1, "p2,numhelper(7)": 0,
+	} {
+		if got := evalFloat(t, expr, ctx); got != want {
+			t.Errorf("%s = %v, want %v", expr, got, want)
+		}
+	}
+}
+
+// A player is no helper, and has no parent or root to redirect to: those
+// read 0, as Ikemen GO's nil char.
+func TestEval_APlayerHasNoParentOrRoot(t *testing.T) {
+	ctx := Context{}
+	for _, expr := range []string{"ishelper", "parent,stateno", "root,life", "numhelper"} {
+		if got := evalFloat(t, expr, ctx); got != 0 {
+			t.Errorf("%s = %v, want 0", expr, got)
+		}
+	}
+}
+
+// compiler.go:3396-3413, bytecode.go:1909-1923 and 3101-3114: the name
+// triggers compare case-insensitively; a missing opponent or partner is
+// neither equal nor unequal.
+func TestEval_NameTriggers(t *testing.T) {
+	ctx := Context{Name: "Kung Fu Man", AuthorName: "Elecbyte"}
+	ctx.P2 = Opponent{Valid: true, Name: "Ryu", AuthorName: "Soy Sauce"}
+	for expr, want := range map[string]float64{
+		`name = "kung fu man"`: 1, `P1Name = "Kung Fu Man"`: 1, `name != "Ryu"`: 1,
+		`p2name = "RYU"`: 1, `"ryu" = p2name`: 1, `p2name != "Ryu"`: 0,
+		`authorname = "elecbyte"`: 1, `p3name = "Ryu"`: 0, `p4name != "Ryu"`: 0,
+		`enemy,name = "ryu"`: 1, `enemy,authorname = "Soy Sauce"`: 1, `enemy(1),name = "Ryu"`: 0, `enemynear,name != "Ken"`: 1,
+	} {
+		if got := evalFloat(t, expr, ctx); got != want {
+			t.Errorf("%s = %v, want %v", expr, got, want)
+		}
+	}
+	alone := Context{Name: "Kung Fu Man"}
+	for _, expr := range []string{`p2name = "Ryu"`, `p2name != "Ryu"`} {
+		if got := evalFloat(t, expr, alone); got != 0 {
+			t.Errorf("without an opponent %s = %v, want 0", expr, got)
+		}
 	}
 }

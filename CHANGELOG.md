@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.38.0] - 2026-11-21
+
+### Added
+- Helpers: the Helper controller makes a helper that runs the character's own states each tick, until DestroySelf or the round's end, as in Ikemen GO (at most 56); its HitDefs hit and its projectiles fly. `parent,`, `root,` and `helper(id),` redirections, `IsHelper(id)` and `NumHelper(id)` read them; `TickResult.Helpers` and the WASM tick response's `helpers` report them for drawing. A real character's helper-thrown fireball (Ryu, SVC) now hits.
+- Triggers `Name`, `P1Name`, `P2Name`, `P3Name`, `P4Name`, `AuthorName` (also redirected, case-insensitive), `GameTime`, `NumPartner`, and `GetHitVar(fallcount)`.
+
+### Fixed
+- HitDef parameters written as expressions (`damage = floor(90*fvar(0)), 10`) are evaluated when the HitDef runs instead of falling back to their defaults, and the last HitDef run in a tick wins, as in Ikemen GO.
+- A HitBy or NotHitBy written with an empty `value` no longer stops the character: like Ikemen GO it takes it as given.
+
 ## [2.37.0] - 2026-11-21
 
 ### Added

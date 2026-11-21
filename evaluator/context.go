@@ -108,6 +108,23 @@ type Context struct {
 	// between this tick (Ikemen GO sys.xmin, sys.xmax), read by the edge
 	// distance triggers.
 	ScreenLeft, ScreenRight float64
+	// GameTime is the match's tick count, for GameTime.
+	GameTime int
+	// Name and AuthorName are the character's .def [Info] name and author,
+	// for the Name, P1Name and AuthorName triggers.
+	Name, AuthorName string
+	// IsHelper is set on a helper, HelperID its helper id.
+	IsHelper bool
+	HelperID int
+	// Parent and Root are a helper's parent and root as the engine saw them
+	// before the helper acted (zero on a player); Helpers are the player's
+	// helpers, for helper(id) and NumHelper, on the player and its helpers.
+	Parent, Root Opponent
+	Helpers      []Opponent
+	// NewHelpers are the Helper controllers that ran this tick, which the
+	// engine turns into helpers; Destroyed is set by DestroySelf on a helper.
+	NewHelpers []HelperSpawn
+	Destroyed  bool
 	// NewProjectiles are the Projectile controllers the fighter's states ran
 	// this tick, which the engine turns into projectiles.
 	NewProjectiles []ProjectileSpawn
@@ -320,7 +337,9 @@ type GetHit struct {
 	// the fighter up (Ikemen GO ghv.down_recovertime).
 	DownRecoverTime int
 	FallTime        int
-	HitID           int
+	// FallCount is the times the fighter hit the ground in this combo.
+	FallCount int
+	HitID     int
 }
 
 // SoundEvent is one PlaySnd controller execution recorded onto a fighter's

@@ -85,6 +85,11 @@ sound event, `common` unless prefixed `S`.
 array: `id`, `anim` (one of the owner's animations) and `animTime` (ticks
 into it), `x`, `y` (world position, Y up) and `facing`.
 
+`helpers` is each player's helpers after the tick, always an array: `id`
+(the helper id), `stateNo`, `anim` (one of the player's animations) and
+`animTime`, `x`, `y` (world position, Y up) and `facing`; draw each like a
+fighter.
+
 ### Example
 
 ```js

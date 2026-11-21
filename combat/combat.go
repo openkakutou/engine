@@ -197,11 +197,14 @@ func atoiOrDefaultDamage(raw string) int {
 		// Atoi allocates its error: keep the hit path allocation-free.
 		return DefaultDamage
 	}
-	value, err := strconv.Atoi(raw)
+	if strings.IndexFunc(raw, func(r rune) bool { return (r < '0' || r > '9') && r != '-' && r != '+' && r != '.' }) >= 0 {
+		return DefaultDamage // ParseFloat allocates its error: keep the hit path allocation-free
+	}
+	value, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
 		return DefaultDamage
 	}
-	return value
+	return int(value) // truncated, as Ikemen GO's evalI
 }
 
 // advanceCombo returns combo advanced by one more landed hit at tick: a
@@ -467,6 +470,14 @@ func parseIntOr(s string, def int) int {
 	// ints in some toolchains); a longer value is not a sane tick count.
 	if s == "" || len(s) > 9 {
 		return def
+	}
+	// A decimal value is truncated, as Ikemen GO's evalI does: an expression
+	// evaluated when the HitDef ran may give one.
+	if whole, _, found := strings.Cut(s, "."); found {
+		s = whole
+	}
+	if s == "" {
+		return 0
 	}
 	n := 0
 	for i := 0; i < len(s); i++ {

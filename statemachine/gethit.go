@@ -34,11 +34,15 @@ func init() {
 // slot past the eighth is the first.
 func applyHitBy(ctrl cns.Controller, ctx evaluator.Context, not bool) (evaluator.Context, error) {
 	slot, raw := -1, ""
+	value, hasValue := ctrl.Parameters["value"]
+	value2, hasValue2 := ctrl.Parameters["value2"]
+	// A parameter written empty is given (stateParam, compiler.go:6411-6422):
+	// its empty attr hits nothing.
 	switch {
-	case ctrl.Parameters["value"] != "":
-		slot, raw = 0, ctrl.Parameters["value"]
-	case ctrl.Parameters["value2"] != "":
-		slot, raw = 1, ctrl.Parameters["value2"]
+	case hasValue:
+		slot, raw = 0, value
+	case hasValue2:
+		slot, raw = 1, value2
 	case ctrl.Parameters["attr"] != "":
 		raw = ctrl.Parameters["attr"]
 		s, hasSlot, err := evalOptional(ctrl, "slot", &ctx)
