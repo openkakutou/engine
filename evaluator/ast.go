@@ -115,3 +115,26 @@ func (identifierNode) isNode() {}
 func (callNode) isNode()       {}
 func (unaryNode) isNode()      {}
 func (binaryNode) isNode()     {}
+
+// oldTimeNode is one of MUGEN's old comparison forms Ikemen GO compiles to a
+// time test (compiler.go:4318-4332, 5587-5650): "TimeMod = d, op v" is
+// Time % d op v; "ProjHit<id> = 1" is ProjHitTime(id) = 0, with ", op v"
+// ProjHitTime(id) op v and at least 0, and "= 0" negating either (likewise
+// ProjGuarded and ProjContact).
+type oldTimeNode struct {
+	kind      string // "timemod", "hit", "guarded" or "contact"
+	id, n     int
+	op        string
+	value     node
+	hasSecond bool
+}
+
+func (oldTimeNode) isNode() {}
+
+// teamModeNode is "TeamMode = mode" (or !=), compiler.go:4229-4255.
+type teamModeNode struct {
+	mode string
+	not  bool
+}
+
+func (teamModeNode) isNode() {}

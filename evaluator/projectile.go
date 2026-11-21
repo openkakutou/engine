@@ -13,3 +13,34 @@ type ProjectileSpawn struct {
 	// HitDef is the projectile's HitDef parameters, as written.
 	HitDef map[string]string
 }
+
+// ProjContact is when a player's projectiles with ID last hit and were last
+// guarded, in GameTime ticks; 0 is never.
+type ProjContact struct {
+	ID             int
+	HitTick, Guard int
+}
+
+// projTime is the ticks since the player's projectile id hit (guarded for
+// "guarded", either for "contact"), -1 when it never did (Ikemen GO
+// projHitTime, char.go); the tick after the contact reads 0.
+func projTime(ctx *Context, kind string, id int) int {
+	last := 0
+	for _, c := range ctx.ProjContacts {
+		if c.ID != id {
+			continue
+		}
+		switch kind {
+		case "hit":
+			last = c.HitTick
+		case "guarded":
+			last = c.Guard
+		default:
+			last = max(c.HitTick, c.Guard)
+		}
+	}
+	if last == 0 {
+		return -1
+	}
+	return ctx.GameTime - last - 1
+}

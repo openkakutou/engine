@@ -25,3 +25,4 @@ Found by item 041 (2026-11-19).
 - 2026-11-21: `GameTime` (the caller's tick count), `Name` / `P1Name` / `P2Name` / `P3Name` / `P4Name` / `AuthorName` (also redirected), `NumPartner`, `GetHitVar(fallcount)` done, found by the corpus Ryu (SVC). Still to do: `MatchOver`, `RoundsExisted`, `TeamSide`, `aiw`, `StateTime`.
 - 2026-11-21: `StateTime` done. Still to do: `MatchOver`, `RoundsExisted`, `TeamSide`, `aiw`.
 - 2026-11-21: `TeamSide` done. Still to do: `MatchOver`, `RoundsExisted`, `aiw`.
+- 2026-11-21: `RoundsExisted`, `MatchOver` done (with a corpus batch, see CHANGELOG 2.43.0). Still to do: `aiw`.

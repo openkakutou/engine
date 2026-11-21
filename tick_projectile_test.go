@@ -108,3 +108,37 @@ func TestTick_AProjectileLeavingTheScreenIsRemoved(t *testing.T) {
 		t.Errorf("%d projectiles after flying off for 30 ticks, want 0", n)
 	}
 }
+
+// ProjHitTime(id) (char.go projHitTime) is -1 before the projectile with
+// that id hits and counts from 0 the tick after; NumProjID counts them.
+func TestTick_ProjHitTimeAndNumProjID(t *testing.T) {
+	prog := casterProgram(map[string]string{"projid": "1000"})
+	zero := prog.States[0]
+	zero.Controllers = append(zero.Controllers,
+		ctrlWith("VarSet", "1", map[string]string{"var(0)": "ProjHitTime(1000)"}),
+		ctrlWith("VarSet", "1", map[string]string{"var(1)": "NumProjID(1000)"}))
+	prog.States[0] = zero
+	state, progs, rts := projMatch(t, prog, 60)
+	_, all := runProj(t, state, progs, rts, 20)
+	if v := all[1].Fighters[match.SideP1].Context.Vars[1]; v != 1 {
+		t.Errorf("tick 2 NumProjID(1000) = %d, want 1", v)
+	}
+	hitTick := -1
+	for i, r := range all {
+		if hitTick < 0 && r.State.Fighters[match.SideP2].Health < 1000 {
+			hitTick = i
+		}
+	}
+	if hitTick < 0 {
+		t.Fatal("the projectile never hit")
+	}
+	if v := all[hitTick].Fighters[match.SideP1].Context.Vars[0]; v != -1 {
+		t.Errorf("on the hit tick ProjHitTime = %d, want -1 (read before the hit)", v)
+	}
+	if v := all[hitTick+1].Fighters[match.SideP1].Context.Vars[0]; v != 0 {
+		t.Errorf("the tick after ProjHitTime = %d, want 0", v)
+	}
+	if v := all[hitTick+3].Fighters[match.SideP1].Context.Vars[0]; v != 2 {
+		t.Errorf("three ticks after ProjHitTime = %d, want 2", v)
+	}
+}

@@ -110,6 +110,14 @@ type Context struct {
 	ScreenLeft, ScreenRight float64
 	// GameTime is the match's tick count, for GameTime.
 	GameTime int
+	// HitCount is the hits the fighter's moves landed since it entered a
+	// state without hitcountpersist (HitCount, UniqHitCount).
+	HitCount int
+	// ProjectileIDs are the ids of the player's live projectiles (NumProjID);
+	// ProjContacts are its projectiles' last hit and guard, by id, for
+	// ProjHitTime, ProjGuardedTime and ProjContactTime.
+	ProjectileIDs []int
+	ProjContacts  []ProjContact
 	// Name and AuthorName are the character's .def [Info] name and author,
 	// for the Name, P1Name and AuthorName triggers.
 	Name, AuthorName string
@@ -347,7 +355,9 @@ type GetHit struct {
 	FallTime        int
 	// FallCount is the times the fighter hit the ground in this combo.
 	FallCount int
-	HitID     int
+	// HitCount is the hits taken in this combo, Damage the last one's.
+	HitCount, Damage int
+	HitID            int
 }
 
 // SoundEvent is one PlaySnd controller execution recorded onto a fighter's

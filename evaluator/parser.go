@@ -316,6 +316,14 @@ func (p *parser) parseIdentifierOrCall(name string) (node, error) {
 	if strings.EqualFold(name, "hitdefattr") && p.peekIsOp("=", "!=") {
 		return p.parseHitDefAttr()
 	}
+	lower := strings.ToLower(name)
+	if lower == "teammode" && p.peekIsOp("=", "!=") && p.pos+1 < len(p.toks) && p.toks[p.pos+1].kind == tokIdent {
+		not := p.next().text == "!="
+		return teamModeNode{mode: strings.ToLower(p.next().text), not: not}, nil
+	}
+	if kind, id, ok := oldTimeTrigger(lower); ok && p.peekIsOp("=") {
+		return p.parseOldTime(kind, id)
+	}
 	// Command takes its "= \"name\"" at once (Ikemen GO eqne,
 	// compiler.go:2197-2238), so "Time = command = \"x\"" (kfm.cns state
 	// 1300) is Time = (command = "x").
@@ -433,6 +441,57 @@ func (p *parser) parseAnimElem() (node, error) {
 		return nil, err
 	}
 	return animElemNode{elem: elem, op: op, value: value}, nil
+}
+
+// oldTimeTrigger recognizes TimeMod and the ProjHit<id>, ProjGuarded<id>
+// and ProjContact<id> forms (compiler.go:5590-5592), the id being digits.
+func oldTimeTrigger(name string) (kind string, id int, ok bool) {
+	if name == "timemod" {
+		return "timemod", 0, true
+	}
+	for _, k := range [...]string{"projhit", "projguarded", "projcontact"} {
+		rest, found := strings.CutPrefix(name, k)
+		if !found {
+			continue
+		}
+		n := 0
+		for _, c := range rest {
+			if c < '0' || c > '9' {
+				return "", 0, false
+			}
+			n = n*10 + int(c-'0')
+		}
+		return strings.TrimPrefix(k, "proj"), n, true
+	}
+	return "", 0, false
+}
+
+// parseOldTime parses "= n" and an optional ", op value" after an old time
+// trigger (parseOldAnimElemStyle, then evaluateComparison).
+func (p *parser) parseOldTime(kind string, id int) (node, error) {
+	p.next() // "="
+	tok := p.next()
+	n, err := strconv.Atoi(tok.text)
+	if tok.kind != tokNumber || err != nil {
+		return nil, fmt.Errorf("evaluator: %s expects an integer after '=', got %q", kind, tok.text)
+	}
+	if kind == "timemod" && n <= 0 {
+		return nil, fmt.Errorf("evaluator: TimeMod must be greater than 0")
+	}
+	node := oldTimeNode{kind: kind, id: id, n: n, op: "=", value: numberNode{}}
+	if p.peek().kind != tokComma {
+		return node, nil
+	}
+	p.next()
+	if p.peekIsOp("=", "!=", "<", ">", "<=", ">=") {
+		node.op = p.next().text
+	}
+	value, err := p.parseAdditive()
+	if err != nil {
+		return nil, err
+	}
+	node.value, node.hasSecond = value, true
+	return node, nil
 }
 
 // parseAnimElemInterval parses the "[lo, hi]" after AnimElem's comma: unlike

@@ -468,6 +468,8 @@ func Tick(
 	// (system.go:2734). See decisions 027 and 029.
 	runtimes[match.SideP1].Context.NumProjectiles = len(runtimes[match.SideP1].Projectiles)
 	runtimes[match.SideP2].Context.NumProjectiles = len(runtimes[match.SideP2].Projectiles)
+	runtimes[match.SideP1].Context.ProjectileIDs = projectileIDs(runtimes[match.SideP1].Projectiles)
+	runtimes[match.SideP2].Context.ProjectileIDs = projectileIDs(runtimes[match.SideP2].Projectiles)
 	p2Seen := snapshotOf(state.Fighter(match.SideP2), &runtimes[match.SideP2].Context)
 	screen := screenEdges(cfg)
 	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), p2Seen, inputs[match.SideP1], cfg.Tick, cfg.Bounds, screen, cfg.Gravity, state.Round, state.RandSeed)
@@ -1407,6 +1409,13 @@ func enterState(ctx *evaluator.Context, def entryHeader) (animRestarted bool, er
 	if !persist {
 		ctx.MoveContactTime = 0
 	}
+	// and the hit count unless hitcountpersist (bytecode.go:5452-5455).
+	if persist, err = headerBool(ctx, def, "hitcountpersist", def.HitCountPersist); err != nil {
+		return false, err
+	}
+	if !persist {
+		ctx.HitCount = 0
+	}
 	if persist, err = headerBool(ctx, def, "hitdefpersist", def.HitDefPersist); err != nil {
 		return false, err
 	}
@@ -1636,8 +1645,22 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 	runtimes[attacker].Context.MoveContactTime = 1
 	runtimes[attacker].Context.ContactGuarded = guarded
 	runtimes[attacker].Context.HasTarget = true
+	// A hit adds to the attacker's hit count (char.go:13125-13129).
+	if !guarded {
+		runtimes[attacker].Context.HitCount++
+	}
 
 	ctx := &runtimes[hit.Defender].Context
+	// The defender's hits taken in the combo, counted while it stays hit,
+	// and the damage of this one (ghv.hitcount, ghv.damage).
+	hitCount := 1
+	if ctx.MoveType == 'H' {
+		hitCount = ctx.GetHit.HitCount + 1
+	}
+	defer func() {
+		ctx.GetHit.HitCount = hitCount
+		ctx.GetHit.Damage = hit.HealthBefore - hit.HealthAfter
+	}()
 	defender := programs[hit.Defender]
 	if guarded {
 		runtimes[attacker].HitPause = params.GuardPauseTime[0]

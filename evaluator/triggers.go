@@ -9,7 +9,8 @@ import (
 )
 
 // axisTriggers are the triggers written with an axis letter ("Pos Y").
-var axisTriggers = map[string]bool{"pos": true, "vel": true, "p2dist": true, "p2bodydist": true, "camerapos": true}
+var axisTriggers = map[string]bool{"pos": true, "vel": true, "p2dist": true, "p2bodydist": true, "camerapos": true,
+	"parentdist": true, "rootdist": true, "screenpos": true}
 
 // firstPlayerID is player 1's ID, Ikemen GO's default HelperMax.
 const firstPlayerID = 56
@@ -62,6 +63,37 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		// time before it. shortcut: it is the tick count the caller gives
 		// (TickConfig.Tick); the time before the match is not counted.
 		return intValue(float64(ctx.GameTime)), true, nil
+	case "roundsexisted":
+		// sys.roundsExisted (char.go:6338-6343): the rounds finished, the
+		// round number less one for a one-on-one fighter.
+		return intValue(float64(max(ctx.Round-1, 0))), true, nil
+	case "ishometeam":
+		// teamside == sys.home, 0 by default (bytecode.go:3428-3429).
+		return boolValue(ctx.Side == 0), true, nil
+	case "win", "winko", "wintime", "winperfect", "winspecial", "winhyper", "winclutch",
+		"lose", "loseko", "losetime", "drawgame", "matchover":
+		// char.go:5952-5957, 6597-6610: sys.winTeam is -1 while the round is
+		// fought. shortcut: the engine stops at the round's end, so they are
+		// false; the post-round poses (state 180) come with the round flow.
+		return boolValue(false), true, nil
+	case "matchno":
+		return intValue(1), true, nil
+	case "lifemax":
+		return intValue(float64(constOr(ctx, "data.life", 1000))), true, nil
+	case "powermax":
+		return intValue(float64(constOr(ctx, "data.power", 3000))), true, nil
+	case "camerazoom":
+		return floatValue(1), true, nil
+	case "gamewidth":
+		// shortcut: a 320 by 240 game, the size MUGEN characters are written
+		// for (localcoord 320).
+		return intValue(320), true, nil
+	case "gameheight":
+		return intValue(240), true, nil
+	case "hitcount", "uniqhitcount":
+		// char.go:13125-13129 (uniqhitcount counts once per target; one target
+		// here).
+		return intValue(float64(ctx.HitCount)), true, nil
 	case "teamside":
 		// OC_teamside (bytecode.go:2735-2736): the side's team, 1 or 2; a
 		// helper is on its player's.
@@ -191,6 +223,23 @@ func evalComponent(n componentNode, ctx *Context) (Value, error) {
 		return evalP2Distance(n, ctx)
 	case "pos":
 		x, y = ctx.Position.X, ctx.Position.Y
+	case "parentdist", "rootdist":
+		// The parent's or root's distance, x toward the fighter's facing, y
+		// down (char.go parentDist/rootDist); 0 without one.
+		other := ctx.Parent
+		if n.name == "rootdist" {
+			other = ctx.Root
+		}
+		if other.Valid {
+			x = (other.Position.X - ctx.Position.X) * facingSign(ctx.Facing)
+			y = other.Position.Y - ctx.Position.Y
+		}
+	case "screenpos":
+		// shortcut: from the screen's left edge less its margin and from a top
+		// edge 220 above the ground (a 240-high screen), the camera fixed in
+		// height.
+		x = ctx.Position.X - ctx.ScreenLeft
+		y = ctx.Position.Y - 220
 	case "camerapos":
 		// sys.cam.Pos (bytecode.go:2536-2539): the camera's centre,
 		// halfway between the screen edges; the camera does not move up.
@@ -257,6 +306,31 @@ func evalFighterCall(n callNode, ctx *Context) (v Value, ok bool, err error) {
 			}
 		}
 		return intValue(float64(count)), true, nil
+	case "numprojid":
+		if len(n.args) != 1 {
+			return Value{}, true, fmt.Errorf("evaluator: numprojid() expects 1 argument, got %d", len(n.args))
+		}
+		id, err := evalNode(n.args[0], ctx)
+		if err != nil {
+			return Value{}, true, err
+		}
+		count := 0
+		for _, p := range ctx.ProjectileIDs {
+			if p == id.Int() {
+				count++
+			}
+		}
+		return intValue(float64(count)), true, nil
+	case "projhittime", "projguardedtime", "projcontacttime":
+		if len(n.args) != 1 {
+			return Value{}, true, fmt.Errorf("evaluator: %s() expects 1 argument, got %d", n.name, len(n.args))
+		}
+		id, err := evalNode(n.args[0], ctx)
+		if err != nil {
+			return Value{}, true, err
+		}
+		kind := strings.TrimSuffix(strings.TrimPrefix(n.name, "proj"), "time")
+		return intValue(float64(projTime(ctx, kind, id.Int()))), true, nil
 	case "numtarget":
 		// The optional id picks the targets hit by the HitDef with that id
 		// (compiler.go:3440-3445, char.go:6211-6224); none means every target.
@@ -496,4 +570,16 @@ func mugenBodyOffset(ctx *Context) float64 {
 		return 1
 	}
 	return 0
+}
+
+// constOr is a [Data] constant, def when the character has none.
+func constOr(ctx *Context, name string, def int) int {
+	if ctx.Consts == nil {
+		return def
+	}
+	v := ctx.Consts.Lookup(name)
+	if v.Int() == 0 {
+		return def
+	}
+	return v.Int()
 }

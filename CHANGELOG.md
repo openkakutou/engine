@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.43.0] - 2026-11-21
+
+### Added
+- Triggers the corpus characters stopped on, as Ikemen GO evaluates them: `RoundsExisted`, `IsHomeTeam`, `TeamMode = single`, the `Win` / `Lose` family and `MatchOver` (false while the round is fought), `MatchNo`, `LifeMax`, `PowerMax`, `GameWidth`, `GameHeight`, `CameraZoom`, `HitCount`, `UniqHitCount`, `GetHitVar(hitcount)` and `GetHitVar(damage)`, `NumProjID(id)`, `ProjHitTime(id)`, `ProjGuardedTime(id)`, `ProjContactTime(id)`, the old `ProjHit<id> = 1[, op v]` and `TimeMod = d, v` forms, `ParentDist`, `RootDist` and `ScreenPos` components, and the `partner` redirection (none in a one-on-one match).
+- A state without `hitcountpersist` clears the hit count.
+
 ## [2.42.0] - 2026-11-21
 
 ### Added

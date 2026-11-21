@@ -195,7 +195,7 @@ func TestEval_Redirections_ReadTheOpponent(t *testing.T) {
 }
 
 func TestParse_RedirectionToAnotherPlayer_IsNotSupportedYet(t *testing.T) {
-	for _, expr := range []string{"playerid(2),life", "partner,life", "stateowner,life", "player(2),life"} {
+	for _, expr := range []string{"playerid(2),life", "stateowner,life", "player(2),life"} {
 		_, err := Parse(expr)
 		if err == nil || !strings.Contains(err.Error(), "not supported yet") {
 			t.Errorf("Parse(%q) error = %v, want one saying the redirection is not supported yet", expr, err)
@@ -421,5 +421,33 @@ func TestEval_TeamSide(t *testing.T) {
 	}
 	if got := evalFloat(t, "enemy,teamside", ctx); got != 1 {
 		t.Errorf("enemy,teamside = %v, want 1", got)
+	}
+}
+
+func TestEval_SurveyTriggers(t *testing.T) {
+	ctx := Context{Round: 3, IsHelper: true}
+	ctx.Time = 6
+	ctx.Position.X, ctx.Position.Y = 10, 5
+	ctx.Parent = Opponent{Valid: true}
+	ctx.Parent.Position.X, ctx.Parent.Position.Y = 40, 0
+	ctx.Root = Opponent{Valid: true}
+	ctx.Root.Position.X = -20
+	ctx.ScreenLeft = -100
+	ctx.GameTime = 50
+	ctx.ProjContacts = []ProjContact{{ID: 1000, HitTick: 47}}
+	ctx.ProjectileIDs = []int{1000, 1000, 7}
+	for expr, want := range map[string]float64{
+		"roundsexisted": 2, "ishometeam": 1, "winko": 0, "lose": 0, "matchover": 0, "matchno": 1,
+		"lifemax": 1000, "powermax": 3000, "gamewidth": 320, "gameheight": 240, "camerazoom": 1,
+		"teammode = single": 1, "teammode != single": 0, "teammode = simul": 0, "teammode = Turns": 0,
+		"timemod = 2, 0": 1, "timemod = 4, 2": 1, "timemod = 4, 1": 0,
+		"projhit1000 = 1": 0, "projhit1000 = 1, = 2": 1, "projhit1000 = 1, > 5": 0, "projhit1000 = 0, > 5": 1,
+		"projhit7 = 1, >= 0": 0, "projhittime(1000)": 2, "projhittime(7)": -1, "numprojid(1000)": 2,
+		"parentdist x": 30, "parentdist y": 5, "rootdist x": -30, "screenpos x": 110, "screenpos y": 215,
+		"partner,life": 0,
+	} {
+		if got := evalFloat(t, expr, ctx); got != want {
+			t.Errorf("%s = %v, want %v", expr, got, want)
+		}
 	}
 }

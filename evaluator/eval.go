@@ -298,6 +298,16 @@ func evalNode(n node, ctx *Context) (Value, error) {
 	case animElemNode:
 		return evalAnimElem(tn, ctx)
 
+	case oldTimeNode:
+		return evalOldTime(tn, ctx)
+
+	case teamModeNode:
+		// A one-on-one match is single (compiler.go:4229-4255); an unknown
+		// mode is false.
+		single := tn.mode == "single"
+		known := single || tn.mode == "simul" || tn.mode == "turns" || tn.mode == "tag"
+		return boolValue(known && single != tn.not), nil
+
 	case intervalNode:
 		return evalInterval(tn, ctx)
 
@@ -479,6 +489,10 @@ func evalGetHitVar(n callNode, ctx *Context) (Value, error) {
 		return intValue(float64(g.FallRecoverTime)), nil
 	case "fallcount":
 		return intValue(float64(g.FallCount)), nil
+	case "hitcount":
+		return intValue(float64(g.HitCount)), nil
+	case "damage":
+		return intValue(float64(g.Damage)), nil
 	case "xvel":
 		// bytecode.go:3491-3492: ghv.xvel, the knock-back away from the
 		// attacker as the engine keeps it (char.go:11719-11778).
@@ -977,4 +991,29 @@ func commandComparisonTarget(n binaryNode) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// evalOldTime evaluates an oldTimeNode.
+func evalOldTime(n oldTimeNode, ctx *Context) (Value, error) {
+	right, err := evalNode(n.value, ctx)
+	if err != nil {
+		return Value{}, err
+	}
+	if n.kind == "timemod" {
+		v, _, err := evalComparisonOrLogical(n.op, intValue(float64(ctx.Time%n.n)), right)
+		return v, err
+	}
+	t := projTime(ctx, n.kind, n.id)
+	res := t == 0
+	if n.hasSecond {
+		v, _, err := evalComparisonOrLogical(n.op, intValue(float64(t)), right)
+		if err != nil {
+			return Value{}, err
+		}
+		res = t >= 0 && v.Bool()
+	}
+	if n.n == 0 {
+		res = !res
+	}
+	return boolValue(res), nil
 }

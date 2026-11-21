@@ -7,6 +7,7 @@ import (
 	"github.com/openkakutou/engine/v2/evaluator"
 	"github.com/openkakutou/engine/v2/hitdetect"
 	"github.com/openkakutou/engine/v2/match"
+	"slices"
 )
 
 // ProjectileStatus is a projectile's life stage, Ikemen GO's ProjActive,
@@ -179,6 +180,7 @@ func hitWithProjectiles(state *match.MatchState, programs *[2]FighterProgram, ru
 			continue
 		}
 		p.contact = true
+		rt.Context.ProjContacts = recordProjContact(rt.Context.ProjContacts, p.ID, cfg.Tick, guarded)
 		err = applyHitReaction(programs, runtimes, attacker, params, hit, guarded)
 		rt.HitPause, rt.Context.MoveContactTime, rt.Context.ContactGuarded, rt.Context.HasTarget = owner.pause, owner.moveContact, owner.guarded, owner.target
 		return err
@@ -244,4 +246,30 @@ func animationLength(anim air.Animation) int {
 // defender's hurt boxes.
 func hitBoxesTouch(pos match.Position, facing match.Facing, clsn1 []air.ClsnBox, defender *evaluator.Context, clsn2 []air.ClsnBox) bool {
 	return hitdetect.BoxesOverlap(pos, facing, clsn1, defender.Position, defender.Facing, clsn2)
+}
+
+// projectileIDs are the ids of projectiles, nil for none.
+func projectileIDs(projectiles []Projectile) []int {
+	var ids []int
+	for _, p := range projectiles {
+		ids = append(ids, p.ID)
+	}
+	return ids
+}
+
+// recordProjContact is contacts with projectile id's hit (or guard) at tick,
+// in a fresh slice: the one handed in belongs to the tick before.
+func recordProjContact(contacts []evaluator.ProjContact, id, tick int, guarded bool) []evaluator.ProjContact {
+	out := slices.Clone(contacts)
+	i := slices.IndexFunc(out, func(c evaluator.ProjContact) bool { return c.ID == id })
+	if i < 0 {
+		out = append(out, evaluator.ProjContact{ID: id})
+		i = len(out) - 1
+	}
+	if guarded {
+		out[i].Guard = tick
+	} else {
+		out[i].HitTick = tick
+	}
+	return out
 }

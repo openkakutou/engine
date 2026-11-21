@@ -244,6 +244,8 @@ func TestTick_LandedHit_RecordsTheFallAndVelocityGetHitVars(t *testing.T) {
 	for _, tc := range cases {
 		s := newHitScenario(t, tc.tweak)
 		s.step()
+		// Every case is a first hit of 23 (ghv.hitcount, ghv.damage).
+		tc.want.HitCount, tc.want.Damage = 1, 23
 		if got := s.ctx(match.SideP2).GetHit; got != tc.want {
 			t.Errorf("%s: defender GetHit = %+v, want %+v", tc.name, got, tc.want)
 		}

@@ -103,7 +103,7 @@ func (o *Opponent) context() Context {
 var redirectKinds = map[string]bool{
 	"p2": true, "enemy": true, "enemynear": true, "target": true,
 	"root": true, "parent": true, "helper": true, "playerid": false,
-	"player": false, "partner": false, "stateowner": false,
+	"player": false, "partner": true, "stateowner": false,
 }
 
 // IsRedirect reports whether word (any case) is a redirection keyword, which
@@ -216,6 +216,9 @@ func redirectTarget(n redirectNode, ctx *Context) (target Opponent, found bool, 
 			index = -1
 		}
 		found = isTarget(ctx, index)
+	case "partner":
+		// A one-on-one fighter has no partner (char.go partner).
+		return Opponent{}, false, nil
 	case "parent":
 		return ctx.Parent, ctx.Parent.Valid, nil
 	case "root":
