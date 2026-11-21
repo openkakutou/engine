@@ -50,8 +50,11 @@ func applyHelper(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 		s.PosType = strings.ToLower(strings.TrimSpace(raw))
 	}
 	if raw, ok := ctrl.Parameters["pos"]; ok {
-		for i, part := range strings.SplitN(raw, ",", 2) {
-			v, err := evaluator.EvaluateMut(strings.TrimSpace(part), &ctx)
+		for i, part := range evaluator.SplitList(raw) {
+			if i > 1 || part == "" {
+				break
+			}
+			v, err := evaluator.EvaluateMut(part, &ctx)
 			if err != nil {
 				return ctx, err
 			}

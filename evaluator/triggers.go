@@ -92,6 +92,13 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		return intValue(float64(constOr(ctx, "data.power", 3000))), true, nil
 	case "camerazoom":
 		return floatValue(1), true, nil
+	case "screenwidth":
+		// char.go:6381-6383: the character's localcoord width.
+		// shortcut: 320, the MUGEN default; a .def localcoord is not read.
+		return intValue(320), true, nil
+	case "screenheight":
+		// char.go:6367-6379: the width over the fight's aspect. shortcut: 4:3.
+		return intValue(240), true, nil
 	case "gamewidth":
 		// shortcut: a 320 by 240 game, the size MUGEN characters are written
 		// for (localcoord 320).

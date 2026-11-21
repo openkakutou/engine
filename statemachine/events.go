@@ -31,7 +31,7 @@ func controllerEvent(typ string, ctrl cns.Controller, ctx *evaluator.Context) ev
 	e := evaluator.ControllerEvent{Type: typ}
 	for name, raw := range ctrl.Parameters {
 		p := evaluator.EventParam{Name: name, Raw: strings.TrimSpace(raw)}
-		for _, part := range strings.Split(raw, ",") {
+		for _, part := range evaluator.SplitList(raw) {
 			v, err := evaluator.EvaluateMut(strings.TrimSpace(part), ctx)
 			if err != nil {
 				p.Values = nil
@@ -63,8 +63,11 @@ func applyWidth(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, 
 	if !ok {
 		return ctx, nil
 	}
-	for i, part := range strings.SplitN(raw, ",", 2) {
-		v, err := evaluator.EvaluateMut(strings.TrimSpace(part), &ctx)
+	for i, part := range evaluator.SplitList(raw) {
+		if i > 1 {
+			break
+		}
+		v, err := evaluator.EvaluateMut(part, &ctx)
 		if err != nil {
 			return ctx, err
 		}

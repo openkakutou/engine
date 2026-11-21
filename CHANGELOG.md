@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.48.0] - 2026-11-21
+
+### Added
+- `ScreenWidth`, `ScreenHeight`; a type comparison behind a redirection (`root,p2movetype = H`), the root, parent or helpers facing the same opponent.
+
+### Fixed
+- Parameters holding several expressions are split as Ikemen GO reads them, so a comma inside a call, a redirection or an interval no longer breaks Helper and Projectile positions, Width edges, visual events, sparkxy, hit sounds and guard.dist (`pos = Ceil(enemy,Const(size.ground.front)+var(38)), ...`).
+- A malformed `HitDefAttr = ,AT` reads false and `ProjHit(1201)` reads 0, as Ikemen GO tolerates them in CNS, instead of stopping the match.
+
 ## [2.47.0] - 2026-11-21
 
 ### Added

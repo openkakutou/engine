@@ -729,6 +729,15 @@ func evalUnary(n unaryNode, ctx *Context) (Value, error) {
 }
 
 func evalBinary(n binaryNode, ctx *Context) (Value, error) {
+	// "root,p2movetype = H": a redirected type comparison is read whole on
+	// the fighter the redirection names.
+	if rn, ok := n.left.(redirectNode); ok {
+		inner := binaryNode{op: n.op, left: rn.inner, right: n.right}
+		if _, _, isType := typeComparison(inner); isType {
+			rn.inner = inner
+			return evalRedirect(rn, ctx)
+		}
+	}
 	if n.op == "=" || n.op == "!=" {
 		if v, ok, err := evalTypeComparison(n, ctx); ok {
 			return v, err

@@ -791,7 +791,10 @@ func hitSound(raw string, ctx *evaluator.Context) (evaluator.SoundEvent, bool) {
 	case 'F', 'f':
 		raw = raw[1:]
 	}
-	groupRaw, sampleRaw, _ := strings.Cut(raw, ",")
+	groupRaw, sampleRaw := raw, ""
+	if parts := evaluator.SplitList(raw); len(parts) > 1 {
+		groupRaw, sampleRaw = parts[0], parts[1]
+	}
 	group, err := evaluator.EvaluateMut(strings.TrimSpace(groupRaw), ctx)
 	if err != nil || group.Int() < 0 {
 		return evaluator.SoundEvent{}, false
@@ -825,8 +828,11 @@ func hitSpark(attacker, defender *evaluator.Context, params map[string]string, g
 		}
 	}
 	var offset [2]float64
-	for i, part := range strings.SplitN(params["sparkxy"], ",", 2) {
-		if v, err := evaluator.EvaluateMut(strings.TrimSpace(part), attacker); err == nil {
+	for i, part := range evaluator.SplitList(params["sparkxy"]) {
+		if i > 1 {
+			break
+		}
+		if v, err := evaluator.EvaluateMut(part, attacker); err == nil {
 			offset[i] = v.Float()
 		}
 	}
@@ -1163,8 +1169,11 @@ func guardDist(hitDef cns.Controller, ctx *evaluator.Context) [2]float64 {
 	if !ok {
 		return reach
 	}
-	for i, part := range strings.SplitN(raw, ",", 2) {
-		if v, err := evaluator.EvaluateMut(strings.TrimSpace(part), ctx); err == nil {
+	for i, part := range evaluator.SplitList(raw) {
+		if i > 1 {
+			break
+		}
+		if v, err := evaluator.EvaluateMut(part, ctx); err == nil {
 			reach[i] = v.Number
 		}
 	}

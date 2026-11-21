@@ -1,8 +1,6 @@
 package statemachine
 
 import (
-	"strings"
-
 	"github.com/openkakutou/character/cns"
 	"github.com/openkakutou/engine/v2/evaluator"
 )
@@ -57,8 +55,11 @@ func applyProjectile(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Cont
 		if !ok {
 			continue
 		}
-		for i, part := range strings.SplitN(raw, ",", 2) {
-			v, err := evaluator.EvaluateMut(strings.TrimSpace(part), &ctx)
+		for i, part := range evaluator.SplitList(raw) {
+			if i > 1 || part == "" {
+				break
+			}
+			v, err := evaluator.EvaluateMut(part, &ctx)
 			if err != nil {
 				return ctx, err
 			}

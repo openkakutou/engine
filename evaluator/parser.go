@@ -324,6 +324,14 @@ func (p *parser) parseIdentifierOrCall(name string) (node, error) {
 	if kind, id, ok := oldTimeTrigger(lower); ok && p.peekIsOp("=") {
 		return p.parseOldTime(kind, id)
 	}
+	// "ProjHit(1201)": an id in parentheses is gibberish Ikemen GO reads as 0
+	// (compiler.go:1285-1290).
+	if kind, _, ok := oldTimeTrigger(lower); ok && kind != "timemod" && p.peek().kind == tokLParen {
+		if _, err := p.parseCallArgs(name); err != nil {
+			return nil, err
+		}
+		return numberNode{}, nil
+	}
 	// Command takes its "= \"name\"" at once (Ikemen GO eqne,
 	// compiler.go:2197-2238), so "Time = command = \"x\"" (kfm.cns state
 	// 1300) is Time = (command = "x").
@@ -555,6 +563,19 @@ func (p *parser) parseHitDefAttr() (node, error) {
 			p.next()
 			text += "," + p.next().text
 		}
+	case tokComma:
+		// No state letters ("HitDefAttr = ,AT", Baiken EX): Ikemen GO warns
+		// and reads false for a malformed attr in a CNS expression
+		// (compiler.go:3043-3052); its attack classes are consumed.
+		p.pos--
+		for p.peek().kind == tokComma && p.toks[p.pos+1].kind == tokIdent {
+			if _, ok := attackClass(p.toks[p.pos+1].text); !ok {
+				break
+			}
+			p.next()
+			p.next()
+		}
+		return numberNode{}, nil
 	default:
 		return nil, fmt.Errorf("evaluator: HitDefAttr expects an attribute such as SCA, NA after the operator, got %q", tok.text)
 	}

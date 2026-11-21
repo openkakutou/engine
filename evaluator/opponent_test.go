@@ -439,6 +439,7 @@ func TestEval_SurveyTriggers(t *testing.T) {
 	for expr, want := range map[string]float64{
 		"roundsexisted": 2, "ishometeam": 1, "winko": 0, "lose": 0, "matchover": 0, "matchno": 1,
 		"lifemax": 1000, "powermax": 3000, "gamewidth": 320, "gameheight": 240, "camerazoom": 1,
+		"screenwidth": 320, "screenheight": 240,
 		"teammode = single": 1, "teammode != single": 0, "teammode = simul": 0, "teammode = Turns": 0,
 		"timemod = 2, 0": 1, "timemod = 4, 2": 1, "timemod = 4, 1": 0,
 		"projhit1000 = 1": 0, "projhit1000 = 1, = 2": 1, "projhit1000 = 1, > 5": 0, "projhit1000 = 0, > 5": 1,
@@ -501,6 +502,41 @@ func TestEval_PlayerRedirections(t *testing.T) {
 		"playerid(56),life": 700, "playerid(57),life": 400, "playerid(3),life": 0,
 		"player(1),life": 700, "player(2),life": 400, "player(4),life": 0,
 	} {
+		if got := evalFloat(t, expr, ctx); got != want {
+			t.Errorf("%s = %v, want %v", expr, got, want)
+		}
+	}
+}
+
+// Polnareff: "root,p2movetype = H" compares on the root, which faces the
+// same opponent.
+func TestEval_RedirectedTypeComparison(t *testing.T) {
+	ctx := Context{IsHelper: true}
+	ctx.Root = Opponent{Valid: true, MoveType: 'A'}
+	ctx.P2 = Opponent{Valid: true, MoveType: 'H'}
+	for expr, want := range map[string]float64{
+		"root,p2movetype = H": 1, "root,movetype = A": 1, "root,movetype != A": 0, "root,statetype = S": 0,
+	} {
+		if got := evalFloat(t, expr, ctx); got != want {
+			t.Errorf("%s = %v, want %v", expr, got, want)
+		}
+	}
+}
+
+// compiler.go:3043-3052: a malformed HitDefAttr comparison reads false.
+func TestEval_HitDefAttrWithoutStateLettersIsFalse(t *testing.T) {
+	ctx := Context{HitDefAttr: 0x7fffffff}
+	for _, expr := range []string{"HitDefAttr = ,AT", "hitdefattr=,AT,AP || 0"} {
+		if got := evalFloat(t, expr, ctx); got != 0 {
+			t.Errorf("%s = %v, want 0", expr, got)
+		}
+	}
+}
+
+// compiler.go:1285-1290: "ProjHit(1201)" is gibberish read as 0 (Hope).
+func TestEval_ProjHitWithAnIDInParenthesesIsZero(t *testing.T) {
+	ctx := Context{GameTime: 50, ProjContacts: []ProjContact{{ID: 1201, HitTick: 49}}}
+	for expr, want := range map[string]float64{"projhit(1201) >= 1": 0, "projhit(1201) = 0": 1, "projcontact(5)": 0} {
 		if got := evalFloat(t, expr, ctx); got != want {
 			t.Errorf("%s = %v, want %v", expr, got, want)
 		}

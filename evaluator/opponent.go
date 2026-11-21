@@ -149,6 +149,11 @@ func evalRedirect(n redirectNode, ctx *Context) (Value, error) {
 	redirected := target.context()
 	// The match's own state reads the same from every fighter.
 	redirected.Round, redirected.GameTime = ctx.Round, ctx.GameTime
+	// The fighter's own side (its root, parent or helpers) faces the same
+	// opponent in a one-on-one match.
+	if n.kind == "root" || n.kind == "parent" || n.kind == "helper" {
+		redirected.P2 = ctx.P2
+	}
 	return evalNode(n.inner, &redirected)
 }
 
