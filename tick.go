@@ -432,6 +432,18 @@ type TickConfig struct {
 	Gravity     float64
 	Tick        int
 	ComboWindow int
+	// Round is where the round is (round.Clock); nil is the fight itself,
+	// RoundState 2. The round timer counts and the outcome is decided only
+	// in RoundState 2.
+	Round *RoundProgress
+}
+
+// RoundProgress is the round's state for a tick: Ikemen GO's RoundState
+// (0 to 4) and, once decided, its result.
+type RoundProgress struct {
+	State     int
+	Result    round.RoundResult
+	MatchOver bool
 }
 
 // Tick advances a full simulation tick for both fighters -- the one
@@ -466,6 +478,8 @@ func Tick(
 	// second as the previous tick left it, the second sees the first after
 	// its controllers and its movement; collision detection comes after both
 	// (system.go:2734). See decisions 027 and 029.
+	setRoundProgress(&runtimes[match.SideP1].Context, cfg.Round)
+	setRoundProgress(&runtimes[match.SideP2].Context, cfg.Round)
 	runtimes[match.SideP1].Context.NumProjectiles = len(runtimes[match.SideP1].Projectiles)
 	runtimes[match.SideP2].Context.NumProjectiles = len(runtimes[match.SideP2].Projectiles)
 	runtimes[match.SideP1].Context.ProjectileIDs = projectileIDs(runtimes[match.SideP1].Projectiles)
@@ -592,12 +606,17 @@ func Tick(
 	// (MUGEN/Ikemen's "unlimited time" convention): it neither counts down
 	// nor ends on time. Otherwise the timer counts down one tick, and
 	// reaching 0 is a timeout, which CheckOutcome resolves.
-	untimed := state.RoundTimer <= 0
+	// Only the fight (RoundState 2) counts the time and decides the round.
+	fighting := cfg.Round == nil || cfg.Round.State == 2
+	untimed := state.RoundTimer <= 0 || !fighting
 	if !untimed {
 		state.RoundTimer--
 	}
 
-	result := round.CheckOutcome(&state)
+	var result round.RoundResult
+	if fighting {
+		result = round.CheckOutcome(&state)
+	}
 	if untimed && (result.Outcome == round.OutcomeTimeout || result.Outcome == round.OutcomeTimeoutDraw) {
 		result = round.RoundResult{}
 	}

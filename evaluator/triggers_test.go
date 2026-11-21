@@ -21,6 +21,7 @@ func fighterCtx() Context {
 		MoveType:    'H',
 		PrevStateNo: 120,
 		Round:       2,
+		RoundState:  2, // the fight; the engine sets it every tick
 	}
 }
 

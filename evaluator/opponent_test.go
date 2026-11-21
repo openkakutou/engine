@@ -464,3 +464,29 @@ func TestEval_ConstantsStageVarAndPlayerIDExist(t *testing.T) {
 		}
 	}
 }
+
+// char.go:5952-5957, 6597-6620: the win family reads the decided round.
+func TestEval_RoundEndTriggers(t *testing.T) {
+	ko := Context{RoundEnd: RoundEnd{Decided: true, Winner: 0, KO: true}}
+	ko.Health = 1000
+	lost := ko
+	lost.Side = 1
+	draw := Context{RoundEnd: RoundEnd{Decided: true, Draw: true}}
+	fighting := Context{}
+	cases := []struct {
+		ctx  Context
+		want map[string]float64
+	}{
+		{ko, map[string]float64{"win": 1, "winko": 1, "wintime": 0, "winperfect": 1, "lose": 0, "drawgame": 0}},
+		{lost, map[string]float64{"win": 0, "lose": 1, "loseko": 1, "losetime": 0}},
+		{draw, map[string]float64{"win": 0, "lose": 0, "drawgame": 1}},
+		{fighting, map[string]float64{"win": 0, "lose": 0, "drawgame": 0, "matchover": 0}},
+	}
+	for i, c := range cases {
+		for expr, want := range c.want {
+			if got := evalFloat(t, expr, c.ctx); got != want {
+				t.Errorf("case %d %s = %v, want %v", i, expr, got, want)
+			}
+		}
+	}
+}

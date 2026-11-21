@@ -52,6 +52,7 @@ func tickHelpers(rt *FighterRuntime, prog FighterProgram, opponent evaluator.Opp
 			h.Context.Parent = snapshotOf(parent.Context.FighterState, &parent.Context)
 		}
 		h.Context.Helpers = rt.Context.Helpers
+		h.Context.RoundState, h.Context.RoundEnd = rt.Context.RoundState, rt.Context.RoundEnd
 		// A helper with keyctrl reads the player's input, so its commands are
 		// the player's (char.go:5672); the others read none.
 		var helperIn input.TickInput

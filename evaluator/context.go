@@ -110,6 +110,10 @@ type Context struct {
 	ScreenLeft, ScreenRight float64
 	// GameTime is the match's tick count, for GameTime.
 	GameTime int
+	// RoundState is Ikemen GO's RoundState (0 to 4), set by the engine every
+	// tick; RoundEnd is the decided round, for Win, Lose and DrawGame.
+	RoundState int
+	RoundEnd   RoundEnd
 	// HitCount is the hits the fighter's moves landed since it entered a
 	// state without hitcountpersist (HitCount, UniqHitCount).
 	HitCount int
@@ -399,4 +403,13 @@ func (c *Context) SetMap(name string, v Value) {
 		c.Maps = make(map[string]Value)
 	}
 	c.Maps[strings.ToLower(name)] = v
+}
+
+// RoundEnd is how the round ended, once decided (RoundState 3 and 4).
+type RoundEnd struct {
+	Decided bool
+	// Winner is the winning side, unless Draw.
+	Winner    match.Side
+	Draw, KO  bool
+	MatchOver bool
 }

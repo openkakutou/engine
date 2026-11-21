@@ -43,10 +43,8 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 	case "roundno":
 		return intValue(float64(ctx.Round)), true, nil
 	case "roundstate":
-		// shortcut: Tick only runs while the round is being fought, which is
-		// Ikemen GO's roundstate 2; pre-intro, over and post states return
-		// when the round flow models them.
-		return intValue(2), true, nil
+		// sys.roundState (system.go:1908-1923), set by the engine each tick.
+		return intValue(float64(ctx.RoundState)), true, nil
 	case "backedgedist":
 		return floatValue(edgeDist(ctx, false)), true, nil // char.go:5641-5646
 	case "frontedgedist":
@@ -75,11 +73,16 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 	case "ishometeam":
 		// teamside == sys.home, 0 by default (bytecode.go:3428-3429).
 		return boolValue(ctx.Side == 0), true, nil
-	case "win", "winko", "wintime", "winperfect", "winspecial", "winhyper", "winclutch",
-		"lose", "loseko", "losetime", "drawgame", "matchover":
-		// char.go:5952-5957, 6597-6610: sys.winTeam is -1 while the round is
-		// fought. shortcut: the engine stops at the round's end, so they are
-		// false; the post-round poses (state 180) come with the round flow.
+	case "win", "winko", "wintime", "winperfect", "lose", "loseko", "losetime":
+		// char.go:5952-5957, 6597-6610: the decided round's winner and how
+		// it was won.
+		return boolValue(roundEndTrigger(name, ctx)), true, nil
+	case "drawgame":
+		return boolValue(ctx.RoundEnd.Decided && ctx.RoundEnd.Draw), true, nil
+	case "matchover":
+		return boolValue(ctx.RoundEnd.MatchOver), true, nil
+	case "winspecial", "winhyper", "winclutch":
+		// shortcut: the finishing move's kind is not tracked.
 		return boolValue(false), true, nil
 	case "matchno":
 		return intValue(1), true, nil
@@ -603,4 +606,26 @@ func constOr(ctx *Context, name string, def int) int {
 		return def
 	}
 	return v.Int()
+}
+
+// roundEndTrigger is Win, WinKO, WinTime, WinPerfect, Lose, LoseKO or
+// LoseTime on the decided round (char.go:5952-5957, 6597-6620).
+func roundEndTrigger(name string, ctx *Context) bool {
+	end := ctx.RoundEnd
+	if !end.Decided || end.Draw {
+		return false
+	}
+	won := end.Winner == ctx.Side
+	if strings.HasPrefix(name, "lose") {
+		won = !won
+	}
+	switch name {
+	case "winko", "loseko":
+		return won && end.KO
+	case "wintime", "losetime":
+		return won && !end.KO
+	case "winperfect":
+		return won && ctx.Health >= constOr(ctx, "data.life", 1000)
+	}
+	return won
 }

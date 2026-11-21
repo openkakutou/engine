@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.45.0] - 2026-11-21
+
+### Added
+- Round states as Ikemen GO plays them: `round.Clock` (fight.def [Round] timings, Ikemen GO's defaults) gives RoundState 0 to 4, holds the intros while a fighter asserts `intro`, and tells when to start the fight, send the fighters to their poses and end the round. `TickConfig.Round` passes it to the fighters: `RoundState`, `Win`, `WinKO`, `WinTime`, `WinPerfect`, `Lose`, `LoseKO`, `LoseTime`, `DrawGame` and `MatchOver` read it, and the round timer counts and the outcome is decided only in RoundState 2. `NewRoundRuntime` starts a fighter in state 5900 without control, `StartFight` gives control (and state 0 unless `nointroreset`), `EnterPoses` sends the fighters to 180, 170 or 175; `Settled` and `IntroAsserted` feed the clock. A nil `TickConfig.Round` keeps the previous behaviour (the fight).
+
 ## [2.44.0] - 2026-11-21
 
 ### Added
