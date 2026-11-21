@@ -759,3 +759,31 @@ func TestDamageMultiplier_AppliesAttackMulSet(t *testing.T) {
 		t.Errorf("AttackMulSet 0.5: multiplier %v, want 0.5", got)
 	}
 }
+
+// char.go:13055-13061: the animation steps after every tick, so a new
+// animation shows 1 tick of play at the end of the tick that set it, by a
+// ChangeAnim or a ChangeState's header alike (item 045).
+func TestTick_ANewAnimationHasPlayedOneTickAtTheEndOfItsTick(t *testing.T) {
+	anims := []air.Animation{
+		{Number: 0, Frames: []air.Frame{{Time: -1}}},
+		{Number: 100, Frames: []air.Frame{{Time: 5}, {Time: 5}}},
+	}
+	for name, states := range map[string]map[int]cns.StateDef{
+		"ChangeAnim": {0: {Number: 0, Type: cns.StateTypeStanding, Controllers: []cns.Controller{
+			ctrlWith("ChangeAnim", "Time = 0", map[string]string{"value": "100"}),
+		}}},
+		"ChangeState": {
+			0: {Number: 0, Type: cns.StateTypeStanding, Controllers: []cns.Controller{
+				ctrlWith("ChangeState", "Time = 0", map[string]string{"value": "1"}),
+			}},
+			1: {Number: 1, Type: cns.StateTypeStanding, Anim: 100},
+		},
+	} {
+		sp, progs, rts := projMatch(t, FighterProgram{States: states, Animations: anims}, 900)
+		_, all := runProj(t, sp, progs, rts, 1)
+		c := all[0].Fighters[0].Context
+		if c.Anim != 100 || c.AnimElapsed != 1 {
+			t.Errorf("%s: anim %d elapsed %d, want 100 and 1", name, c.Anim, c.AnimElapsed)
+		}
+	}
+}
