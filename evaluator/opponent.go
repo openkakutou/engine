@@ -140,7 +140,7 @@ var redirectableIdentifiers = map[string]bool{
 	"hitshakeover": true, "hitover": true, "hitfall": true, "canrecover": true,
 	"movecontact": true, "movehit": true, "moveguarded": true, "movereversed": true,
 	"numproj": true, "id": true, "ishelper": true, "numhelper": true,
-	"hitpausetime": true, "animtime": true, "palno": true,
+	"hitpausetime": true, "animtime": true, "palno": true, "teamside": true,
 	"roundno": true, "roundstate": true, "gametime": true,
 	"backedgedist": true, "backedgebodydist": true, "frontedgedist": true, "frontedgebodydist": true,
 }

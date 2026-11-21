@@ -124,6 +124,12 @@ func NewFighterProgramFromFiles(files []StateFile, animations []air.Animation, c
 			if _, exists := states[def.Number]; exists || zssNumbers[def.Number] {
 				continue
 			}
+			// A parsed header that writes no optional field has a nil Written
+			// (cns.StateDef): it omitted ctrl and anim, which then keep their
+			// value; only a hand-built StateDef falls back to its typed fields.
+			if def.Written == nil {
+				def.Written = map[string]string{}
+			}
 			states[def.Number] = def
 		}
 	}

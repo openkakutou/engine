@@ -62,6 +62,10 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		// time before it. shortcut: it is the tick count the caller gives
 		// (TickConfig.Tick); the time before the match is not counted.
 		return intValue(float64(ctx.GameTime)), true, nil
+	case "teamside":
+		// OC_teamside (bytecode.go:2735-2736): the side's team, 1 or 2; a
+		// helper is on its player's.
+		return intValue(float64(int(ctx.Side) + 1)), true, nil
 	case "numpartner":
 		// bytecode.go OC_numpartner: a one-on-one match has no partner.
 		return intValue(0), true, nil

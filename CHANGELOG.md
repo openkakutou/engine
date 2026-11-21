@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.41.0] - 2026-11-21
+
+### Added
+- `TeamSide` (also redirected).
+
+### Fixed
+- A state whose header writes no optional field (only `type` and `physics`, as Ryu SVC's crouch) no longer takes control away: a loaded character's omitted `ctrl` keeps the fighter's, as in Ikemen GO. Ryu could not attack once he had crouched.
+
 ## [2.40.0] - 2026-11-21
 
 ### Added

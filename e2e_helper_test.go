@@ -126,3 +126,36 @@ func randomRyuMatch(t *testing.T, start uint32) {
 	}
 	t.Logf("seed %d: unsupported controllers seen: %v", start, unsupported)
 }
+
+// Down, down-forward, forward and x make the corpus Ryu (SVC) throw his
+// hadouken: his command buffer helper (9999, keyctrl 1, Ryu-2.cns) and his
+// state -1 read the command, and he enters state 1000, which throws helper
+// 1010.
+func TestE2E_RyusHadoukenFromItsCommand(t *testing.T) {
+	path := corpusChar(t, "Street Fighter/Ryu (SVC)/Ryu_SS.def")
+	prog, _, err := LoadFighterProgram(loadChar(t, path), path, referenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := newE2EMatch(t, prog)
+	var seq []input.TickInput
+	seq = append(seq, make([]input.TickInput, 30)...)
+	for _, in := range []input.TickInput{{Down: true}, {Down: true, Right: true}, {Right: true}} {
+		seq = append(seq, in, in, in)
+	}
+	seq = append(seq, input.TickInput{Right: true, Buttons: map[string]bool{"x": true}})
+	seq = append(seq, make([]input.TickInput, 40)...)
+	entered, thrown := false, false
+	for _, in := range seq {
+		if err := m.step(in); err != nil {
+			t.Fatal(err)
+		}
+		entered = entered || m.state.Fighters[match.SideP1].StateNo == 1000
+		for _, h := range m.runtimes[match.SideP1].Helpers {
+			thrown = thrown || h.Context.HelperID == 1010
+		}
+	}
+	if !entered || !thrown {
+		t.Errorf("state 1000 entered %v, hadouken thrown %v; want both", entered, thrown)
+	}
+}

@@ -411,3 +411,15 @@ func TestEval_StateTimeIsTime(t *testing.T) {
 		t.Errorf("statetime >= 7 = %v, want 1", got)
 	}
 }
+
+func TestEval_TeamSide(t *testing.T) {
+	ctx := Context{}
+	ctx.Side = 1
+	ctx.P2 = Opponent{Valid: true}
+	if got := evalFloat(t, "teamside", ctx); got != 2 {
+		t.Errorf("P2 teamside = %v, want 2", got)
+	}
+	if got := evalFloat(t, "enemy,teamside", ctx); got != 1 {
+		t.Errorf("enemy,teamside = %v, want 1", got)
+	}
+}
