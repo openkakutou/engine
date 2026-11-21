@@ -521,6 +521,8 @@ func Tick(
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
 	}
 	state.Fighters[match.SideP1] = p1Out.Runtime.Context.FighterState
+	// BindToTarget moves P2 itself.
+	state.Fighters[match.SideP2] = p2Out.Runtime.Context.FighterState
 
 	// The runtimes handed in stay as they were: the helpers and projectiles
 	// change in fresh slices (nil stays nil, so a tick without any allocates

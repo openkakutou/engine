@@ -2,6 +2,7 @@ package engine
 
 import (
 	"github.com/openkakutou/engine/v2/evaluator"
+	"github.com/openkakutou/engine/v2/statemachine"
 )
 
 // applyTargetOps applies the Target* controllers the attacker ran this tick
@@ -22,6 +23,8 @@ func applyTargetOps(attacker, defender *evaluator.Context, attackerProg FighterP
 			return nil
 		}
 		switch op.Kind {
+		case "bindtotarget":
+			bindToTarget(attacker, defender, op)
 		case "targetbind":
 			defender.Position.X = attacker.Position.X + op.X*facingSign(attacker.Facing)
 			defender.Position.Y = attacker.Position.Y - op.Y
@@ -76,4 +79,26 @@ func applyTargetOps(attacker, defender *evaluator.Context, attackerProg FighterP
 		}
 	}
 	return nil
+}
+
+// bindToTarget is BindToTarget (char.go:8618-8650): the fighter moves to its
+// target plus pos (x toward the target's facing, from its head or middle
+// when asked), then binds the target where it stands, for time.
+func bindToTarget(c, target *evaluator.Context, op evaluator.TargetOp) {
+	x, y := op.X, op.Y
+	switch op.Value {
+	case statemachine.BindHead:
+		x += target.Consts.Lookup("size.head.pos.x").Number
+		y += target.Consts.Lookup("size.head.pos.y").Number
+	case statemachine.BindMid:
+		x += target.Consts.Lookup("size.mid.pos.x").Number
+		y += target.Consts.Lookup("size.mid.pos.y").Number
+	}
+	if op.HasX {
+		c.Position.X = target.Position.X + x*facingSign(target.Facing)
+	}
+	if op.HasY {
+		c.Position.Y = target.Position.Y - y
+	}
+	target.GetHit.BindTime = max(op.Time, 1)
 }

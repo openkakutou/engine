@@ -167,7 +167,6 @@ func TestParse_AnimElemMisuse_IsADescriptiveErrorNotAnUnknownTrigger(t *testing.
 	cases := []struct{ expr, wantInError string }{
 		{"AnimElem = 0", "greater than 0"},
 		{"AnimElem = 3.5", "integer"},
-		{"AnimElem != 3", "!="},
 		{"AnimElem > 3", "="},
 		{"AnimElem = var(0)", "integer"},
 		{"AnimElem = 3, >=", "unexpected"},

@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.56.0] - 2026-11-21
+
+### Added
+- BindToTarget, as Ikemen GO runs it: the fighter moves onto its target plus pos (x toward the target's facing, from its Head or Mid when the third value asks) and binds the target for time. E2E: the corpus Blanka (SFA) holds himself on a real kfm's head through his throw.
+
+### Fixed
+- `!MoveType = H` (and the other type triggers) negates the whole comparison, as Ikemen GO reads it, instead of failing the character.
+- In a CNS trigger, AnimElem, TimeMod and the old projectile triggers take `>=`, `<=` or `!=` before their number as `=`, as Ikemen GO does (checkEquality with ignoreMostErrors), instead of failing the character.
+- Characters whose `.air` Clsn lines Ikemen GO reads leniently load (character v0.22.0).
+
 ## [2.55.0] - 2026-11-21
 
 ### Added

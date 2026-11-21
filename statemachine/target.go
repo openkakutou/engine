@@ -9,7 +9,7 @@ import (
 
 func init() {
 	RegisterController("ChangeAnim2", applyChangeAnim2)
-	for _, t := range [...]string{"TargetBind", "TargetFacing", "TargetState", "TargetLifeAdd", "TargetPowerAdd", "TargetVelSet", "TargetVelAdd", "TargetDrop"} {
+	for _, t := range [...]string{"BindToTarget", "TargetBind", "TargetFacing", "TargetState", "TargetLifeAdd", "TargetPowerAdd", "TargetVelSet", "TargetVelAdd", "TargetDrop"} {
 		RegisterController(t, applyTargetOp)
 	}
 }
@@ -26,18 +26,43 @@ func applyChangeAnim2(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Con
 	return ctx, nil
 }
 
+// Binding points of BindToTarget (Ikemen GO HMF).
+const (
+	BindFoot = iota
+	BindMid
+	BindHead
+)
+
+// bindPoint is BindToTarget's third pos value: Head, Mid, else Foot.
+func bindPoint(raw string) int {
+	point := strings.ToLower(strings.TrimSpace(raw))
+	switch {
+	case strings.HasPrefix(point, "h"):
+		return BindHead
+	case strings.HasPrefix(point, "m"):
+		return BindMid
+	}
+	return BindFoot
+}
+
 // applyTargetOp records a Target* controller for the engine to apply to the
 // fighter's target (Ikemen GO targetBind.Run and siblings, bytecode.go):
 // TargetBind's pos (x, y) and time (1), TargetFacing's and TargetState's
 // value, TargetLifeAdd's value, kill (1) and absolute (0), TargetPowerAdd's
-// value, TargetVelSet / TargetVelAdd's x and y.
+// value, TargetVelSet / TargetVelAdd's x and y; BindToTarget's pos (x, y and
+// the target's Foot, Mid or Head) and time (1).
 // shortcut: the id and index parameters are not read: the target is the
 // opponent while it is one.
 func applyTargetOp(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
 	op := evaluator.TargetOp{Kind: strings.ToLower(ctrl.Type), Time: 1, Kill: true}
 	if raw, ok := ctrl.Parameters["pos"]; ok {
 		for i, part := range evaluator.SplitList(raw) {
-			if i > 1 || part == "" {
+			if i == 2 {
+				// BindToTarget's third pos value: Foot, Mid or Head.
+				op.Value = bindPoint(part)
+				break
+			}
+			if part == "" {
 				break
 			}
 			v, err := evaluator.EvaluateMut(part, &ctx)

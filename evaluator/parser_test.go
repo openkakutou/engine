@@ -89,3 +89,35 @@ func TestParse_DoesNotPanic_OnDeeplyMalformedInput(t *testing.T) {
 		_, _ = Parse(in)
 	}
 }
+
+// Ikemen GO reads "movetype = H" as one value, so "!" negates the whole
+// comparison (Blanka SFA: "!MoveType = H").
+func TestEvaluate_NotATypeComparisonNegatesIt(t *testing.T) {
+	ctx := &Context{}
+	ctx.MoveType = 'H'
+	for expr, want := range map[string]bool{"!MoveType = H": false, "!MoveType = A": true, "!movetype != H": true, "!StateType = S": true} {
+		v, err := Evaluate(expr, *ctx)
+		if err != nil {
+			t.Fatalf("%s: %v", expr, err)
+		}
+		if v.Bool() != want {
+			t.Errorf("%s = %v, want %v", expr, v.Bool(), want)
+		}
+	}
+}
+
+// checkEquality with ignoreMostErrors (compiler.go:951-971): in a CNS
+// trigger, an old-style trigger's ">=", "<=" or "!=" is read as "=".
+func TestEvaluate_OldStyleTriggersTakeAnyEqualityInCNS(t *testing.T) {
+	ctx := &Context{}
+	ctx.Time = 10
+	for expr, want := range map[string]bool{"TimeMod >= 5, 0": true, "TimeMod <= 3, 1": true, "TimeMod != 5, 0": true, "TimeMod >= 3, 0": false} {
+		v, err := Evaluate(expr, *ctx)
+		if err != nil {
+			t.Fatalf("%s: %v", expr, err)
+		}
+		if v.Bool() != want {
+			t.Errorf("%s = %v, want %v", expr, v.Bool(), want)
+		}
+	}
+}

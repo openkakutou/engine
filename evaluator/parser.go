@@ -242,9 +242,30 @@ func (p *parser) parseUnary() (node, error) {
 		if err != nil {
 			return nil, err
 		}
+		operand = p.withTypeComparison(operand)
 		return unaryNode{op: op, operand: operand}, nil
 	}
 	return p.parsePrimary()
+}
+
+// typeTriggers are the triggers that read their own "= letter" comparison
+// (Ikemen GO compiles "movetype = H" as one value), so "!MoveType = H" is
+// !(MoveType = H).
+var typeTriggers = map[string]bool{"statetype": true, "movetype": true, "p2statetype": true, "p2movetype": true}
+
+// withTypeComparison is operand with the "= letter" or "!= letter" that
+// follows it when it is a type trigger, else operand.
+func (p *parser) withTypeComparison(operand node) node {
+	id, ok := operand.(identifierNode)
+	if !ok || !typeTriggers[id.name] || !p.peekIsOp("=", "!=") {
+		return operand
+	}
+	if p.pos+1 >= len(p.toks) || p.toks[p.pos+1].kind != tokIdent {
+		return operand
+	}
+	op := p.next().text
+	letter := p.next().text
+	return binaryNode{op: op, left: id, right: identifierNode{name: strings.ToLower(letter)}}
 }
 
 func (p *parser) parsePrimary() (node, error) {
@@ -321,7 +342,7 @@ func (p *parser) parseIdentifierOrCall(name string) (node, error) {
 		not := p.next().text == "!="
 		return teamModeNode{mode: strings.ToLower(p.next().text), not: not}, nil
 	}
-	if kind, id, ok := oldTimeTrigger(lower); ok && p.peekIsOp("=") {
+	if kind, id, ok := oldTimeTrigger(lower); ok && p.peekOldEquality() {
 		return p.parseOldTime(kind, id)
 	}
 	// "ProjHit(1201)": an id in parentheses is gibberish Ikemen GO reads as 0
@@ -416,14 +437,27 @@ func (p *parser) parseCallArgs(name string) ([]node, error) {
 	return args, nil
 }
 
+// peekOldEquality reports the operator an old-style trigger (AnimElem,
+// TimeMod, ProjHit...) takes before its number: "=", and in a CNS
+// expression any operator ending in "=" (">=", "<=", "!="), which Ikemen GO
+// reads as "=" there (checkEquality with ignoreMostErrors,
+// compiler.go:951-971, 1296-1311).
+func (p *parser) peekOldEquality() bool {
+	if p.peekIsOp("=") {
+		return true
+	}
+	return !p.shortCircuit && p.peekIsOp(">=", "<=", "!=")
+}
+
 // parseAnimElem parses what follows the AnimElem trigger: "= n" and an
 // optional ", op t" (Ikemen GO's old-style trigger, compiler.go:1296-1311 and
 // 4297-4318). The first comparison is "=" with a positive integer; after the
 // comma the operator may be omitted, meaning "=".
 func (p *parser) parseAnimElem() (node, error) {
-	if op := p.next().text; op != "=" {
-		return nil, fmt.Errorf("evaluator: AnimElem only supports '=' before the element number, not %q", op)
+	if !p.peekOldEquality() {
+		return nil, fmt.Errorf("evaluator: AnimElem only supports '=' before the element number, not %q", p.peek().text)
 	}
+	p.next()
 	tok := p.peek()
 	elem, err := strconv.Atoi(tok.text)
 	if tok.kind != tokNumber || err != nil {
