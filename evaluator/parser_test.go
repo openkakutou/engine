@@ -95,7 +95,8 @@ func TestParse_DoesNotPanic_OnDeeplyMalformedInput(t *testing.T) {
 func TestEvaluate_NotATypeComparisonNegatesIt(t *testing.T) {
 	ctx := &Context{}
 	ctx.MoveType = 'H'
-	for expr, want := range map[string]bool{"!MoveType = H": false, "!MoveType = A": true, "!movetype != H": true, "!StateType = S": true} {
+	for expr, want := range map[string]bool{"!MoveType = H": false, "!MoveType = A": true, "!movetype != H": true, "!StateType = S": true,
+		"movetype=a+2*movetype=h = 2": true, "MoveType = H && StateType != A": true} {
 		v, err := Evaluate(expr, *ctx)
 		if err != nil {
 			t.Fatalf("%s: %v", expr, err)

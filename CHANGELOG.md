@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.57.0] - 2026-11-21
+
+### Fixed
+- A state or move type trigger takes its `= letter` before any other operator, as Ikemen GO compiles it: `p2movetype=a+2*p2movetype=h` (Aya) adds two comparisons instead of failing the character.
+- A VarSet or VarAdd naming more than one variable sets one, as Ikemen GO does in a CNS file (it warns): the v / fv / sysv / sysfv form with a value wins, the last of those keys first, over a `var(N)` key (Ryo XIII).
+
 ## [2.56.0] - 2026-11-21
 
 ### Added

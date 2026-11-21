@@ -242,15 +242,14 @@ func (p *parser) parseUnary() (node, error) {
 		if err != nil {
 			return nil, err
 		}
-		operand = p.withTypeComparison(operand)
 		return unaryNode{op: op, operand: operand}, nil
 	}
 	return p.parsePrimary()
 }
 
 // typeTriggers are the triggers that read their own "= letter" comparison
-// (Ikemen GO compiles "movetype = H" as one value), so "!MoveType = H" is
-// !(MoveType = H).
+// (Ikemen GO compiles "movetype = H" as one value): "!MoveType = H" is
+// !(MoveType = H), "p2movetype=a+2*p2movetype=h" (Aya) adds two comparisons.
 var typeTriggers = map[string]bool{"statetype": true, "movetype": true, "p2statetype": true, "p2movetype": true}
 
 // withTypeComparison is operand with the "= letter" or "!= letter" that
@@ -285,7 +284,11 @@ func (p *parser) parsePrimary() (node, error) {
 
 	case tokIdent:
 		p.next()
-		return p.parseIdentifierOrCall(t.text)
+		n, err := p.parseIdentifierOrCall(t.text)
+		if err != nil {
+			return nil, err
+		}
+		return p.withTypeComparison(n), nil
 
 	case tokLocal:
 		p.next()

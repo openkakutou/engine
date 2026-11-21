@@ -93,8 +93,6 @@ func TestApplyController_VarSetInvalidForms_ReturnClearErrors(t *testing.T) {
 		want   string
 	}{
 		{"empty index", map[string]string{"var()": "1"}, "Missing variable index"},
-		{"two var forms", map[string]string{"var(1)": "1", "sysvar(2)": "1"}, "only set one variable at a time"},
-		{"var form with v", map[string]string{"var(1)": "1", "v": "2", "value": "3"}, "only set one variable at a time"},
 		{"no variable", map[string]string{"foo": "1"}, "VarSet needs a variable"},
 		{"v without value", map[string]string{"v": "3"}, `"value" parameter`},
 		{"value without v", map[string]string{"value": "3"}, "VarSet needs a variable"},
@@ -193,16 +191,32 @@ func TestApplyController_VarSetOldFloatForms_SetFloatVariables(t *testing.T) {
 	}
 }
 
-func TestApplyController_VarSetTwoOldFormKeys_ReturnsOneAtATimeError(t *testing.T) {
-	for _, pair := range [][2]string{{"v", "sysv"}, {"v", "fv"}, {"sysv", "sysfv"}} {
-		_, err := applyVarSetParams(t, evaluator.Context{}, map[string]string{pair[0]: "1", pair[1]: "1", "value": "1"})
-		if err == nil || !strings.Contains(err.Error(), "only set one variable at a time") {
-			t.Errorf("%v: error = %v, want one-at-a-time error", pair, err)
-		}
+// varSetSub (compiler_functions.go:2814-2876) with ignoreMostErrors: of
+// several old-form keys the last written (v, fv, sysv, sysfv) wins; the old
+// form wins over a var(N) key; of several var(N) keys one is set. Ikemen GO
+// only warns.
+func TestApplyController_VarSetNamingSeveralVariablesSetsOne(t *testing.T) {
+	ctx, err := applyVarSetParams(t, evaluator.Context{}, map[string]string{"v": "1", "sysv": "2", "value": "5"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	_, err := applyVarSetParams(t, evaluator.Context{}, map[string]string{"var(1)": "1", "sysv": "1", "value": "1"})
-	if err == nil || !strings.Contains(err.Error(), "only set one variable at a time") {
-		t.Errorf("var(1)+sysv: error = %v, want one-at-a-time error", err)
+	if ctx.SysVars[2] != 5 || ctx.Vars[1] != 0 {
+		t.Errorf("v + sysv: sysvar(2) %d var(1) %d, want sysv set", ctx.SysVars[2], ctx.Vars[1])
+	}
+	// Ryo (XIII): "VAR(16) = 0" beside "V = 16", "VALUE = 0".
+	ctx, err = applyVarSetParams(t, evaluator.Context{}, map[string]string{"var(3)": "9", "v": "4", "value": "6"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ctx.Vars[4] != 6 || ctx.Vars[3] != 0 {
+		t.Errorf("var(3) + v: var(4) %d var(3) %d, want the v form", ctx.Vars[4], ctx.Vars[3])
+	}
+	ctx, err = applyVarSetParams(t, evaluator.Context{}, map[string]string{"var(1)": "1", "sysvar(2)": "1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ctx.Vars[1]+ctx.SysVars[2] != 1 {
+		t.Errorf("two var forms: var(1) %d sysvar(2) %d, want exactly one set", ctx.Vars[1], ctx.SysVars[2])
 	}
 }
 

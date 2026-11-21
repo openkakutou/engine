@@ -544,15 +544,57 @@ func parseVarSetKey(key string) (prefix, index string, ok bool) {
 	return "", "", false
 }
 
-// applyVarSet sets one variable, in either form Ikemen GO accepts: a single
-// "var(N) = expr" style parameter, or "v"/"fv"/"sysv"/"sysfv" = N plus
-// "value" = expr (varSetOlderSub, compiler_functions.go:2705-2735). Exactly
-// one variable may be named, else "VarSet can only set one variable at a
-// time". A negative or too-large index is an error (Ikemen GO only warns on
-// a negative one, char.go:8295-8365). It runs on the per-tick hot path, so
-// it tracks the first match and a count instead of building a slice.
+// applyVarSet sets one variable, in either form Ikemen GO accepts
+// (varSetSub, compiler_functions.go:2814-2876): "v"/"fv"/"sysv"/"sysfv" = N
+// with "value" = expr, the last of them winning, else a "var(N) = expr"
+// style parameter. A CNS controller naming more Ikemen GO warns about and
+// sets the first (Ryo XIII: "VAR(16) = 0" beside "V = 16" and "VALUE = 0").
+// A negative or too-large index is an error (Ikemen GO only warns on a
+// negative one, char.go:8295-8365).
+// shortcut: a .zss VarSet naming two variables is not refused.
 func applyVarSet(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
 	return applyVarAssign(ctrl, ctx, "VarSet", false)
+}
+
+// oldVarSetForm is the v / fv / sysv / sysfv form, read only with a value
+// (varSetOlderSub): the last of them written wins.
+func oldVarSetForm(ctrl cns.Controller) (varSetForm, bool) {
+	value, ok := ctrl.Parameters["value"]
+	if !ok {
+		return varSetForm{}, false
+	}
+	var form varSetForm
+	found := false
+	for _, old := range [...]struct{ key, prefix string }{{"v", "var"}, {"fv", "fvar"}, {"sysv", "sysvar"}, {"sysfv", "sysfvar"}} {
+		if raw, ok := ctrl.Parameters[old.key]; ok {
+			form, found = varSetForm{prefix: old.prefix, indexRaw: raw, valueRaw: value}, true
+		}
+	}
+	return form, found
+}
+
+// hasAnyKey reports ctrl writing one of keys.
+func hasAnyKey(ctrl cns.Controller, keys ...string) bool {
+	for _, k := range keys {
+		if _, ok := ctrl.Parameters[k]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+// newVarSetForm is the "var(N) = expr" form: of several, the first key in
+// order (Ikemen GO takes one in map order).
+func newVarSetForm(ctrl cns.Controller) (varSetForm, bool) {
+	var form varSetForm
+	firstKey := ""
+	for key, raw := range ctrl.Parameters {
+		prefix, index, ok := parseVarSetKey(key)
+		if ok && (firstKey == "" || key < firstKey) {
+			form, firstKey = varSetForm{prefix: prefix, indexRaw: index, valueRaw: raw}, key
+		}
+	}
+	return form, firstKey != ""
 }
 
 // applyVarAdd is VarAdd: VarSet's forms, the value added to the variable
@@ -563,36 +605,15 @@ func applyVarAdd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 }
 
 func applyVarAssign(ctrl cns.Controller, ctx evaluator.Context, name string, add bool) (evaluator.Context, error) {
-	var form varSetForm
-	count := 0
-	for key, raw := range ctrl.Parameters {
-		prefix, index, ok := parseVarSetKey(key)
-		if ok {
-			form = varSetForm{prefix: prefix, indexRaw: index, valueRaw: raw}
-			count++
-		}
+	form, ok := oldVarSetForm(ctrl)
+	if !ok {
+		form, ok = newVarSetForm(ctrl)
 	}
-	oldForm := false
-	for _, old := range [...]struct{ key, prefix string }{{"v", "var"}, {"fv", "fvar"}, {"sysv", "sysvar"}, {"sysfv", "sysfvar"}} {
-		raw, ok := ctrl.Parameters[old.key]
-		if ok {
-			form = varSetForm{prefix: old.prefix, indexRaw: raw}
-			oldForm = true
-			count++
-		}
+	if !ok && hasAnyKey(ctrl, "v", "fv", "sysv", "sysfv") {
+		return evaluator.Context{}, fmt.Errorf(`%s is missing its required "value" parameter`, name)
 	}
-	if count > 1 {
-		return evaluator.Context{}, fmt.Errorf("%s can only set one variable at a time", name)
-	}
-	if count == 0 {
+	if !ok {
 		return evaluator.Context{}, fmt.Errorf("%s needs a variable: var(N), sysvar(N), fvar(N), sysfvar(N), or v/sysv/fv/sysfv and value", name)
-	}
-	if oldForm {
-		raw, ok := ctrl.Parameters["value"]
-		if !ok {
-			return evaluator.Context{}, fmt.Errorf(`%s is missing its required "value" parameter`, name)
-		}
-		form.valueRaw = raw
 	}
 
 	if strings.TrimSpace(form.indexRaw) == "" {
