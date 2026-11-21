@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.73.0] - 2026-11-21
+
+### Added
+- StopSnd, EnvColor, BGPalFX, AllPalFX and VictoryQuote are reported as controller events with their parameters, for the game to stop sounds, fill the screen and tint the stage or everything.
+
 ## [2.72.0] - 2026-11-21
 
 ### Added

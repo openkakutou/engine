@@ -34,7 +34,7 @@ func TestApplyController_VisualControllersAreReportedAsEvents(t *testing.T) {
 }
 
 func TestApplyController_EveryVisualTypeIsSupported(t *testing.T) {
-	for _, typ := range []string{"PalFX", "RemapPal", "MakeDust", "GameMakeAnim", "ForceFeedback", "Explod", "EnvShake", "SprPriority", "Width", "FallEnvShake", "AfterImage", "AfterImageTime"} {
+	for _, typ := range []string{"PalFX", "RemapPal", "MakeDust", "GameMakeAnim", "ForceFeedback", "Explod", "EnvShake", "SprPriority", "Width", "FallEnvShake", "AfterImage", "AfterImageTime", "StopSnd", "EnvColor", "BGPalFX", "AllPalFX", "VictoryQuote"} {
 		if !IsSupportedController(typ) {
 			t.Errorf("%s is not supported", typ)
 		}
