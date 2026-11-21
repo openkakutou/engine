@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.1] - 2026-11-21
+
+### Fixed
+- The WASM smoke harness matches the engine again (its HitDef gets an attr, its controllers run on the state's second tick, animTime as Ikemen GO steps it), and the release workflow runs it after building the WASM module.
+
 ## [2.77.0] - 2026-11-21
 
 ### Fixed

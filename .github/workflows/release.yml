@@ -34,6 +34,9 @@ jobs:
       - name: Build WASM module
         run: GOOS=js GOARCH=wasm go build -o engine.wasm ./cmd/wasm
 
+      - name: Smoke-test the WASM module
+        run: node cmd/wasm/smoke.mjs engine.wasm
+
       - name: Copy wasm_exec.js glue
         run: |
           src="$(go env GOROOT)/lib/wasm/wasm_exec.js"

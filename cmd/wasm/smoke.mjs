@@ -59,21 +59,24 @@ const attackerStates = {
 	200: {
 		number: 200, type: "S", moveType: "A", physics: "S", anim: 200, ctrl: false,
 		controllers: [
-			{ type: "HitDef", triggers: ["Time = 0"], parameters: { damage: "30" } },
+			// Ikemen GO hits only with an attr; the controllers run on the
+			// state's second tick (Time = 1), the tick after the transition,
+			// since a new state runs in the tick it is entered.
+			{ type: "HitDef", triggers: ["Time = 1"], parameters: { attr: "S, NA", damage: "30" } },
 			// PowerAdd fires alongside the HitDef, on the same tick the attack
 			// starts -- exercises the power/meter contract (backlog item 019)
 			// through the same real WASM round trip as everything else here.
 			// The value (2000) is deliberately large enough that a second
 			// application (see the post-reset tick below) proves the
 			// DefaultMaxPower (3000) clamp, not just plain addition.
-			{ type: "PowerAdd", triggers: ["Time = 0"], parameters: { value: "2000" } },
+			{ type: "PowerAdd", triggers: ["Time = 1"], parameters: { value: "2000" } },
 			// PlaySnd fires alongside HitDef/PowerAdd on the same tick --
 			// exercises the sound-trigger-events contract (backlog item 020)
 			// through the real WASM round trip, not just the Go unit tests.
-			{ type: "PlaySnd", triggers: ["Time = 0"], parameters: { value: "1,3" } },
+			{ type: "PlaySnd", triggers: ["Time = 1"], parameters: { value: "1,3" } },
 			// An engine-unsupported controller type fires on the same tick:
 			// tick's response must name it, lower-cased, under `unsupported`.
-			{ type: "Explod", triggers: ["Time = 0"], parameters: {} },
+			{ type: "DisplayToClipboard", triggers: ["Time = 1"], parameters: {} },
 		],
 	},
 };
@@ -153,7 +156,9 @@ assert(transitionTick.error === null, `transition tick reports no error (got: ${
 assert(transitionTick.data?.round?.outcome === 0, `transition tick reports OutcomeNone -- no hit yet (got: ${transitionTick.data?.round?.outcome})`);
 assert(transitionTick.data?.state?.fighters?.[1]?.health === 20, "P2 is untouched on the transition tick");
 assert(transitionTick.data?.animations?.[0]?.animNo === 200, `transition tick: P1's animNo switches to its new state's 200 (got: ${transitionTick.data?.animations?.[0]?.animNo})`);
-assert(transitionTick.data?.animations?.[0]?.animTime === 0, `transition tick: P1's animTime resets to 0 on the transition (got: ${transitionTick.data?.animations?.[0]?.animTime})`);
+// The animation steps at the end of every tick, a state change included
+// (Ikemen GO char.go:13055-13061): 1 after the transition.
+assert(transitionTick.data?.animations?.[0]?.animTime === 1, `transition tick: P1's animTime is 1 after the transition (got: ${transitionTick.data?.animations?.[0]?.animTime})`);
 assert(transitionTick.data?.animations?.[1]?.animNo === 0, `transition tick: P2 (untouched) keeps animNo 0 (got: ${transitionTick.data?.animations?.[1]?.animNo})`);
 assert(transitionTick.data?.animations?.[1]?.animTime === 2, `transition tick: P2's animTime keeps advancing, now 2 (got: ${transitionTick.data?.animations?.[1]?.animTime})`);
 
@@ -171,11 +176,11 @@ assert(hitTick.data?.round?.winner === 0, `P1 (side 0) wins the round (got: ${hi
 assert(hitTick.data?.progress?.wins?.[0] === 1, "P1's round win is recorded in progress");
 assert(hitTick.data?.matchOver === false, "bestOf 3 is not decided after a single round win");
 assert(hitTick.data?.animations?.[0]?.animNo === 200, `hit tick: P1 stays in animNo 200, no further transition (got: ${hitTick.data?.animations?.[0]?.animNo})`);
-assert(hitTick.data?.animations?.[0]?.animTime === 1, `hit tick: P1's animTime advances to 1 within animNo 200 (got: ${hitTick.data?.animations?.[0]?.animTime})`);
+assert(hitTick.data?.animations?.[0]?.animTime === 2, `hit tick: P1's animTime advances to 2 within animNo 200 (got: ${hitTick.data?.animations?.[0]?.animTime})`);
 assert(JSON.stringify(hitTick.data?.sounds?.[0]) === JSON.stringify([{ group: 1, sample: 3, common: false, channel: -1, lowPriority: false }]), `hit tick: P1's PlaySnd controller triggers group 1 sample 3 (got: ${JSON.stringify(hitTick.data?.sounds?.[0])})`);
 assert(Array.isArray(hitTick.data?.sounds?.[1]) && hitTick.data.sounds[1].length === 0, `hit tick: P2 (no PlaySnd controller of its own) has an empty sounds array, not null (got: ${JSON.stringify(hitTick.data?.sounds?.[1])})`);
 
-assert(JSON.stringify(hitTick.data?.unsupported?.[0]) === JSON.stringify(["explod"]), `hit tick: P1's Explod is reported as unsupported (got: ${JSON.stringify(hitTick.data?.unsupported?.[0])})`);
+assert(JSON.stringify(hitTick.data?.unsupported?.[0]) === JSON.stringify(["displaytoclipboard"]), `hit tick: P1's DisplayToClipboard is reported as unsupported (got: ${JSON.stringify(hitTick.data?.unsupported?.[0])})`);
 assert(Array.isArray(hitTick.data?.unsupported?.[1]) && hitTick.data.unsupported[1].length === 0, `hit tick: P2 has an empty unsupported array (got: ${JSON.stringify(hitTick.data?.unsupported?.[1])})`);
 
 // --- resetRound: both fighters restored for round 2 -- edge case: a
