@@ -34,7 +34,7 @@ func TestApplyController_VisualControllersAreReportedAsEvents(t *testing.T) {
 }
 
 func TestApplyController_EveryVisualTypeIsSupported(t *testing.T) {
-	for _, typ := range []string{"PalFX", "RemapPal", "MakeDust", "GameMakeAnim", "ForceFeedback", "Explod", "EnvShake", "SprPriority", "Width", "FallEnvShake"} {
+	for _, typ := range []string{"PalFX", "RemapPal", "MakeDust", "GameMakeAnim", "ForceFeedback", "Explod", "EnvShake", "SprPriority", "Width", "FallEnvShake", "AfterImage", "AfterImageTime"} {
 		if !IsSupportedController(typ) {
 			t.Errorf("%s is not supported", typ)
 		}
@@ -84,4 +84,26 @@ func sameValues(a, b []float64) bool {
 		}
 	}
 	return true
+}
+
+// AfterImage and AfterImageTime reach the game as events, a word parameter
+// (trans = add) as its text.
+func TestAfterImage_IsReportedWithItsParameters(t *testing.T) {
+	ctx := evaluator.Context{}
+	if err := applyCtrl(t, &ctx, "AfterImage", map[string]string{"time": "20", "palbright": "30,30,30", "trans": "add"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyCtrl(t, &ctx, "AfterImageTime", map[string]string{"time": "0"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(ctx.Events) != 2 {
+		t.Fatalf("events = %+v", ctx.Events)
+	}
+	ai := ctx.Events[0]
+	if ai.Type != "AfterImage" || !sameValues(ai.Param("time").Values, []float64{20}) || ai.Param("trans").Raw != "add" || len(ai.Param("palbright").Values) != 3 {
+		t.Errorf("AfterImage event = %+v", ai)
+	}
+	if ctx.Events[1].Type != "AfterImageTime" {
+		t.Errorf("second event = %+v", ctx.Events[1])
+	}
 }

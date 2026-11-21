@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.59.0] - 2026-11-21
+
+### Added
+- AfterImage and AfterImageTime are reported as controller events with their parameters, for the game to draw the trail.
+
 ## [2.58.0] - 2026-11-21
 
 ### Fixed

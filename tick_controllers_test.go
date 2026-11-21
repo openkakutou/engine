@@ -275,11 +275,11 @@ func TestTick_ChangeAnimElem_UnknownAnimation_RestartsAtZero(t *testing.T) {
 }
 
 func TestTick_UnsupportedController_IsReportedByNameForItsFighterOnly(t *testing.T) {
-	states := stateWith(ctrl("BindToRoot"), ctrl("bindtoroot"), ctrl("AfterImage"))
+	states := stateWith(ctrl("BindToRoot"), ctrl("bindtoroot"), ctrl("DisplayToClipboard"))
 	states[-2] = cns.StateDef{Number: -2, Controllers: []cns.Controller{{Type: "BindToRoot", Triggers: []string{"1"}}, {Type: "SndPan", Triggers: []string{"1"}}}}
 	result := tickWithP1Program(t, FighterProgram{States: states}, match.FighterState{Health: 1000}, 0)
 
-	if want := []string{"bindtoroot", "sndpan", "afterimage"}; !reflect.DeepEqual(result.Unsupported[match.SideP1], want) {
+	if want := []string{"bindtoroot", "sndpan", "displaytoclipboard"}; !reflect.DeepEqual(result.Unsupported[match.SideP1], want) {
 		t.Errorf("Unsupported[SideP1] = %v, want %v (once per type across states -2 and 0)", result.Unsupported[match.SideP1], want)
 	}
 	if len(result.Unsupported[match.SideP2]) != 0 {
@@ -477,7 +477,7 @@ func TestTick_SupportedControllersFiring_AddNoAllocationOverPowerAdd(t *testing.
 }
 
 func TestTick_UnsupportedControllerFiring_AddsNoAllocationOverPowerAdd(t *testing.T) {
-	states := stateWith(ctrl("BindToRoot"), ctrl("bindtoroot"), ctrl("AfterImage"))
+	states := stateWith(ctrl("BindToRoot"), ctrl("bindtoroot"), ctrl("DisplayToClipboard"))
 	want := allocsPerTick(t, stateWith(powerAdds(3)...))
 	if got := allocsPerTick(t, states); got != want {
 		t.Errorf("Tick with unsupported controllers firing allocated %v times, want %v (3 PowerAdd controllers)", got, want)
