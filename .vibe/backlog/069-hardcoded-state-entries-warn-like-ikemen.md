@@ -11,4 +11,7 @@ Follow-up of 068. Three engine-driven state entries still skip silently when the
 
 ## Acceptance Criteria
 - [ ] Each of the three entries to a missing state enters an empty state with a warning, covered end to end through `Tick`
-- [ ] A change to a negative state warns and goes to state 0, as Ikemen GO
+- [x] A change to a negative state warns and goes to state 0, as Ikemen GO
+
+## Progress
+- 2026-11-21 (v2.76.0): a ChangeState to a negative state warns and goes to 0 (stateChange1, char.go:6812, 6855-6860). Left: the three engine-driven entries into a missing state.

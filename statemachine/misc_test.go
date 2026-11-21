@@ -89,3 +89,15 @@ func TestOffsetAndExplodBindTime(t *testing.T) {
 		t.Errorf("modification %+v", m)
 	}
 }
+
+// char.go:6812, 6855-6860: a change to a negative state warns and goes to 0.
+func TestChangeState_ToANegativeStateGoesToZero(t *testing.T) {
+	ctx := evaluator.Context{}
+	ctx.StateNo = 200
+	if _, err := ApplyController(cns.Controller{Type: "ChangeState", Parameters: map[string]string{"value": "-5"}}, &ctx, func(int) bool { return true }); err != nil {
+		t.Fatal(err)
+	}
+	if ctx.StateNo != 0 || len(ctx.Warnings) != 1 {
+		t.Errorf("state %d warnings %v, want 0 and a warning", ctx.StateNo, ctx.Warnings)
+	}
+}

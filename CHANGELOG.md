@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.76.0] - 2026-11-21
+
+### Fixed
+- A ChangeState to a negative state warns and goes to state 0, as Ikemen GO.
+
 ## [2.75.0] - 2026-11-21
 
 ### Fixed

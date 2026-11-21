@@ -475,6 +475,12 @@ func applyChangeState(ctrl cns.Controller, ctx *evaluator.Context, exists func(i
 		return fmt.Errorf("ChangeState value %q: %w", raw, err)
 	}
 	target := v.Int()
+	// A negative target warns and goes to state 0 (stateChange1, Max(0, no),
+	// char.go:6812, 6855-6860).
+	if target < 0 {
+		ctx.Warnings = append(ctx.Warnings, "attempted to change to negative state")
+		target = 0
+	}
 	// A target the character does not have is not an error: Ikemen GO warns
 	// and enters an empty state (changeStateEx, char.go:6880-6887); the
 	// caller enters it with unchanged types and physics.
