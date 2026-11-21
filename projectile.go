@@ -202,6 +202,7 @@ func strike(state *match.MatchState, runtimes *[2]FighterRuntime, attacker match
 	rt := &runtimes[attacker]
 	defender := &runtimes[1-attacker].Context
 	params := combat.ParseHitDef(hitDef.Parameters)
+	params.Attr, _ = evaluator.ParseAttr(hitDef.Parameters["attr"], true)
 	// hitflag decides whether the defender's stance and hit state can be hit
 	// at all (char.go:11100-11118).
 	if !combat.HitFlagAllows(params.HitFlag, defender.StateType, hitTmp(defender)) {

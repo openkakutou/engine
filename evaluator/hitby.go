@@ -47,3 +47,29 @@ func slotAccepts(s HitBySlot, attr int32) bool {
 	}
 	return sca && atk
 }
+
+// OverrideMatches reports whether a HitOverride of attr catches a hit of
+// hitAttr on a fighter of state type stateType (S, C, A, else none), as
+// char.go:11540-11556 checks it: a shared attack class, and the fighter's
+// state type among the override's.
+func OverrideMatches(attr, hitAttr int32, stateType byte) bool {
+	if attr&hitAttr&^attrStateTypes == 0 {
+		return false
+	}
+	switch stateType {
+	case 'S':
+		return attr&attrS != 0
+	case 'C':
+		return attr&attrC != 0
+	case 'A':
+		return attr&attrA != 0
+	}
+	return false
+}
+
+// ReversalMatches reports whether a ReversalDef of attr reverses a HitDef of
+// hitAttr (char.go:11079-11080): a shared state type and a shared attack
+// class.
+func ReversalMatches(attr, hitAttr int32) bool {
+	return attr&hitAttr&attrStateTypes != 0 && attr&hitAttr&^attrStateTypes != 0
+}

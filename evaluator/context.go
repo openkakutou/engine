@@ -128,6 +128,15 @@ type Context struct {
 	// Name and AuthorName are the character's .def [Info] name and author,
 	// for the Name, P1Name and AuthorName triggers.
 	Name, AuthorName string
+	// ReversalAttr is the fighter's armed ReversalDef's reversal.attr (0 for
+	// none) and Reversal its parameters, as written; MoveReversedTime counts
+	// the ticks since its own move was reversed (MoveReversed).
+	ReversalAttr     int32
+	Reversal         map[string]string
+	MoveReversedTime int
+	// HitOverrides are the fighter's HitOverride slots (bytecode.go:11047-
+	// 11100).
+	HitOverrides [8]HitOverride
 	// InOpponentStates reports the fighter running its opponent's states (a
 	// custom state: p2stateno, TargetState; Ikemen GO's ss.sb.playerNo), and
 	// AnimFromOpponent its opponent's animation (ChangeAnim2), until
@@ -437,4 +446,15 @@ type TargetOp struct {
 	HasX, HasY     bool
 	Value, Time    int
 	Kill, Absolute bool
+}
+
+// HitOverride is a HitOverride slot: a hit of its attr sends the fighter to
+// StateNo (its own state) instead of its get-hit state, or keeps it where it
+// is with KeepState or a negative StateNo, for Time more ticks (-1 for ever,
+// 0 unused).
+type HitOverride struct {
+	Attr      int32
+	StateNo   int
+	Time      int
+	KeepState bool
 }

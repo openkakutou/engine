@@ -569,6 +569,13 @@ func Tick(
 	updateProjectiles(&runtimesOut[match.SideP1], programs[match.SideP1], screen, cfg)
 	updateProjectiles(&runtimesOut[match.SideP2], programs[match.SideP2], screen, cfg)
 	var hitSounds [2][]evaluator.SoundEvent
+	// A ReversalDef beats the HitDef it reverses (char.go:11226-11240).
+	if err := reverse(&state, frames, &programs, &runtimesOut, match.SideP1, cfg, &hitSounds); err != nil {
+		return TickResult{}, err
+	}
+	if err := reverse(&state, frames, &programs, &runtimesOut, match.SideP2, cfg, &hitSounds); err != nil {
+		return TickResult{}, err
+	}
 	if err := landHit(&state, events, &programs, &runtimesOut, match.SideP1, cfg, &hitSounds); err != nil {
 		return TickResult{}, err
 	}
@@ -1143,11 +1150,20 @@ func tickFighter(progs fighterPrograms, runtime FighterRuntime, fighter match.Fi
 	if newCtx.MoveContactTime > 0 {
 		newCtx.MoveContactTime++
 	}
+	if newCtx.MoveReversedTime > 0 {
+		newCtx.MoveReversedTime++
+	}
 	stepFall(&newCtx, true)
 	// A bound fighter stays bound while its opponent binds it again each
 	// tick (TargetBind's time, 1 by default).
 	if newCtx.GetHit.BindTime > 0 {
 		newCtx.GetHit.BindTime--
+	}
+	// HitOverride slots last their time (-1 for ever).
+	for i := range newCtx.HitOverrides {
+		if newCtx.HitOverrides[i].Time > 0 {
+			newCtx.HitOverrides[i].Time--
+		}
 	}
 	// Once the shake is over the get-hit time counts down on every
 	// unfrozen tick, stopping at -1 (HitOver).
@@ -1483,7 +1499,7 @@ func enterState(ctx *evaluator.Context, def entryHeader) (animRestarted bool, er
 		return false, err
 	}
 	if !persist {
-		ctx.MoveContactTime = 0
+		ctx.MoveContactTime, ctx.MoveReversedTime = 0, 0
 	}
 	// and the hit count unless hitcountpersist (bytecode.go:5452-5455).
 	if persist, err = headerBool(ctx, def, "hitcountpersist", def.HitCountPersist); err != nil {
@@ -1497,6 +1513,7 @@ func enterState(ctx *evaluator.Context, def entryHeader) (animRestarted bool, er
 	}
 	if !persist {
 		ctx.HitDefAttr = 0
+		ctx.ReversalAttr, ctx.Reversal = 0, nil
 		ctx.HitDefGuardDist = [2]float64{}
 	}
 
@@ -1778,6 +1795,18 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 	// Ikemen GO makes the defender's move type H before entering the get-hit
 	// state, whose StateDef may then set its own (char.go:13123-13129).
 	ctx.MoveType = 'H'
+	// A HitOverride catching the hit sends the defender to its own state
+	// instead (or keeps it where it is), p2stateno ignored (char.go:11540-
+	// 11600, 13205-13212).
+	for _, o := range ctx.HitOverrides {
+		if o.Time == 0 || !evaluator.OverrideMatches(o.Attr, params.Attr, ctx.StateType) {
+			continue
+		}
+		if o.KeepState || o.StateNo < 0 {
+			return nil
+		}
+		return defender.selfState(&runtimes[hit.Defender], o.StateNo)
+	}
 	// p2stateno sends the defender into the attacker's state of that number
 	// instead of its get-hit state: a custom state (char.go:13176-13197).
 	if params.P2StateNo >= 0 {

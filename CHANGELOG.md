@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.51.0] - 2026-11-21
+
+### Added
+- HitOverride, as Ikemen GO plays it: a hit matching one of its eight slots sends the fighter to the slot's own state instead of its get-hit state (or keeps it where it is with keepstate), the damage still taken, p2stateno ignored; the slots last their time.
+- ReversalDef: a fighter's armed reversal beats the opponent's HitDef it reverses when their attack boxes meet: the attack is spent and counts as reversed (`MoveReversed`), the reverser gets its pause time, spark and hit sound, enters p1stateno and sends the attacker to p2stateno in its own states. The real kfm's counter (state 1300) reverses a punch end to end.
+
 ## [2.50.0] - 2026-11-21
 
 ### Added

@@ -179,8 +179,8 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		}
 		return intValue(float64(ctx.MoveContactTime)), true, nil
 	case "movereversed":
-		// char.go:5993-5999. shortcut: no ReversalDef yet.
-		return intValue(0), true, nil
+		// char.go:5993-5999: ticks since its move was reversed.
+		return intValue(float64(ctx.MoveReversedTime)), true, nil
 	case "hitfall":
 		return boolValue(ctx.GetHit.Fall), true, nil
 	case "canrecover":

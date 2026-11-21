@@ -309,6 +309,9 @@ type HitDefParams struct {
 	// them.
 	P1StateNo, P2StateNo int
 	P1Facing, P2Facing   int
+	// Attr is the HitDef's attr as the evaluator encodes it, set by the
+	// engine (ParseHitDef leaves it 0), for HitOverride.
+	Attr int32
 }
 
 // ParseHitDef reads a HitDef controller's raw, lower-cased parameter map

@@ -616,3 +616,25 @@ func TestTick_HitFlagDecidesWhoCanBeHit(t *testing.T) {
 		}
 	}
 }
+
+// char.go:11540-11600 and 13205-13212: a HitOverride matching the hit sends
+// the defender to its state instead of 5000, the damage still taken; one
+// whose attr does not match leaves the usual get-hit state.
+func TestTick_HitOverrideCatchesTheHit(t *testing.T) {
+	for attr, want := range map[string]int{"SCA, AA": 777, "SCA, AP": 5000} {
+		s := newHitScenario(t, func(a, d map[int]cns.StateDef) {
+			def := d[0]
+			def.Controllers = append([]cns.Controller{{Type: "HitOverride", Triggers: []string{"1"}, Parameters: map[string]string{"attr": attr, "stateno": "777", "time": "-1"}}}, def.Controllers...)
+			d[0] = def
+			d[777] = cns.StateDef{Number: 777, Type: cns.StateTypeStanding}
+		})
+		s.step()
+		d := s.ctx(match.SideP2)
+		if d.StateNo != want {
+			t.Errorf("HitOverride %s: defender state %d, want %d", attr, d.StateNo, want)
+		}
+		if s.state.Fighters[match.SideP2].Health >= 1000 {
+			t.Errorf("HitOverride %s: no damage taken", attr)
+		}
+	}
+}
