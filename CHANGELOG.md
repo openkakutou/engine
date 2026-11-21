@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.69.0] - 2026-11-21
+
+### Added
+- ParentVarSet and ParentVarAdd: a helper's writes, in VarSet's forms, land in its parent's variables (the player, or the helper that spawned it) after its tick; a player running one does nothing, as Ikemen GO. E2E: the corpus Ryu (SVC)'s configuration helper sets his settings. These two are the most used controllers the corpus had unsupported.
+
 ## [2.68.0] - 2026-11-21
 
 ### Added

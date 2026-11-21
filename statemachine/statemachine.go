@@ -346,6 +346,8 @@ var controllerHandlers = map[string]ControllerHandler{}
 func init() {
 	RegisterController(ControllerTypeVarSet, applyVarSet)
 	RegisterController("VarAdd", applyVarAdd)
+	RegisterController("ParentVarSet", applyParentVarAssign("ParentVarSet", false))
+	RegisterController("ParentVarAdd", applyParentVarAssign("ParentVarAdd", true))
 	RegisterController("VarRangeSet", applyVarRangeSet)
 	RegisterController(ControllerTypePowerAdd, applyPowerAdd)
 	RegisterController(ControllerTypePlaySnd, applyPlaySnd)
@@ -617,6 +619,37 @@ func applyVarAdd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 }
 
 func applyVarAssign(ctrl cns.Controller, ctx evaluator.Context, name string, add bool) (evaluator.Context, error) {
+	op, ok, err := evalVarAssign(ctrl, &ctx, name, add)
+	if err != nil || !ok {
+		return ctx, err
+	}
+	if err := ApplyVarOp(&ctx, op); err != nil {
+		return evaluator.Context{}, fmt.Errorf("%s: %w", name, err)
+	}
+	return ctx, nil
+}
+
+// applyParentVarAssign is ParentVarSet and ParentVarAdd (bytecode.go,
+// VarSet's forms redirected to the parent): a helper's write to its
+// parent's variable, evaluated in the helper and applied by the engine to
+// the parent. A player has no parent: Ikemen GO warns and does nothing.
+func applyParentVarAssign(name string, add bool) ControllerHandler {
+	return func(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+		if !ctx.IsHelper {
+			return ctx, nil
+		}
+		op, ok, err := evalVarAssign(ctrl, &ctx, name, add)
+		if err != nil || !ok {
+			return ctx, err
+		}
+		ctx.ParentVarOps = append(ctx.ParentVarOps, op)
+		return ctx, nil
+	}
+}
+
+// evalVarAssign evaluates a VarSet-family controller's variable, index and
+// value; ok is false for a value without a variable, which does nothing.
+func evalVarAssign(ctrl cns.Controller, ctx *evaluator.Context, name string, add bool) (evaluator.VarOp, bool, error) {
 	form, ok := oldVarSetForm(ctrl)
 	if !ok {
 		form, ok = newVarSetForm(ctrl)
@@ -625,42 +658,46 @@ func applyVarAssign(ctrl cns.Controller, ctx evaluator.Context, name string, add
 		// A value with no variable: Ikemen GO warns and the controller does
 		// nothing in a CNS file (varSetOlderSub, compiler_functions.go)
 		// (Hulk: "value = var(31) = 0").
-		return ctx, nil
+		return evaluator.VarOp{}, false, nil
 	}
 	if !ok && hasAnyKey(ctrl, "v", "fv", "sysv", "sysfv") {
-		return evaluator.Context{}, fmt.Errorf(`%s is missing its required "value" parameter`, name)
+		return evaluator.VarOp{}, false, fmt.Errorf(`%s is missing its required "value" parameter`, name)
 	}
 	if !ok {
-		return evaluator.Context{}, fmt.Errorf("%s needs a variable: var(N), sysvar(N), fvar(N), sysfvar(N), or v/sysv/fv/sysfv and value", name)
+		return evaluator.VarOp{}, false, fmt.Errorf("%s needs a variable: var(N), sysvar(N), fvar(N), sysfvar(N), or v/sysv/fv/sysfv and value", name)
 	}
-
 	if strings.TrimSpace(form.indexRaw) == "" {
-		return evaluator.Context{}, fmt.Errorf("%s: Missing variable index", name)
+		return evaluator.VarOp{}, false, fmt.Errorf("%s: Missing variable index", name)
 	}
-	idxVal, err := evaluator.EvaluateMut(form.indexRaw, &ctx)
+	idxVal, err := evaluator.EvaluateMut(form.indexRaw, ctx)
 	if err != nil {
-		return evaluator.Context{}, fmt.Errorf("%s %s index %q: %w", name, form.prefix, form.indexRaw, err)
+		return evaluator.VarOp{}, false, fmt.Errorf("%s %s index %q: %w", name, form.prefix, form.indexRaw, err)
 	}
-	val, err := evaluator.EvaluateMut(form.valueRaw, &ctx)
+	val, err := evaluator.EvaluateMut(form.valueRaw, ctx)
 	if err != nil {
-		return evaluator.Context{}, fmt.Errorf("%s %s value %q: %w", name, form.prefix, form.valueRaw, err)
+		return evaluator.VarOp{}, false, fmt.Errorf("%s %s value %q: %w", name, form.prefix, form.valueRaw, err)
 	}
-	if add {
-		cur, err := ctx.VarValue(form.prefix, idxVal.Int())
+	return evaluator.VarOp{Target: form.prefix, Index: idxVal.Int(), Value: val, Add: add}, true, nil
+}
+
+// ApplyVarOp writes op to ctx's variable: set, or added to its current
+// value, an int variable adding the value truncated first.
+func ApplyVarOp(ctx *evaluator.Context, op evaluator.VarOp) error {
+	val := op.Value
+	if op.Add {
+		cur, err := ctx.VarValue(op.Target, op.Index)
 		if err != nil {
-			return evaluator.Context{}, fmt.Errorf("%s: %w", name, err)
+			return err
 		}
 		if cur.Kind == evaluator.KindInt {
 			val = evaluator.IntValue(val.Int())
 		}
 		if val, err = evaluator.Add(cur, val); err != nil {
-			return evaluator.Context{}, fmt.Errorf("%s: %w", name, err)
+			return err
 		}
 	}
-	if _, err := ctx.AssignVar(form.prefix, idxVal.Int(), val); err != nil {
-		return evaluator.Context{}, fmt.Errorf("%s: %w", name, err)
-	}
-	return ctx, nil
+	_, err := ctx.AssignVar(op.Target, op.Index, val)
+	return err
 }
 
 // applyVarRangeSet is VarRangeSet (bytecode.go:12025-12050, char.go:

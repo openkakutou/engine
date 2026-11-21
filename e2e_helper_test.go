@@ -159,3 +159,23 @@ func TestE2E_RyusHadoukenFromItsCommand(t *testing.T) {
 		t.Errorf("state 1000 entered %v, hadouken thrown %v; want both", entered, thrown)
 	}
 }
+
+// Ryu (SVC)'s configuration helper (!config.cns, state 10000) sets its
+// player's settings with ParentVarSet: var(32) = 6, var(33) = 12.
+func TestE2E_RyusConfigHelperSetsItsPlayersVariables(t *testing.T) {
+	path := corpusChar(t, "Street Fighter/Ryu (SVC)/Ryu_SS.def")
+	prog, _, err := LoadFighterProgram(loadChar(t, path), path, referenceDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := newE2EMatch(t, prog)
+	for i := 0; i < 30; i++ {
+		if err := m.step(input.TickInput{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c := m.runtimes[match.SideP1].Context
+	if c.Vars[32] != 6 || c.Vars[33] != 12 {
+		t.Errorf("Ryu var(32), var(33) = %d, %d, want 6, 12 from the config helper", c.Vars[32], c.Vars[33])
+	}
+}

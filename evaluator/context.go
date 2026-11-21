@@ -272,6 +272,9 @@ type Context struct {
 	TransAlpha [2]int
 	// AttackMul is an AttackMulSet's damage multiplier, while HasAttackMul
 	// (Ikemen GO attackMul[0], 1 otherwise).
+	// ParentVarOps are the ParentVarSet and ParentVarAdd writes a helper
+	// made this tick, for the engine to apply to its parent.
+	ParentVarOps   []VarOp
 	AttackMul      float64
 	HasAttackMul   bool
 	PushPriority   int
@@ -478,6 +481,15 @@ type HitOverride struct {
 	StateNo   int
 	Time      int
 	KeepState bool
+}
+
+// VarOp is a write to a variable: Target (var, fvar, sysvar, sysfvar)
+// Index gets Value, or adds it with Add.
+type VarOp struct {
+	Target string
+	Index  int
+	Value  Value
+	Add    bool
 }
 
 // PauseRequest is a Pause or SuperPause that ran (bytecode.go pause.Run,

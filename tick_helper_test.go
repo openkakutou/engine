@@ -167,3 +167,23 @@ func TestTick_AHelperMadeThisTickCountsForNumHelperAtOnce(t *testing.T) {
 		t.Errorf("helpers = %d, want 1", n)
 	}
 }
+
+// ParentVarAdd / ParentVarSet (bytecode.go): a helper's writes land in its
+// parent's variables, the player's here; a player running one does nothing.
+func TestTick_AHelperWritesItsParentsVariables(t *testing.T) {
+	prog := spawnerProgram(nil, ctrlWith("ParentVarSet", "1", map[string]string{"var(9)": "99"}))
+	st := prog.States[1000]
+	st.Controllers = append(st.Controllers,
+		ctrlWith("ParentVarAdd", "1", map[string]string{"var(3)": "1"}),
+		ctrlWith("ParentVarSet", "1", map[string]string{"fv": "2", "value": "0.5"}))
+	prog.States[1000] = st
+	state, progs, rts := projMatch(t, prog, 900)
+	_, all := runProj(t, state, progs, rts, 2)
+	p := all[1].Fighters[match.SideP1].Context
+	if p.Vars[3] != 2 || p.FVars[2] != 0.5 {
+		t.Errorf("player var(3) %d fvar(2) %v, want 2 (one add a tick) and 0.5", p.Vars[3], p.FVars[2])
+	}
+	if p.Vars[9] != 0 {
+		t.Errorf("player var(9) = %d, want 0: a player's ParentVarSet does nothing", p.Vars[9])
+	}
+}

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"github.com/openkakutou/engine/v2/statemachine"
 
 	"github.com/openkakutou/character/air"
 	"github.com/openkakutou/engine/v2/evaluator"
@@ -69,6 +70,9 @@ func tickHelpers(state *match.MatchState, rt *FighterRuntime, prog FighterProgra
 		}
 		*seed = res.Runtime.Context.RandSeed
 		h.FighterRuntime, h.Frame = res.Runtime, res.Frame
+		if err := applyParentVarOps(rt, h); err != nil {
+			return out, fmt.Errorf("helper %d: %w", h.Context.HelperID, err)
+		}
 		armHitDef(&h.FighterRuntime, res)
 		out.sounds = append(out.sounds, res.Sounds...)
 		out.warnings = append(out.warnings, res.Warnings...)
@@ -186,6 +190,26 @@ func hitWithHelpers(state *match.MatchState, programs *[2]FighterProgram, runtim
 		h.Context.MoveContactTime, h.Context.ContactGuarded, h.Context.HasTarget = 1, guarded, true
 		rt.HitPause, rt.Context.MoveContactTime, rt.Context.ContactGuarded, rt.Context.HasTarget = owner.pause, owner.moveContact, owner.guarded, owner.target
 		return err
+	}
+	return nil
+}
+
+// applyParentVarOps writes the helper's ParentVarSet and ParentVarAdd of the
+// tick to its parent: the player, or the helper that spawned it.
+func applyParentVarOps(rt *FighterRuntime, h *Helper) error {
+	ops := h.Context.ParentVarOps
+	h.Context.ParentVarOps = nil
+	if len(ops) == 0 {
+		return nil
+	}
+	parent := &rt.Context
+	if p := findHelper(rt.Helpers, h.Parent); p != nil {
+		parent = &p.Context
+	}
+	for _, op := range ops {
+		if err := statemachine.ApplyVarOp(parent, op); err != nil {
+			return err
+		}
 	}
 	return nil
 }
