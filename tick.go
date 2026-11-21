@@ -592,6 +592,7 @@ func Tick(
 		return TickResult{}, err
 	}
 	if !paused {
+		tradeProjectiles(&programs, &runtimesOut, cfg.Tick)
 		if err := hitWithProjectiles(&state, &programs, &runtimesOut, match.SideP1, frames[match.SideP2].Clsn2, cfg, &hitSounds); err != nil {
 			return TickResult{}, err
 		}

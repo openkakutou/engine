@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.63.0] - 2026-11-21
+
+### Added
+- Projectiles trade hits with the other player's, as Ikemen GO does: when their hurt boxes touch, each loses a projpriority point while it has more than the other, else one of its projhits; out of hits it is cancelled, plays its projcancelanim (projremanim by default) and its owner's `ProjCancelTime` counts from it. E2E: two corpus Seiyas' projectiles cancel each other.
+
 ## [2.62.0] - 2026-11-21
 
 ### Added

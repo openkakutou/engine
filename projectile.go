@@ -18,6 +18,9 @@ const (
 	ProjectileActive ProjectileStatus = iota
 	ProjectileHit
 	ProjectileRemoved
+	// ProjectileCancelled is Ikemen GO's ProjCancel: out of hits in trades
+	// with other projectiles.
+	ProjectileCancelled
 )
 
 // projectileBound is how far past the screen or the stage a projectile flies
@@ -37,9 +40,12 @@ type Projectile struct {
 	Status   ProjectileStatus
 	// RemoveDone is set once a hit or removed projectile has switched to its
 	// hit or remove animation and velocity.
-	RemoveDone                      bool
-	RemoveTime                      int
-	HitAnim, RemAnim                int
+	RemoveDone                   bool
+	RemoveTime                   int
+	HitAnim, RemAnim, CancelAnim int
+	// Hits and Priority are what is left of projhits and projpriority for
+	// trades with other projectiles.
+	Hits, Priority                  int
 	Velocity, Accel, VelMul, RemVel [2]float64
 	HitDef                          cns.Controller
 	contact                         bool
@@ -56,7 +62,8 @@ func spawnProjectiles(thrower *evaluator.Context, rt *FighterRuntime) {
 		pos.Y -= s.Offset[1]
 		rt.Projectiles = append(rt.Projectiles, Projectile{
 			ID: s.ID, Anim: s.Anim, Position: pos, Facing: thrower.Facing,
-			RemoveTime: s.RemoveTime, HitAnim: s.HitAnim, RemAnim: s.RemAnim,
+			RemoveTime: s.RemoveTime, HitAnim: s.HitAnim, RemAnim: s.RemAnim, CancelAnim: s.CancelAnim,
+			Hits: s.Hits, Priority: s.Priority,
 			Velocity: s.Velocity, Accel: s.Accel, VelMul: s.VelMul, RemVel: s.RemVel,
 			HitDef: cns.Controller{Type: "HitDef", Parameters: s.HitDef},
 		})
@@ -79,8 +86,11 @@ func updateProjectiles(rt *FighterRuntime, prog FighterProgram, screen [2]float6
 		}
 		if p.Status != ProjectileActive && !p.RemoveDone {
 			next := p.RemAnim
-			if p.Status == ProjectileHit {
+			switch p.Status {
+			case ProjectileHit:
 				next = p.HitAnim
+			case ProjectileCancelled:
+				next = p.CancelAnim
 			}
 			if next == -1 {
 				continue
@@ -152,8 +162,8 @@ func tickProjectiles(rt *FighterRuntime) {
 // hitWithProjectiles lands attacker's active projectiles whose hit boxes
 // touch the defender's hurt boxes, each like a HitDef, the first one
 // touching only: a defender is hit once a tick.
-// shortcut: the owner's contact counters, the projectile's own hit pause
-// and projectile-against-projectile trades are not modelled; the defender
+// shortcut: the owner's contact counters and the projectile's own hit pause
+// are not modelled; the defender
 // is knocked away along the owner's facing.
 func hitWithProjectiles(state *match.MatchState, programs *[2]FighterProgram, runtimes *[2]FighterRuntime, attacker match.Side, defFrameClsn2 []air.ClsnBox, cfg TickConfig, hitSounds *[2][]evaluator.SoundEvent) error {
 	rt := &runtimes[attacker]
@@ -266,12 +276,7 @@ func projectileIDs(projectiles []Projectile) []int {
 // recordProjContact is contacts with projectile id's hit (or guard) at tick,
 // in a fresh slice: the one handed in belongs to the tick before.
 func recordProjContact(contacts []evaluator.ProjContact, id, tick int, guarded bool) []evaluator.ProjContact {
-	out := slices.Clone(contacts)
-	i := slices.IndexFunc(out, func(c evaluator.ProjContact) bool { return c.ID == id })
-	if i < 0 {
-		out = append(out, evaluator.ProjContact{ID: id})
-		i = len(out) - 1
-	}
+	out, i := withProjContact(contacts, id)
 	if guarded {
 		out[i].Guard = tick
 	} else {
@@ -290,4 +295,76 @@ func hitTmp(c *evaluator.Context) int {
 		return 2
 	}
 	return 1
+}
+
+// tradeProjectiles makes the two players' active projectiles whose hurt
+// boxes (Clsn2) touch trade hits (Ikemen GO Projectile.tradeDetection and
+// cancelHits, char.go:2949-2966, 3080-3180): each loses a priority point
+// while it has more than the other, else a hit; out of hits it is cancelled,
+// which its owner's ProjCancelTime reads. A player's projectiles never trade
+// with each other, nor one with a negative id.
+// shortcut: the surviving projectile's hit pause and the team checks of
+// affectteam are not applied.
+func tradeProjectiles(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, tick int) {
+	a, b := &runtimes[match.SideP1], &runtimes[match.SideP2]
+	if len(a.Projectiles) == 0 || len(b.Projectiles) == 0 {
+		return
+	}
+	animsA, animsB := programs[match.SideP1].animationTable(), programs[match.SideP2].animationTable()
+	for i := range a.Projectiles {
+		p := &a.Projectiles[i]
+		for j := range b.Projectiles {
+			q := &b.Projectiles[j]
+			if !canTrade(p) || !canTrade(q) {
+				continue
+			}
+			pBoxes := currentFrame(animsA[p.Anim], p.AnimTime).Clsn2
+			qBoxes := currentFrame(animsB[q.Anim], q.AnimTime).Clsn2
+			if !hitdetect.BoxesOverlap(p.Position, p.Facing, pBoxes, q.Position, q.Facing, qBoxes) {
+				continue
+			}
+			cancelHits(p, q, &a.Context, tick)
+			cancelHits(q, p, &b.Context, tick)
+		}
+	}
+}
+
+// canTrade reports a projectile still able to trade.
+func canTrade(p *Projectile) bool {
+	return p.Status == ProjectileActive && p.ID >= 0 && p.Hits > 0
+}
+
+// cancelHits is p's side of a trade with opp: a priority point while p has
+// more, else a hit; out of hits p is cancelled and its owner's contact
+// recorded.
+func cancelHits(p, opp *Projectile, owner *evaluator.Context, tick int) {
+	if p.Priority > opp.Priority {
+		p.Priority--
+	} else {
+		p.Hits--
+	}
+	if p.Hits <= 0 {
+		p.Status = ProjectileCancelled
+		owner.ProjContacts = recordProjCancel(owner.ProjContacts, p.ID, tick)
+	}
+}
+
+// recordProjCancel is contacts with projectile id's cancel at tick, in a
+// fresh slice.
+func recordProjCancel(contacts []evaluator.ProjContact, id, tick int) []evaluator.ProjContact {
+	out, i := withProjContact(contacts, id)
+	out[i].Cancel = tick
+	return out
+}
+
+// withProjContact is a fresh copy of contacts holding an entry for id, and
+// that entry's index.
+func withProjContact(contacts []evaluator.ProjContact, id int) ([]evaluator.ProjContact, int) {
+	out := slices.Clone(contacts)
+	i := slices.IndexFunc(out, func(c evaluator.ProjContact) bool { return c.ID == id })
+	if i < 0 {
+		out = append(out, evaluator.ProjContact{ID: id})
+		i = len(out) - 1
+	}
+	return out, i
 }
