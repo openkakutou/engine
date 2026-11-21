@@ -136,3 +136,35 @@ func TestPersistentValue(t *testing.T) {
 		}
 	}
 }
+
+// bytecode.go:7172-7176: a MUGEN character's ModifyExplod changes pos, vel
+// and facing only along with a postype; an Ikemen GO one's always.
+func TestModifyExplod_AMugenCharacterNeedsAPosTypeForPos(t *testing.T) {
+	params := map[string]string{"id": "5", "pos": "10, 20", "removetime": "40"}
+	ctx := evaluator.Context{}
+	if _, err := ApplyController(cns.Controller{Type: "ModifyExplod", Parameters: params}, &ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	m := ctx.ModifiedExplods[0]
+	if m.ID != 5 || m.SetPos || !m.SetRemoveTime || m.RemoveTime != 40 || m.Relative {
+		t.Errorf("MUGEN modification = %+v, want id 5, removetime only", m)
+	}
+	ikemen := evaluator.Context{IkemenChar: true}
+	if _, err := ApplyController(cns.Controller{Type: "ModifyExplod", Parameters: params}, &ikemen, nil); err != nil {
+		t.Fatal(err)
+	}
+	if m := ikemen.ModifiedExplods[0]; !m.SetPos || m.Pos != [2]float64{10, 20} || !m.Relative {
+		t.Errorf("Ikemen GO modification = %+v, want pos 10,20, relative times", m)
+	}
+}
+
+func TestModifyExplod_DefaultsToEveryExplod(t *testing.T) {
+	ctx := evaluator.Context{}
+	if _, err := ApplyController(cns.Controller{Type: "ModifyExplod", Parameters: map[string]string{"postype": "p2", "vel": "3"}}, &ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	m := ctx.ModifiedExplods[0]
+	if m.ID != -1 || !m.SetPosType || m.PosType != "p2" || !m.SetVel || m.Vel[0] != 3 {
+		t.Errorf("modification = %+v", m)
+	}
+}

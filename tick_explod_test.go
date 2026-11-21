@@ -119,3 +119,27 @@ func TestTick_ExplodsAreCappedAtExplodMax(t *testing.T) {
 		t.Errorf("explods = %d, want 512", n)
 	}
 }
+
+// ModifyExplod (bytecode.go:7158-7560) changes the live explods of that id:
+// here a new velocity and a remove time.
+func TestTick_ModifyExplodChangesThatIDsExplods(t *testing.T) {
+	prog := explodProgram(map[string]string{"anim": "101", "removetime": "-1", "id": "3", "bindtime": "0"},
+		ctrlWith("Explod", "Time = 0", map[string]string{"anim": "101", "removetime": "-1", "id": "4", "bindtime": "0"}),
+		ctrlWith("ModifyExplod", "Time = 1", map[string]string{"id": "3", "postype": "p1", "vel": "5, 0", "removetime": "6"}))
+	state, progs, rts := projMatch(t, prog, 900)
+	_, all := runProj(t, state, progs, rts, 8)
+	es := all[3].Explods[match.SideP1]
+	if len(es) != 2 {
+		t.Fatalf("explods = %+v, want both", es)
+	}
+	moved, still := es[0], es[1]
+	if moved.ID != 3 {
+		moved, still = still, moved
+	}
+	if moved.Vel[0] != 5 || still.Vel[0] != 0 {
+		t.Errorf("velocities: id 3 %v, id 4 %v, want 5 and 0", moved.Vel, still.Vel)
+	}
+	if es := all[7].Explods[match.SideP1]; len(es) != 1 || es[0].ID != 4 {
+		t.Errorf("after its new remove time: %+v, want only id 4", es)
+	}
+}

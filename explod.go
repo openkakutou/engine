@@ -121,6 +121,14 @@ func spawnExplods(rt *FighterRuntime, serial int, opponent evaluator.Opponent, s
 		rt.Explods = kept
 	}
 	ctx.RemovedExplods = nil
+	for _, m := range ctx.ModifiedExplods {
+		for i := range rt.Explods {
+			if e := &rt.Explods[i]; e.Owner == serial && (m.ID < 0 || e.ID == m.ID) {
+				modifyExplod(e, m)
+			}
+		}
+	}
+	ctx.ModifiedExplods = nil
 	for _, s := range ctx.NewExplods {
 		if len(rt.Explods) >= explodMax {
 			break
@@ -157,6 +165,58 @@ func spawnExplods(rt *FighterRuntime, serial int, opponent evaluator.Opponent, s
 	ctx.NewExplods = nil
 }
 
+// modifyExplod gives e the parameters a ModifyExplod wrote.
+func modifyExplod(e *Explod, m evaluator.ExplodModification) {
+	if m.SetPosType {
+		e.PosType = m.PosType
+	}
+	if m.SetPos {
+		e.Rel = m.Pos
+	}
+	if m.SetVel {
+		e.Vel = m.Vel
+	}
+	if m.SetAccel {
+		e.Accel = m.Accel
+	}
+	if m.SetFacing && m.Facing < 0 {
+		e.Facing = 1 - e.Facing
+	}
+	if m.SetVFacing {
+		e.VFlip = m.VFacing < 0
+	}
+	if m.SetBindTime {
+		e.BindTime = relativeTime(e, m.BindTime, m.Relative)
+	}
+	if m.SetRemoveTime {
+		e.RemoveTime = relativeTime(e, m.RemoveTime, m.Relative)
+	}
+	if m.SetSprPriority {
+		e.SprPriority = m.SprPriority
+	}
+	if m.SetOnTop {
+		e.OnTop = m.OnTop
+	}
+	if m.SetRemoveOnGetHit {
+		e.RemoveOnGetHit = m.RemoveOnGetHit
+	}
+	if m.SetMovesInPause {
+		e.MovesInPause = m.MovesInPause
+	}
+	if m.SetAnim {
+		e.Anim, e.Common, e.AnimTime = m.Anim, m.Common, 0
+	}
+}
+
+// relativeTime is a modified bindtime or removetime: from the explod's age
+// for an Ikemen GO character's positive one.
+func relativeTime(e *Explod, t int, relative bool) int {
+	if relative && t > 0 {
+		return e.Time + t
+	}
+	return t
+}
+
 // explodIDs are owner's explods' ids, for NumExplod.
 func explodIDs(explods []Explod, owner int) []int {
 	var ids []int
@@ -172,7 +232,7 @@ func explodIDs(explods []Explod, owner int) []int {
 // and its helpers asked for this tick, and leaves each its explod ids.
 func tickExplods(rt *FighterRuntime, prog FighterProgram, opponent evaluator.Opponent, screen [2]float64, paused bool) {
 	// Nothing to do allocates nothing: most ticks of most characters.
-	if len(rt.Explods) == 0 && len(rt.Context.NewExplods) == 0 && len(rt.Context.RemovedExplods) == 0 && len(rt.Helpers) == 0 {
+	if len(rt.Explods) == 0 && len(rt.Context.NewExplods) == 0 && len(rt.Context.RemovedExplods) == 0 && len(rt.Context.ModifiedExplods) == 0 && len(rt.Helpers) == 0 {
 		rt.Context.ExplodIDs = nil
 		return
 	}

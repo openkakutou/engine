@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.54.0] - 2026-11-21
+
+### Added
+- ModifyExplod, as Ikemen GO runs it: the fighter's explods of that id (all without one) take its postype, pos, vel, accel, facing, vfacing, bindtime, removetime, sprpriority, ontop, removeongethit, anim and pause movement; a MUGEN character changes pos, vel, accel and facing only along with a postype, an Ikemen GO character's bindtime and removetime count from the explod's age.
+
 ## [2.53.0] - 2026-11-21
 
 ### Added

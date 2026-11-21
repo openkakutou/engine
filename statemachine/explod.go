@@ -10,6 +10,7 @@ import (
 func init() {
 	RegisterController("Explod", applyExplod)
 	RegisterController("RemoveExplod", applyRemoveExplod)
+	RegisterController("ModifyExplod", applyModifyExplod)
 }
 
 // applyExplod is the Explod controller (bytecode.go:6773-7074, defaults
@@ -24,6 +25,17 @@ func applyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 	if ctx.MugenVersion == [2]int{1, 1} && !ctx.IkemenChar {
 		e.PosType = ""
 	}
+	if err := readExplod(ctrl, &ctx, &e); err != nil {
+		return ctx, err
+	}
+	e.ID = max(e.ID, 0)
+	ctx.NewExplods = append(ctx.NewExplods, e)
+	return ctx, nil
+}
+
+// readExplod reads into e the Explod parameters ctrl writes, leaving the
+// others as they are.
+func readExplod(ctrl cns.Controller, ctx *evaluator.Context, e *evaluator.ExplodSpawn) error {
 	if raw, ok := ctrl.Parameters["anim"]; ok {
 		raw = strings.TrimSpace(raw)
 		if len(raw) > 1 && (raw[0] == 'F' || raw[0] == 'f') {
@@ -32,9 +44,9 @@ func applyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 		if len(raw) > 1 && (raw[0] == 'S' || raw[0] == 's') {
 			raw = raw[1:]
 		}
-		v, err := evaluator.EvaluateMut(raw, &ctx)
+		v, err := evaluator.EvaluateMut(raw, ctx)
 		if err != nil {
-			return ctx, err
+			return err
 		}
 		e.Anim = v.Int()
 	}
@@ -43,19 +55,18 @@ func applyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 		dst *int
 	}{{"id", &e.ID}, {"bindtime", &e.BindTime}, {"removetime", &e.RemoveTime}, {"sprpriority", &e.SprPriority}}
 	for _, p := range ints {
-		v, ok, err := evalOptional(ctrl, p.key, &ctx)
+		v, ok, err := evalOptional(ctrl, p.key, ctx)
 		if err != nil {
-			return ctx, err
+			return err
 		}
 		if ok {
 			*p.dst = int(v)
 		}
 	}
-	e.ID = max(e.ID, 0)
 	for _, key := range [...]string{"supermovetime", "pausemovetime"} {
-		v, ok, err := evalOptional(ctrl, key, &ctx)
+		v, ok, err := evalOptional(ctrl, key, ctx)
 		if err != nil {
-			return ctx, err
+			return err
 		}
 		if ok && v != 0 {
 			e.MovesInPause = true
@@ -66,9 +77,9 @@ func applyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 		dst *int
 	}{{"facing", &e.Facing}, {"vfacing", &e.VFacing}}
 	for _, p := range flags {
-		v, ok, err := evalOptional(ctrl, p.key, &ctx)
+		v, ok, err := evalOptional(ctrl, p.key, ctx)
 		if err != nil {
-			return ctx, err
+			return err
 		}
 		if ok && v < 0 {
 			*p.dst = -1
@@ -79,9 +90,9 @@ func applyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 		dst *bool
 	}{{"ontop", &e.OnTop}, {"removeongethit", &e.RemoveOnGetHit}, {"supermove", &e.MovesInPause}}
 	for _, p := range bools {
-		v, ok, err := evalOptional(ctrl, p.key, &ctx)
+		v, ok, err := evalOptional(ctrl, p.key, ctx)
 		if err != nil {
-			return ctx, err
+			return err
 		}
 		if ok {
 			*p.dst = v != 0
@@ -110,15 +121,14 @@ func applyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 			if i > 1 || part == "" {
 				break
 			}
-			v, err := evaluator.EvaluateMut(part, &ctx)
+			v, err := evaluator.EvaluateMut(part, ctx)
 			if err != nil {
-				return ctx, err
+				return err
 			}
 			p.dst[i] = v.Float()
 		}
 	}
-	ctx.NewExplods = append(ctx.NewExplods, e)
-	return ctx, nil
+	return nil
 }
 
 // applyRemoveExplod is RemoveExplod (bytecode.go:12321-12340): it removes
@@ -134,5 +144,46 @@ func applyRemoveExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Co
 		id = int(v)
 	}
 	ctx.RemovedExplods = append(ctx.RemovedExplods, evaluator.ExplodRemoval{ID: id})
+	return ctx, nil
+}
+
+// applyModifyExplod is ModifyExplod (bytecode.go:7158-7560): the fighter's
+// explods with that id (all without one) take the parameters it writes; a
+// MUGEN character's pos, vel, accel, facing and vfacing need a postype too;
+// an Ikemen GO character's positive bindtime and removetime count from the
+// explod's age.
+// shortcut: index, redirectid and the parameters Explod does not read are
+// ignored.
+func applyModifyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+	m := evaluator.ExplodModification{ID: -1, Relative: ctx.IkemenChar}
+	m.Facing, m.VFacing = 1, 1
+	if err := readExplod(ctrl, &ctx, &m.ExplodSpawn); err != nil {
+		return ctx, err
+	}
+	m.ID = -1
+	id, ok, err := evalOptional(ctrl, "id", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	if ok {
+		m.ID = int(id)
+	}
+	has := func(key string) bool {
+		_, ok := ctrl.Parameters[key]
+		return ok
+	}
+	// A MUGEN character changes these only along with a postype
+	// (bytecode.go:7172-7176).
+	m.SetPosType = has("postype")
+	unlocked := ctx.IkemenChar || m.SetPosType
+	m.SetPos = unlocked && has("pos")
+	m.SetVel = unlocked && (has("vel") || has("velocity"))
+	m.SetAccel = unlocked && has("accel")
+	m.SetFacing = unlocked && has("facing")
+	m.SetVFacing = unlocked && has("vfacing")
+	m.SetBindTime, m.SetRemoveTime, m.SetSprPriority = has("bindtime"), has("removetime"), has("sprpriority")
+	m.SetOnTop, m.SetRemoveOnGetHit, m.SetAnim = has("ontop"), has("removeongethit"), has("anim")
+	m.SetMovesInPause = has("supermove") || has("supermovetime") || has("pausemovetime")
+	ctx.ModifiedExplods = append(ctx.ModifiedExplods, m)
 	return ctx, nil
 }

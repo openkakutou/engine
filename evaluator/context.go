@@ -162,12 +162,13 @@ type Context struct {
 	// engine turns into helpers; Destroyed is set by DestroySelf on a helper.
 	NewHelpers []HelperSpawn
 	Destroyed  bool
-	// NewExplods and RemovedExplods are the Explod and RemoveExplod
-	// controllers that ran this tick; ExplodIDs are the ids of the fighter's
+	// NewExplods, RemovedExplods and ModifiedExplods are the Explod,
+	// RemoveExplod and ModifyExplod controllers that ran this tick; ExplodIDs are the ids of the fighter's
 	// live explods, for NumExplod.
-	NewExplods     []ExplodSpawn
-	RemovedExplods []ExplodRemoval
-	ExplodIDs      []int
+	NewExplods      []ExplodSpawn
+	RemovedExplods  []ExplodRemoval
+	ModifiedExplods []ExplodModification
+	ExplodIDs       []int
 	// NewProjectiles are the Projectile controllers the fighter's states ran
 	// this tick, which the engine turns into projectiles.
 	NewProjectiles []ProjectileSpawn

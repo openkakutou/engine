@@ -26,3 +26,17 @@ type ExplodSpawn struct {
 // ExplodRemoval is a RemoveExplod that ran: the fighter's explods with that
 // id, every one for -1.
 type ExplodRemoval struct{ ID int }
+
+// ExplodModification is a ModifyExplod that ran (bytecode.go modifyExplod.Run,
+// 7158-7560): the fighter's explods with ID (every one for -1) take the
+// parameters it wrote. Set* tells which.
+type ExplodModification struct {
+	ID int
+	ExplodSpawn
+	SetPosType, SetFacing, SetVFacing, SetPos, SetVel, SetAccel bool
+	SetBindTime, SetRemoveTime, SetSprPriority, SetOnTop        bool
+	SetRemoveOnGetHit, SetAnim, SetMovesInPause                 bool
+	// Relative makes bindtime and removetime count from the explod's age
+	// (an Ikemen GO character).
+	Relative bool
+}
