@@ -136,6 +136,7 @@ assert(Array.isArray(idleTick.data?.sounds?.[0]) && idleTick.data.sounds[0].leng
 assert(Array.isArray(idleTick.data?.sounds?.[1]) && idleTick.data.sounds[1].length === 0, `idle tick: P2's sounds is an empty array, not null (got: ${JSON.stringify(idleTick.data?.sounds?.[1])})`);
 assert(Array.isArray(idleTick.data?.unsupported?.[0]) && idleTick.data.unsupported[0].length === 0, `idle tick: P1 unsupported is an empty array, not null (got: ${JSON.stringify(idleTick.data?.unsupported?.[0])})`);
 assert(Array.isArray(idleTick.data?.unsupported?.[1]) && idleTick.data.unsupported[1].length === 0, `idle tick: P2 unsupported is an empty array, not null (got: ${JSON.stringify(idleTick.data?.unsupported?.[1])})`);
+assert(Array.isArray(idleTick.data?.projectiles?.[0]) && idleTick.data.projectiles[0].length === 0, `idle tick: P1 projectiles is an empty array, not null (got: ${JSON.stringify(idleTick.data?.projectiles?.[0])})`);
 
 assert(Array.isArray(idleTick.data?.skippedCalls?.[0]) && idleTick.data.skippedCalls[0].length === 0, `idle tick: P1 skippedCalls is an empty array, not null (got: ${JSON.stringify(idleTick.data?.skippedCalls?.[0])})`);
 assert(idleTick.data?.skippedCalls?.[1]?.length === 1 && /nope/i.test(idleTick.data.skippedCalls[1][0]), `idle tick: P2's .zss call to an undefined function is reported under skippedCalls (got: ${JSON.stringify(idleTick.data?.skippedCalls?.[1])})`);

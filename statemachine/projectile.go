@@ -1,0 +1,78 @@
+package statemachine
+
+import (
+	"strings"
+
+	"github.com/openkakutou/character/cns"
+	"github.com/openkakutou/engine/v2/evaluator"
+)
+
+func init() {
+	RegisterController("Projectile", applyProjectile)
+}
+
+// projectileKeys are the Projectile parameters that are not its HitDef's.
+var projectileKeys = map[string]bool{
+	"projid": true, "projanim": true, "projhitanim": true, "projremanim": true, "projcancelanim": true,
+	"projremove": true, "projremovetime": true, "projshadow": true, "projmisstime": true, "projhits": true,
+	"projpriority": true, "projsprpriority": true, "projedgebound": true, "projstagebound": true,
+	"projheightbound": true, "projlayerno": true, "projscale": true, "velocity": true, "velmul": true,
+	"remvelocity": true, "accel": true, "offset": true, "postype": true,
+}
+
+// applyProjectile is the Projectile controller (Ikemen GO projectileSub,
+// compiler_functions.go:2404-2585, defaults char.go:2719-2760): it records a
+// spawn the engine turns into a projectile. projhitanim and projremanim
+// default to -1 and projhitanim; projremovetime to -1; velmul to 1.
+// shortcut: projremove 0, projmisstime, projhits above 1, projpriority,
+// postype other than p1 and the bounds are not read.
+func applyProjectile(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+	s := evaluator.ProjectileSpawn{RemoveTime: -1, HitAnim: -1, VelMul: [2]float64{1, 1}, HitDef: map[string]string{}}
+	ints := []struct {
+		key string
+		dst *int
+	}{{"projid", &s.ID}, {"projanim", &s.Anim}, {"projhitanim", &s.HitAnim}, {"projremovetime", &s.RemoveTime}}
+	for _, p := range ints {
+		v, ok, err := evalOptional(ctrl, p.key, &ctx)
+		if err != nil {
+			return ctx, err
+		}
+		if ok {
+			*p.dst = int(v)
+		}
+	}
+	remAnim, hasRemAnim, err := evalOptional(ctrl, "projremanim", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	if hasRemAnim {
+		s.RemAnim = int(remAnim)
+	}
+	pairs := []struct {
+		key string
+		dst *[2]float64
+	}{{"velocity", &s.Velocity}, {"accel", &s.Accel}, {"velmul", &s.VelMul}, {"remvelocity", &s.RemVel}, {"offset", &s.Offset}}
+	for _, p := range pairs {
+		raw, ok := ctrl.Parameters[p.key]
+		if !ok {
+			continue
+		}
+		for i, part := range strings.SplitN(raw, ",", 2) {
+			v, err := evaluator.EvaluateMut(strings.TrimSpace(part), &ctx)
+			if err != nil {
+				return ctx, err
+			}
+			p.dst[i] = v.Float()
+		}
+	}
+	for k, v := range ctrl.Parameters {
+		if !projectileKeys[k] {
+			s.HitDef[k] = v
+		}
+	}
+	if !hasRemAnim {
+		s.RemAnim = s.HitAnim // projhitanim unless given (bytecode.go:9021-9023)
+	}
+	ctx.NewProjectiles = append(ctx.NewProjectiles, s)
+	return ctx, nil
+}

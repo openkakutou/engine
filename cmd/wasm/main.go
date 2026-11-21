@@ -267,6 +267,9 @@ type tickResponse struct {
 	// (PalFX, Explod, EnvShake, ...) with their parameters, for the client
 	// to draw; a per-tick log like Sounds, each side always a JSON array.
 	Events [2][]evaluator.ControllerEvent `json:"events"`
+	// Projectiles is each fighter's live projectiles after the tick, for the
+	// client to draw, each side always a JSON array. Additive.
+	Projectiles [2][]projectileView `json:"projectiles"`
 	// Unsupported is each fighter's controller types that fired this tick
 	// without an engine implementation, lower-cased and deduplicated,
 	// indexed by match.Side. Each side is always a JSON array (`[]` when
@@ -284,6 +287,28 @@ type tickResponse struct {
 	// (e.g. "changed to invalid state N (from state M)"), indexed by
 	// match.Side, each side always a JSON array. Additive.
 	Warnings [2][]string `json:"warnings"`
+}
+
+// projectileView is a live projectile as the client draws it: its
+// animation (the owner's) and elapsed ticks, where it is (world space, Y up)
+// and which way it faces.
+type projectileView struct {
+	ID       int          `json:"id"`
+	Anim     int          `json:"anim"`
+	AnimTime int          `json:"animTime"`
+	X        float64      `json:"x"`
+	Y        float64      `json:"y"`
+	Facing   match.Facing `json:"facing"`
+}
+
+// projectileViews is projectiles as the response reports them, `[]` when
+// none.
+func projectileViews(projectiles []engine.Projectile) []projectileView {
+	views := make([]projectileView, 0, len(projectiles))
+	for _, p := range projectiles {
+		views = append(views, projectileView{ID: p.ID, Anim: p.Anim, AnimTime: p.AnimTime, X: p.Position.X, Y: p.Position.Y, Facing: p.Facing})
+	}
+	return views
 }
 
 // normalizeUnsupported (also used for skippedCalls) returns names unchanged if non-nil, or a non-nil
@@ -371,6 +396,10 @@ func tickJS(args []js.Value) (any, error) {
 		Events: [2][]evaluator.ControllerEvent{
 			match.SideP1: normalizeEvents(result.Events[match.SideP1]),
 			match.SideP2: normalizeEvents(result.Events[match.SideP2]),
+		},
+		Projectiles: [2][]projectileView{
+			match.SideP1: projectileViews(result.Projectiles[match.SideP1]),
+			match.SideP2: projectileViews(result.Projectiles[match.SideP2]),
 		},
 		Unsupported: [2][]string{
 			match.SideP1: normalizeUnsupported(result.Unsupported[match.SideP1]),

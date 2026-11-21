@@ -290,6 +290,8 @@ type FighterRuntime struct {
 	// (char.go:869, 11193-11195).
 	HitDef    cns.Controller
 	HitDefHit bool
+	// Projectiles are the fighter's live projectiles.
+	Projectiles []Projectile
 }
 
 // NewFighterRuntime builds a fresh FighterRuntime for a fighter entering
@@ -360,6 +362,9 @@ type TickResult struct {
 	// (PalFX, Explod, EnvShake, ...), in the order they ran, for the game to
 	// draw; nil for a side with none.
 	Events [2][]evaluator.ControllerEvent
+	// Projectiles is each fighter's live projectiles after this tick, the
+	// runtime's own slice.
+	Projectiles [2][]Projectile
 	// Warnings is each fighter's Ikemen GO console warnings of this tick, in
 	// the order they happened: a state change to a state the character does
 	// not have reads "changed to invalid state N (from state M)"
@@ -441,6 +446,8 @@ func Tick(
 	// second as the previous tick left it, the second sees the first after
 	// its controllers and its movement; collision detection comes after both
 	// (system.go:2734). See decisions 027 and 029.
+	runtimes[match.SideP1].Context.NumProjectiles = len(runtimes[match.SideP1].Projectiles)
+	runtimes[match.SideP2].Context.NumProjectiles = len(runtimes[match.SideP2].Projectiles)
 	p2Seen := snapshotOf(state.Fighter(match.SideP2), &runtimes[match.SideP2].Context)
 	screen := screenEdges(cfg)
 	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), p2Seen, inputs[match.SideP1], cfg.Tick, cfg.Bounds, screen, cfg.Gravity, state.Round, state.RandSeed)
@@ -485,6 +492,12 @@ func Tick(
 
 	armHitDef(&runtimesOut[match.SideP1], p1Out)
 	armHitDef(&runtimesOut[match.SideP2], p2Out)
+	// Projectiles spawned by this tick's controllers join the live ones, which
+	// all move before collisions (Ikemen GO charUpdate, system.go:2715-2718).
+	spawnProjectiles(&runtimesOut[match.SideP1])
+	spawnProjectiles(&runtimesOut[match.SideP2])
+	updateProjectiles(&runtimesOut[match.SideP1], programs[match.SideP1], screen, cfg)
+	updateProjectiles(&runtimesOut[match.SideP2], programs[match.SideP2], screen, cfg)
 	var hitSounds [2][]evaluator.SoundEvent
 	if err := landHit(&state, events, &programs, &runtimesOut, match.SideP1, cfg, &hitSounds); err != nil {
 		return TickResult{}, err
@@ -492,6 +505,14 @@ func Tick(
 	if err := landHit(&state, events, &programs, &runtimesOut, match.SideP2, cfg, &hitSounds); err != nil {
 		return TickResult{}, err
 	}
+	if err := hitWithProjectiles(&state, &programs, &runtimesOut, match.SideP1, frames[match.SideP2].Clsn2, cfg, &hitSounds); err != nil {
+		return TickResult{}, err
+	}
+	if err := hitWithProjectiles(&state, &programs, &runtimesOut, match.SideP2, frames[match.SideP1].Clsn2, cfg, &hitSounds); err != nil {
+		return TickResult{}, err
+	}
+	tickProjectiles(&runtimesOut[match.SideP1])
+	tickProjectiles(&runtimesOut[match.SideP2])
 
 	// A get-hit state entered by applyHitReaction and a PowerAdd live on the
 	// runtime context: copy them onto the match state.
@@ -536,6 +557,7 @@ func Tick(
 		Round:        result,
 		Sounds:       sounds,
 		Events:       [2][]evaluator.ControllerEvent{runtimesOut[match.SideP1].Context.Events, runtimesOut[match.SideP2].Context.Events},
+		Projectiles:  [2][]Projectile{runtimesOut[match.SideP1].Projectiles, runtimesOut[match.SideP2].Projectiles},
 		Warnings:     warnings,
 		Unsupported:  unsupported,
 		SkippedCalls: skippedCalls,
@@ -659,38 +681,25 @@ func getUp(ctx *evaluator.Context, prog FighterProgram, runs *stateRuns) error {
 // reaction, else it takes the hit.
 func landHit(state *match.MatchState, events []hitdetect.HitEvent, programs *[2]FighterProgram, runtimes *[2]FighterRuntime, attacker match.Side, cfg TickConfig, hitSounds *[2][]evaluator.SoundEvent) error {
 	rt := &runtimes[attacker]
-	if !hitDefReady(rt) {
+	if !hitDefReady(rt) || !touches(events, attacker) {
 		return nil
 	}
-	defender := &runtimes[1-attacker].Context
-	params := combat.ParseHitDef(rt.HitDef.Parameters)
-	damage := combat.DamageParams{Damage: rt.HitDef.Parameters["damage"], Multiplier: damageMultiplier(&rt.Context, defender)}
-	_, guardDamage := combat.Damages(damage)
-	damage.Guarded = guards(&rt.Context, defender, params, guardDamage)
-	lifeBefore := state.Fighters[1-attacker].Health
-	newState, newCombo, hit := combat.ApplyHits(*state, events, attacker, damage, rt.Combo, cfg.Tick, cfg.ComboWindow)
-	if damage.Guarded && hit.Hit {
-		newState.Fighters[1-attacker].Health = lifeBefore - guardChip(guardDamage, lifeBefore, params)
-	}
-	*state = newState
+	hit, guarded, params := strike(state, runtimes, attacker, rt.HitDef, &rt.Context, cfg, hitSounds)
 	rt.HitDefHit = hit.Hit
-	if !damage.Guarded {
-		rt.Combo = newCombo
-	}
-	if hit.Hit {
-		rt.Context.Events = append(rt.Context.Events, hitSpark(&rt.Context, defender, rt.HitDef.Parameters, damage.Guarded))
-		key := "hitsound"
-		if damage.Guarded {
-			key = "guardsound"
-		}
-		if snd, ok := hitSound(rt.HitDef.Parameters[key], &rt.Context); ok {
-			hitSounds[attacker] = append(hitSounds[attacker], snd)
-		}
-	}
-	if err := applyHitReaction(programs, runtimes, attacker, params, hit, damage.Guarded); err != nil {
+	if err := applyHitReaction(programs, runtimes, attacker, params, hit, guarded); err != nil {
 		return fmt.Errorf("engine: Tick: side %v: %w", attacker, err)
 	}
 	return nil
+}
+
+// touches reports a contact of attacker's hit boxes this tick.
+func touches(events []hitdetect.HitEvent, attacker match.Side) bool {
+	for _, e := range events {
+		if e.Attacker == attacker {
+			return true
+		}
+	}
+	return false
 }
 
 // hitSound is a HitDef's hitsound or guardsound, char.go:12100-12130: none
@@ -963,7 +972,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	}
 	newCtx.Guarding = canGuardNow(&newCtx, in.Directions(fighter.Facing))
 	if frozen {
-		frozenRuntime := FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: unsupported, SkippedCalls: skippedCalls, HitDef: runtime.HitDef, HitDefHit: runtime.HitDefHit}
+		frozenRuntime := FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, HitPause: runtime.HitPause, Unsupported: unsupported, SkippedCalls: skippedCalls, HitDef: runtime.HitDef, HitDefHit: runtime.HitDefHit, Projectiles: runtime.Projectiles}
 		if frozenRuntime.HitPause > 0 {
 			frozenRuntime.HitPause--
 		}
@@ -1015,7 +1024,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	}
 
 	return fighterTickOutput{
-		Runtime:   FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, Unsupported: unsupported, SkippedCalls: skippedCalls, HitDef: runtime.HitDef, HitDefHit: runtime.HitDefHit},
+		Runtime:   FighterRuntime{Context: newCtx, Input: newInputState, Combo: runtime.Combo, Unsupported: unsupported, SkippedCalls: skippedCalls, HitDef: runtime.HitDef, HitDefHit: runtime.HitDefHit, Projectiles: runtime.Projectiles},
 		Frame:     frame,
 		HasHitDef: runs.hasHitDef,
 		HitDef:    runs.hitDef,

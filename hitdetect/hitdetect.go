@@ -113,3 +113,19 @@ func worldBox(position match.Position, facing match.Facing, box air.ClsnBox) (mi
 func overlaps(aMinX, aMinY, aMaxX, aMaxY, bMinX, bMinY, bMaxX, bMaxY float64) bool {
 	return aMinX < bMaxX && bMinX < aMaxX && aMinY < bMaxY && bMinY < aMaxY
 }
+
+// BoxesOverlap reports whether any attack box of an attacker at attackerPos
+// facing attackerFacing overlaps any of defender's boxes, as Detect checks
+// two fighters, for a projectile against a fighter.
+func BoxesOverlap(attackerPos match.Position, attackerFacing match.Facing, attackBoxes []air.ClsnBox, defenderPos match.Position, defenderFacing match.Facing, hurtBoxes []air.ClsnBox) bool {
+	for _, a := range attackBoxes {
+		aMinX, aMinY, aMaxX, aMaxY := worldBox(attackerPos, attackerFacing, a)
+		for _, d := range hurtBoxes {
+			dMinX, dMinY, dMaxX, dMaxY := worldBox(defenderPos, defenderFacing, d)
+			if overlaps(aMinX, aMinY, aMaxX, aMaxY, dMinX, dMinY, dMaxX, dMaxY) {
+				return true
+			}
+		}
+	}
+	return false
+}

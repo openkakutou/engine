@@ -81,6 +81,10 @@ no prefix is the common `fightfx`, `S` the character's own animations — and
 `x`, `y` the spark's world position (Y up). Its `hitsound` / `guardsound` is a
 sound event, `common` unless prefixed `S`.
 
+`projectiles` is each side's live projectiles after the tick, always an
+array: `id`, `anim` (one of the owner's animations) and `animTime` (ticks
+into it), `x`, `y` (world position, Y up) and `facing`.
+
 ### Example
 
 ```js

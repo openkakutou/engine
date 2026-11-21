@@ -36,6 +36,7 @@ type Opponent struct {
 	ScreenLeft, ScreenRight float64
 	WidthEdge               [2]float64
 	IkemenChar              bool
+	NumProjectiles          int
 	// Consts is the opponent's constants, for its size box and Const(...).
 	Consts *Constants
 }
@@ -60,6 +61,7 @@ func (o *Opponent) context() Context {
 		ScreenRight:     o.ScreenRight,
 		WidthEdge:       o.WidthEdge,
 		IkemenChar:      o.IkemenChar,
+		NumProjectiles:  o.NumProjectiles,
 	}
 }
 

@@ -108,6 +108,12 @@ type Context struct {
 	// between this tick (Ikemen GO sys.xmin, sys.xmax), read by the edge
 	// distance triggers.
 	ScreenLeft, ScreenRight float64
+	// NewProjectiles are the Projectile controllers the fighter's states ran
+	// this tick, which the engine turns into projectiles.
+	NewProjectiles []ProjectileSpawn
+	// NumProjectiles is how many projectiles the fighter has alive, set by
+	// the engine each tick for NumProj.
+	NumProjectiles int
 	// Events are the visual and feedback controllers the fighter's states ran
 	// this tick, cleared by the engine at the start of each tick.
 	Events []ControllerEvent

@@ -59,8 +59,7 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		return boolValue(inGuardDist(ctx)), true, nil
 	case "numproj":
 		// char.go:6186-6191 counts live projectiles.
-		// shortcut: always 0 until the engine has projectiles (item 024).
-		return intValue(0), true, nil
+		return intValue(float64(ctx.NumProjectiles)), true, nil
 	case "hitpausetime":
 		return intValue(float64(ctx.HitPauseTime)), true, nil // bytecode.go:2615-2616
 	case "id":

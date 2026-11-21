@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.37.0] - 2026-11-21
+
+### Added
+- Projectiles: the Projectile controller throws a projectile from the fighter (offset, velocity, accel, velmul, remvelocity, projremovetime, projanim / projhitanim / projremanim, its own HitDef); it moves each tick, hits the opponent like a HitDef, and goes away on hit, at the end of its remove time or past the screen or stage edges, as in Ikemen GO. `NumProj` counts them, `TickResult.Projectiles` and the WASM tick response's `projectiles` report them for drawing.
+
 ## [2.36.0] - 2026-11-21
 
 ### Added
