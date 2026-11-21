@@ -8,6 +8,6 @@ require (
 )
 
 require (
-	github.com/openkakutou/sff v0.10.0
+	github.com/openkakutou/sff v0.10.1
 	github.com/openkakutou/snd v0.7.2 // indirect
 )
