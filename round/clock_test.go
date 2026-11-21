@@ -95,3 +95,27 @@ func TestClock_RoundState4WaitsForSettledFighters(t *testing.T) {
 		t.Errorf("state = %d, want 4 once settled", c.State())
 	}
 }
+
+// char.go:9526-9540: the inputs wait from over.waittime after the decision
+// until the poses, so a fighter still attacking settles.
+func TestClock_InputWaitFromOverWaitTimeToThePoses(t *testing.T) {
+	c := NewClock(DefaultTimings)
+	stepUntil(c, false, false, EventFightStart, 100)
+	if c.InputWait() {
+		t.Fatal("inputs wait during the fight")
+	}
+	for i := 0; i < 44; i++ {
+		c.Step(false, true, false)
+	}
+	if c.InputWait() {
+		t.Errorf("inputs wait %d ticks into RoundState 3, want not before over.waittime", 44)
+	}
+	c.Step(false, true, false)
+	if !c.InputWait() {
+		t.Error("inputs do not wait at over.waittime")
+	}
+	stepUntil(c, false, true, EventPoses, 500)
+	if c.InputWait() {
+		t.Error("inputs still wait after the poses")
+	}
+}

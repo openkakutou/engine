@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.46.0] - 2026-11-21
+
+### Added
+- `round.Clock.InputWait`: the players' inputs are ignored from over.waittime after the decision until the poses, as in Ikemen GO, so a fighter still attacking after the KO settles and the round goes on.
+
 ## [2.45.0] - 2026-11-21
 
 ### Added

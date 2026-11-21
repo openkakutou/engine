@@ -43,6 +43,14 @@ func (c *Clock) State() int {
 	return 3
 }
 
+// InputWait reports the players' inputs ignored (Ikemen GO inputWait,
+// char.go:9526-9540): from over.waittime after the decision until the poses.
+// shortcut: the time-over case and the winners' input during the poses are
+// not modelled.
+func (c *Clock) InputWait() bool {
+	return c.intro <= -c.t.OverWaitTime && !c.posed
+}
+
 // Event is what a clock step asks the caller to do.
 type Event int
 
