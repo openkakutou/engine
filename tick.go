@@ -1798,6 +1798,7 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 	defer func() {
 		ctx.GetHit.HitCount = hitCount
 		ctx.GetHit.Damage = hit.HealthBefore - hit.HealthAfter
+		ctx.GetHit.Attr = params.Attr
 	}()
 	defender := programs[hit.Defender]
 	if guarded {

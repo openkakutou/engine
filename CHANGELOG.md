@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.65.0] - 2026-11-21
+
+### Added
+- `GetHit.Attr`, the attr of the HitDef that hit the fighter (Ikemen GO ghv.attr), and `evaluator.IsHyper` / `IsSpecial` / `IsThrow`, Ikemen GO's masks that pick a round's win type.
+
 ## [2.64.0] - 2026-11-21
 
 ### Added

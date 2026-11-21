@@ -29,6 +29,13 @@ const (
 	attrAP         = attrNP | attrSP | attrHP
 )
 
+// IsHyper, IsSpecial and IsThrow report an attr of a hyper (HA, HT, HP),
+// special (SA, ST, SP) or throw (NT, ST, HT) attack: Ikemen GO's AT_AH,
+// AT_AS and AT_AT masks, which pick a round's win type (char.go:8984-8990).
+func IsHyper(attr int32) bool   { return attr&(attrHA|attrHT|attrHP) != 0 }
+func IsSpecial(attr int32) bool { return attr&(attrSA|attrST|attrSP) != 0 }
+func IsThrow(attr int32) bool   { return attr&attrAT != 0 }
+
 // attackClasses are the second and later words of an attr: Ikemen GO's
 // compiler.go:769-828 (attrMask) and 880-895 (trgAttr). A slice searched with
 // strings.EqualFold, not a map of lower-cased words, so that reading a HitDef's

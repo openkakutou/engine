@@ -383,6 +383,8 @@ type GetHit struct {
 	FallRecoverTime int
 	// Guarded is true when the hit was guarded (Ikemen GO ghv.guarded).
 	Guarded bool
+	// Attr is the attr of the HitDef that hit (Ikemen GO ghv.attr).
+	Attr int32
 	// DownRecoverTime is the ticks left lying down before the engine gets
 	// the fighter up (Ikemen GO ghv.down_recovertime).
 	DownRecoverTime int

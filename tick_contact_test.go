@@ -244,8 +244,9 @@ func TestTick_LandedHit_RecordsTheFallAndVelocityGetHitVars(t *testing.T) {
 	for _, tc := range cases {
 		s := newHitScenario(t, tc.tweak)
 		s.step()
-		// Every case is a first hit of 23 (ghv.hitcount, ghv.damage).
-		tc.want.HitCount, tc.want.Damage = 1, 23
+		// Every case is a first hit of 23 (ghv.hitcount, ghv.damage) by an
+		// S, NA HitDef (ghv.attr).
+		tc.want.HitCount, tc.want.Damage, tc.want.Attr = 1, 23, sNA(t)
 		if got := s.ctx(match.SideP2).GetHit; got != tc.want {
 			t.Errorf("%s: defender GetHit = %+v, want %+v", tc.name, got, tc.want)
 		}
@@ -361,4 +362,14 @@ func TestTick_OpponentAndContactTriggers_WarmTickAddsNoAllocation(t *testing.T) 
 	if got != want {
 		t.Errorf("Tick with opponent and contact triggers allocated %v times, want %v (the same controllers with literal values)", got, want)
 	}
+}
+
+// sNA is the attr "S, NA" of the hit scenarios.
+func sNA(t *testing.T) int32 {
+	t.Helper()
+	a, err := evaluator.ParseAttr("S, NA", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return a
 }
