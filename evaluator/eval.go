@@ -714,6 +714,10 @@ func evalBinary(n binaryNode, ctx *Context) (Value, error) {
 		if v, ok, err := evalTypeComparison(n, ctx); ok {
 			return v, err
 		}
+		if text, ok := stageVarComparison(n); ok {
+			// A stage name or author the engine does not know is "".
+			return boolValue((text == "") != (n.op == "!=")), nil
+		}
 		if name, text, redirect, ok := nameComparison(n); ok {
 			return evalNameComparison(name, text, redirect, n.op == "!=", ctx)
 		}
@@ -937,6 +941,21 @@ func nameComparison(n binaryNode) (name, text string, redirect *redirectNode, ok
 		return "", "", nil, false
 	}
 	return id.name, str.value, redirect, true
+}
+
+// stageVarComparison recognizes "StageVar(info.name) = \"text\"" (or !=,
+// either operand order), returning the compared text.
+func stageVarComparison(n binaryNode) (string, bool) {
+	call, isCall := n.left.(callNode)
+	str, isStr := n.right.(stringNode)
+	if !isCall || !isStr {
+		call, isCall = n.right.(callNode)
+		str, isStr = n.left.(stringNode)
+	}
+	if !isCall || !isStr || call.name != "stagevar" {
+		return "", false
+	}
+	return str.value, true
 }
 
 // evalNameComparison is a name comparison on the fighter, or on the one its

@@ -32,3 +32,21 @@ func TestFromFiles_AHeaderWritingNoOptionalFieldKeepsControl(t *testing.T) {
 		t.Errorf("state %d ctrl %v, want 10 with control kept", c.StateNo, c.Ctrl)
 	}
 }
+
+// Ikemen GO's velset takes a z (Spiderman "velset = 0,0,0"): the engine
+// reads x and y and ignores it.
+func TestFromFiles_AHeaderVelsetWithAZIsRead(t *testing.T) {
+	src := "[Statedef 0]\ntype = S\nphysics = N\nvelset = 3, -2, 0\n"
+	defs, err := cns.Parse(strings.NewReader(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	prog := NewFighterProgramFromFiles([]StateFile{{States: defs}}, nil, cmd.CommandFile{})
+	rt, err := prog.NewRuntime(match.FighterState{Side: match.SideP1, Health: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := rt.Context.Velocity; v.X != 3 || v.Y != 2 {
+		t.Errorf("velocity = %+v, want 3, 2 (y up)", v)
+	}
+}

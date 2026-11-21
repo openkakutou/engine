@@ -203,9 +203,9 @@ func TestParse_RedirectionToAnotherPlayer_IsNotSupportedYet(t *testing.T) {
 	}
 }
 
-func TestEval_Redirection_OfATriggerTheSnapshotLacks_IsAnUnknownTriggerNotAWrongValue(t *testing.T) {
+func TestEval_Redirection_OfAnUnknownTrigger_IsAnUnknownTrigger(t *testing.T) {
 	ctx := duel(t, 0, match.FacingRight, 10, match.FacingLeft)
-	for _, expr := range []string{"p2,map(\"x\")", "p2,noSuchTrigger", "p2,command = \"a\"", "p2,random"} {
+	for _, expr := range []string{"p2,noSuchTrigger", "p2,noSuchFunction(1)"} {
 		e, err := Parse(expr)
 		if err != nil {
 			t.Fatalf("Parse(%q): %v", expr, err)
@@ -445,6 +445,19 @@ func TestEval_SurveyTriggers(t *testing.T) {
 		"projhit7 = 1, >= 0": 0, "projhittime(1000)": 2, "projhittime(7)": -1, "numprojid(1000)": 2,
 		"parentdist x": 30, "parentdist y": 5, "rootdist x": -30, "screenpos x": 110, "screenpos y": 215,
 		"partner,life": 0,
+	} {
+		if got := evalFloat(t, expr, ctx); got != want {
+			t.Errorf("%s = %v, want %v", expr, got, want)
+		}
+	}
+}
+
+func TestEval_ConstantsStageVarAndPlayerIDExist(t *testing.T) {
+	ctx := Context{}
+	for expr, want := range map[string]float64{
+		"floor(pi * 1000)": 3141, "floor(e * 1000)": 2718,
+		`stagevar(info.name) = "Training"`: 0, `stagevar(info.author) != "x"`: 1, "stagevar(camera.boundleft)": 0,
+		"playeridexist(56)": 1, "playeridexist(57)": 1, "playeridexist(99)": 0,
 	} {
 		if got := evalFloat(t, expr, ctx); got != want {
 			t.Errorf("%s = %v, want %v", expr, got, want)

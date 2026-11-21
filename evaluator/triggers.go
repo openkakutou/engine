@@ -63,6 +63,11 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		// time before it. shortcut: it is the tick count the caller gives
 		// (TickConfig.Tick); the time before the match is not counted.
 		return intValue(float64(ctx.GameTime)), true, nil
+	case "pi":
+		// compiler.go:4383-4386: float32 constants.
+		return floatValue(float64(float32(math.Pi))), true, nil
+	case "e":
+		return floatValue(float64(float32(math.E))), true, nil
 	case "roundsexisted":
 		// sys.roundsExisted (char.go:6338-6343): the rounds finished, the
 		// round number less one for a one-on-one fighter.
@@ -306,6 +311,22 @@ func evalFighterCall(n callNode, ctx *Context) (v Value, ok bool, err error) {
 			}
 		}
 		return intValue(float64(count)), true, nil
+	case "playeridexist":
+		// The players' ids (see "id"). shortcut: helpers have no id of their
+		// own yet, so only the players exist.
+		if len(n.args) != 1 {
+			return Value{}, true, fmt.Errorf("evaluator: playeridexist() expects 1 argument, got %d", len(n.args))
+		}
+		id, err := evalNode(n.args[0], ctx)
+		if err != nil {
+			return Value{}, true, err
+		}
+		return boolValue(id.Int() == firstPlayerID || id.Int() == firstPlayerID+1), true, nil
+	case "stagevar":
+		// compiler.go:4044-4100. shortcut: the engine does not know the
+		// stage's info or bounds here: a number reads 0 and a name "" (see
+		// stageVarComparison).
+		return intValue(0), true, nil
 	case "numprojid":
 		if len(n.args) != 1 {
 			return Value{}, true, fmt.Errorf("evaluator: numprojid() expects 1 argument, got %d", len(n.args))

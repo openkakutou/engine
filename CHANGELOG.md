@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.44.0] - 2026-11-21
+
+### Added
+- `Pi`, `E`, `PlayerIDExist(id)` and `StageVar(...)` (the stage's info reads "" and its numbers 0 for now).
+
+### Changed
+- A redirection reads any trigger on the fighter it names (`root,win`, `enemynear,numhelper`...), instead of stopping the match on one outside a fixed list; what its snapshot does not carry reads as a fighter without it.
+- character v0.21.0: files Ikemen GO loads no longer fail to load (Statedef and Action header text after the number, `[State]` blocks outside a Statedef, `.air` lines that are not frames, `Loopstart:`, Clsn declarations).
+
+### Fixed
+- A Statedef `velset` with a z (`velset = 0,0,0`) no longer stops the match.
+
 ## [2.43.0] - 2026-11-21
 
 ### Added

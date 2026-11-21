@@ -1544,11 +1544,12 @@ func headerVelSet(ctx *evaluator.Context, def entryHeader, name string, index in
 	if !ok {
 		return evaluator.Value{}, false, nil
 	}
-	part, rest, _ := strings.Cut(raw, ",")
-	if index == 1 {
-		part = rest
+	// x, y and an Ikemen GO z the engine does not read ("velset = 0,0,0").
+	parts := evaluator.SplitList(raw)
+	if index >= len(parts) {
+		return evaluator.Value{}, false, nil
 	}
-	part = strings.TrimSpace(part)
+	part := parts[index]
 	if part == "" {
 		return evaluator.Value{}, false, nil
 	}

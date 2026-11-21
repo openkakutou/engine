@@ -16,8 +16,8 @@ import (
 // escape to the heap, which would cost an allocation per fighter per tick
 // (decisions 009, 016).
 //
-// The set of fields is the set of triggers a redirection to the opponent
-// (p2, enemy, enemyNear, target) can read; see redirectable.
+// It is also what a redirection (p2, enemy, parent, root, helper(id)...)
+// reads of the fighter it names.
 type Opponent struct {
 	// Valid reports that there is an opponent: false on the zero value, where
 	// every opponent trigger reads 0, as Ikemen GO's undefined value does for a
@@ -61,8 +61,7 @@ type Opponent struct {
 }
 
 // context is the opponent as the Context an expression redirected to it
-// reads. Fields the snapshot does not carry are zero; redirectable keeps an
-// expression from reading them.
+// reads. Fields the snapshot does not carry are zero.
 func (o *Opponent) context() Context {
 	return Context{
 		FighterState:    o.FighterState,
@@ -132,51 +131,14 @@ type hitDefAttrNode struct {
 
 func (hitDefAttrNode) isNode() {}
 
-// redirectableIdentifiers are the argument-free triggers a redirection can
-// read from an Opponent.
-var redirectableIdentifiers = map[string]bool{
-	"time": true, "statetime": true, "stateno": true, "anim": true, "ctrl": true, "life": true,
-	"power": true, "alive": true, "facing": true, "prevstateno": true,
-	"hitshakeover": true, "hitover": true, "hitfall": true, "canrecover": true,
-	"movecontact": true, "movehit": true, "moveguarded": true, "movereversed": true,
-	"numproj": true, "id": true, "ishelper": true, "numhelper": true,
-	"hitpausetime": true, "animtime": true, "palno": true, "teamside": true,
-	"roundno": true, "roundstate": true, "gametime": true,
-	"backedgedist": true, "backedgebodydist": true, "frontedgedist": true, "frontedgebodydist": true,
-}
-
-// redirectable reports whether inner can be evaluated against an Opponent's
-// context, and otherwise names what cannot be, so the caller reports an unknown
-// trigger instead of a value read from fields the snapshot leaves zero.
-func redirectable(inner node) (name string, ok bool) {
-	switch n := inner.(type) {
-	case identifierNode:
-		return n.name, redirectableIdentifiers[n.name]
-	case componentNode:
-		return n.name, n.name == "pos" || n.name == "vel"
-	case callNode:
-		switch n.name {
-		case "gethitvar", "const", "var", "fvar", "sysvar", "sysfvar", "numhelper", "ishelper",
-			"animelemtime", "animelemno", "animexist", "selfanimexist":
-			return n.name, true
-		}
-		return n.name, false
-	case hitDefAttrNode:
-		return "hitdefattr", true
-	case binaryNode:
-		_, _, ok := typeComparison(n)
-		return "expression", ok
-	}
-	return "expression", false
-}
-
 // evalRedirect reads n.inner on the fighter the redirection names. A
 // redirection to a fighter that does not exist reads 0 (Ikemen GO's nil char,
 // whose triggers are undefined, bytecode.go:2298-2308).
+//
+// Any trigger is read on the redirected fighter's snapshot: one the snapshot
+// does not carry (its commands, its random draws) reads as a fighter with
+// none would, rather than stopping the match.
 func evalRedirect(n redirectNode, ctx *Context) (Value, error) {
-	if name, ok := redirectable(n.inner); !ok {
-		return Value{}, &UnknownTriggerError{Name: name, Call: isCall(n.inner)}
-	}
 	target, found, err := redirectTarget(n, ctx)
 	if err != nil || !found {
 		return intValue(0), err
@@ -185,11 +147,6 @@ func evalRedirect(n redirectNode, ctx *Context) (Value, error) {
 	// The match's own state reads the same from every fighter.
 	redirected.Round, redirected.GameTime = ctx.Round, ctx.GameTime
 	return evalNode(n.inner, &redirected)
-}
-
-func isCall(n node) bool {
-	_, ok := n.(callNode)
-	return ok
 }
 
 // redirectTarget is the Opponent a redirection reads, found false when there is
