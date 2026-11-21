@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.67.0] - 2026-11-21
+
+### Added
+- The Trans controller: the fighter is drawn with its trans type and alpha for the tick (`Context.Trans`, `Context.TransAlpha`), as Ikemen GO resets it each unfrozen tick. E2E: the corpus Ranma's state 6011.
+
 ## [2.66.0] - 2026-11-21
 
 ### Added

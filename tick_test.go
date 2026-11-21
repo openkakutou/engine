@@ -732,3 +732,18 @@ func TestTick_ScreenBoundZeroLetsTheFighterLeaveTheScreen(t *testing.T) {
 		t.Errorf("x over 3 ticks = %v, want past -100 twice, then back at the edge", x)
 	}
 }
+
+// char.go:12427: a Trans lasts the tick it runs in.
+func TestTick_TransLastsItsTick(t *testing.T) {
+	states := map[int]cns.StateDef{0: {Number: 0, Type: cns.StateTypeStanding, Controllers: []cns.Controller{
+		ctrlWith("Trans", "Time = 0", map[string]string{"trans": "add"}),
+	}}}
+	sp, progs, rts := projMatch(t, FighterProgram{States: states}, 900)
+	_, all := runProj(t, sp, progs, rts, 2)
+	if got := all[0].Fighters[0].Context.Trans; got != "add" {
+		t.Errorf("tick 1 trans %q, want add", got)
+	}
+	if got := all[1].Fighters[0].Context.Trans; got != "" {
+		t.Errorf("tick 2 trans %q, want back to the animation's blend", got)
+	}
+}

@@ -193,3 +193,13 @@ func TestExplod_ReadsTransAndAlpha(t *testing.T) {
 		}
 	}
 }
+
+func TestTrans_SetsHowTheFighterIsDrawn(t *testing.T) {
+	ctx := evaluator.Context{}
+	if _, err := ApplyController(cns.Controller{Type: "Trans", Parameters: map[string]string{"trans": "addalpha", "alpha": "100,156"}}, &ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	if ctx.Trans != "addalpha" || ctx.TransAlpha != [2]int{100, 156} {
+		t.Errorf("trans %q alpha %v", ctx.Trans, ctx.TransAlpha)
+	}
+}

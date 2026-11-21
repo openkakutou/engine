@@ -11,6 +11,7 @@ func init() {
 	RegisterController("Explod", applyExplod)
 	RegisterController("RemoveExplod", applyRemoveExplod)
 	RegisterController("ModifyExplod", applyModifyExplod)
+	RegisterController("Trans", applyTrans)
 }
 
 // applyExplod is the Explod controller (bytecode.go:6773-7074, defaults
@@ -44,11 +45,21 @@ var transAlpha = map[string][2]int{
 // unless alpha gives one; a blank or unknown type, or alpha without trans,
 // is ignored as Ikemen GO does in a CNS file.
 func readTrans(ctrl cns.Controller, ctx *evaluator.Context, e *evaluator.ExplodSpawn) error {
+	trans, alpha, ok, err := transOf(ctrl, ctx)
+	if err != nil || !ok {
+		return err
+	}
+	e.Trans, e.Alpha = trans, alpha
+	return nil
+}
+
+// transOf is ctrl's trans type and alpha; ok is false without a known type.
+func transOf(ctrl cns.Controller, ctx *evaluator.Context) (string, [2]int, bool, error) {
 	raw, ok := ctrl.Parameters["trans"]
 	trans := strings.ToLower(strings.TrimSpace(raw))
 	alpha, known := transAlpha[trans]
 	if !ok || !known {
-		return nil
+		return "", [2]int{}, false, nil
 	}
 	if a, ok := ctrl.Parameters["alpha"]; ok {
 		for i, part := range evaluator.SplitList(a) {
@@ -57,13 +68,12 @@ func readTrans(ctrl cns.Controller, ctx *evaluator.Context, e *evaluator.ExplodS
 			}
 			v, err := evaluator.EvaluateMut(part, ctx)
 			if err != nil {
-				return err
+				return "", [2]int{}, false, err
 			}
 			alpha[i] = min(max(v.Int(), 0), 255)
 		}
 	}
-	e.Trans, e.Alpha = trans, alpha
-	return nil
+	return trans, alpha, true, nil
 }
 
 // readExplod reads into e the Explod parameters ctrl writes, leaving the
@@ -223,5 +233,16 @@ func applyModifyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Co
 	m.SetTrans = m.Trans != ""
 	m.SetMovesInPause = has("supermove") || has("supermovetime") || has("pausemovetime")
 	ctx.ModifiedExplods = append(ctx.ModifiedExplods, m)
+	return ctx, nil
+}
+
+// applyTrans is the Trans controller (bytecode.go trans.Run): the fighter
+// is drawn with that trans type and alpha this tick.
+func applyTrans(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+	trans, alpha, ok, err := transOf(ctrl, &ctx)
+	if err != nil || !ok {
+		return ctx, err
+	}
+	ctx.Trans, ctx.TransAlpha = trans, alpha
 	return ctx, nil
 }

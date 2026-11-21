@@ -263,8 +263,13 @@ type Context struct {
 	// makes the camera follow it (x, y): on at each unfrozen tick, a
 	// ScreenBound controller changes them for that tick (Ikemen GO
 	// CSF_screenbound, CSF_movecamera_x / _y).
-	ScreenBound    bool
-	MoveCamera     [2]bool
+	ScreenBound bool
+	MoveCamera  [2]bool
+	// Trans and TransAlpha are how the fighter is drawn this tick: a Trans
+	// controller's type ("" for its animation's own blend) and alpha
+	// (Ikemen GO c.trans, back to default each unfrozen tick).
+	Trans          string
+	TransAlpha     [2]int
 	PushPriority   int
 	PushAffectTeam int
 	// Round is the number of the round being fought, read by RoundNo.
