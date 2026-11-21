@@ -270,7 +270,7 @@ value = 0, NoSuchTrigger % 3
 
 [State 0, Hit]
 type = ChangeState
-trigger1 = GetHitVar(xvel) > 0
+trigger1 = GetHitVar(xaccel) > 0
 value = 0
 `
 
@@ -285,7 +285,7 @@ func TestRun_UnknownTriggersInPlaySndHalfAndGetHitVarVariable_AreNeutralizedAndC
 	if c.Status != StatusRan {
 		t.Fatalf("status = %q error = %q, want ran", c.Status, c.Error)
 	}
-	want := []Count{{Name: "gethitvar(xvel)", Count: 10}, {Name: "nosuchtrigger", Count: 10}}
+	want := []Count{{Name: "gethitvar(xaccel)", Count: 10}, {Name: "nosuchtrigger", Count: 10}}
 	if !reflect.DeepEqual(c.UnknownTriggers, want) {
 		t.Errorf("UnknownTriggers = %+v, want %+v", c.UnknownTriggers, want)
 	}

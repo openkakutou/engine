@@ -72,10 +72,10 @@ func TestExposureOf_HitDef_CountedAsSupported(t *testing.T) {
 }
 
 func TestInspectController_UnsupportedGetHitVarVariable_IsUnknownTrigger(t *testing.T) {
-	ctrl := cns.Controller{Type: "ChangeState", Triggers: []string{"GetHitVar(xvel) > 0 && GetHitVar(hittime) > 0"}}
+	ctrl := cns.Controller{Type: "ChangeState", Triggers: []string{"GetHitVar(xaccel) > 0 && GetHitVar(hittime) > 0"}}
 	unknown, unparsable := inspectController(ctrl)
-	if unparsable || !reflect.DeepEqual(unknown, []string{"gethitvar(xvel)"}) {
-		t.Errorf("unknown = %v unparsable = %v, want [gethitvar(xvel)] false", unknown, unparsable)
+	if unparsable || !reflect.DeepEqual(unknown, []string{"gethitvar(xaccel)"}) {
+		t.Errorf("unknown = %v unparsable = %v, want [gethitvar(xaccel)] false", unknown, unparsable)
 	}
 }
 
