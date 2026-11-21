@@ -404,6 +404,8 @@ func TestTick_LandedHit_WithoutTheGetHitState_FreezesTheDefenderInPlaceAndDoesNo
 				if c.drop {
 					delete(d, 5000)
 				}
+				// D lets the HitDef hit a lying defender (char.go:11100-11103).
+				setHitDefParam(a, "hitflag", "MAFD")
 			})
 			s.step()
 			d := s.ctx(match.SideP2)
@@ -595,5 +597,22 @@ func TestTick_LandedHit_WithKfmTwoValueDamage_TakesTheHitDamageOffTheDefender(t 
 
 	if got := res.State.Fighter(match.SideP2).Health; got != 1000-23 {
 		t.Fatalf("defender health = %d, want %d (kfm HitDef damage = 23, 0)", got, 1000-23)
+	}
+}
+
+// char.go:11100-11103: a HitDef whose hitflag lacks A cannot hit a fighter
+// in the air; with A it does.
+func TestTick_HitFlagDecidesWhoCanBeHit(t *testing.T) {
+	for flag, wantHit := range map[string]bool{"M": false, "MA": true} {
+		s := newHitScenario(t, func(a, d map[int]cns.StateDef) {
+			def := d[0]
+			def.Type = cns.StateTypeAir
+			d[0] = def
+			setHitDefParam(a, "hitflag", flag)
+		})
+		s.step()
+		if hit := s.ctx(match.SideP2).GetHit.Active; hit != wantHit {
+			t.Errorf("hitflag %s on an airborne defender: hit %v, want %v", flag, hit, wantHit)
+		}
 	}
 }

@@ -66,8 +66,45 @@ func resolveHitDef(hitDef cns.Controller, ctx *evaluator.Context) cns.Controller
 		}
 		resolved[key] = strings.Join(values, ",")
 	}
+	for _, key := range [...]string{"sparkno", "guard.sparkno"} {
+		raw, ok := hitDef.Parameters[key]
+		if !ok {
+			continue
+		}
+		value, changed := resolveSparkNo(raw, ctx)
+		if !changed {
+			continue
+		}
+		if !cloned {
+			resolved, cloned = maps.Clone(hitDef.Parameters), true
+		}
+		resolved[key] = value
+	}
 	hitDef.Parameters = resolved
 	return hitDef
+}
+
+// resolveSparkNo evaluates a sparkno written as an expression after its S or
+// F prefix ("S8210+(random%8)", Sakura CVS), keeping the prefix; changed is
+// false for a literal or a value that does not evaluate.
+func resolveSparkNo(raw string, ctx *evaluator.Context) (value string, changed bool) {
+	raw = strings.TrimSpace(raw)
+	prefix, rest := "", raw
+	if len(raw) > 1 && strings.ContainsRune("SsFf", rune(raw[0])) && !isLetter(raw[1]) {
+		prefix, rest = raw[:1], raw[1:]
+	}
+	if isLiteral(strings.TrimSpace(rest)) {
+		return raw, false
+	}
+	v, err := evaluator.EvaluateMut(rest, ctx)
+	if err != nil {
+		return raw, false
+	}
+	return prefix + strconv.Itoa(v.Int()), true
+}
+
+func isLetter(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
 func allLiterals(parts []string) bool {

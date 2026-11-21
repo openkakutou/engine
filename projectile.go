@@ -202,6 +202,11 @@ func strike(state *match.MatchState, runtimes *[2]FighterRuntime, attacker match
 	rt := &runtimes[attacker]
 	defender := &runtimes[1-attacker].Context
 	params := combat.ParseHitDef(hitDef.Parameters)
+	// hitflag decides whether the defender's stance and hit state can be hit
+	// at all (char.go:11100-11118).
+	if !combat.HitFlagAllows(params.HitFlag, defender.StateType, hitTmp(defender)) {
+		return combat.HitResult{}, false, params
+	}
 	damage := combat.DamageParams{Damage: hitDef.Parameters["damage"], Multiplier: damageMultiplier(from, defender)}
 	_, guardDamage := combat.Damages(damage)
 	damage.Guarded = guards(from, defender, params, guardDamage)
@@ -272,4 +277,16 @@ func recordProjContact(contacts []evaluator.ProjContact, id, tick int, guarded b
 		out[i].HitTick = tick
 	}
 	return out
+}
+
+// hitTmp is Ikemen GO's hittmp for a defender (char.go:12950): 0 when not
+// hit, 1 when hit, 2 when hit and falling.
+func hitTmp(c *evaluator.Context) int {
+	if c.MoveType != 'H' {
+		return 0
+	}
+	if c.GetHit.Fall {
+		return 2
+	}
+	return 1
 }

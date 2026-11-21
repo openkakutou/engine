@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.49.0] - 2026-11-21
+
+### Added
+- HitDef `hitflag` as Ikemen GO reads it (MAF by default): a HitDef hits a standing, crouching, airborne or lying fighter only with H, L, A or D, a falling one only with F, and `-` / `+` keep it to fighters not hit / being hit. An attack used to hit any stance.
+- A HitDef's `sparkno` / `guard.sparkno` written as an expression after its S or F prefix (`S8210+(random%8)`) is evaluated when the HitDef runs.
+
 ## [2.48.0] - 2026-11-21
 
 ### Added

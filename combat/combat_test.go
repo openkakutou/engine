@@ -298,7 +298,7 @@ func TestParseHitDef_ReadsTheRealKfmHitDefValues(t *testing.T) {
 		"ground.type":      "High",
 		"air.type":         "High",
 	})
-	want := HitDefParams{PauseTime: [2]int{8, 8}, GroundHitTime: 11, GroundSlideTime: 5, AirHitTime: 15, AnimType: 0, GroundType: 1, AirType: 1,
+	want := HitDefParams{HitFlag: HitHigh | HitLow | HitAir | HitFall, PauseTime: [2]int{8, 8}, GroundHitTime: 11, GroundSlideTime: 5, AirHitTime: 15, AnimType: 0, GroundType: 1, AirType: 1,
 		FallAnimType: 3, YAccel: 0.35, FallYVelocity: -4.5, FallEnvShakeFreq: 60, FallEnvShakeAmpl: -4, FallKill: true, DownRecoverTime: -1, FallRecover: true, FallRecoverTime: 4, GuardHitTime: -1, GuardSlideTime: -1, GuardCtrlTime: -1, AirGuardCtrlTime: -1, GuardKill: true}
 	want.GuardPauseTime = want.PauseTime
 	if got != want {
@@ -308,7 +308,7 @@ func TestParseHitDef_ReadsTheRealKfmHitDefValues(t *testing.T) {
 
 func TestParseHitDef_FallsBackToTheDocumentedDefaults_WhenParametersAreMissing(t *testing.T) {
 	got := ParseHitDef(nil)
-	want := HitDefParams{PauseTime: [2]int{0, 0}, GroundHitTime: 0, GroundSlideTime: 0, AirHitTime: 20, AnimType: 0, GroundType: 1, AirType: 1,
+	want := HitDefParams{HitFlag: HitHigh | HitLow | HitAir | HitFall, PauseTime: [2]int{0, 0}, GroundHitTime: 0, GroundSlideTime: 0, AirHitTime: 20, AnimType: 0, GroundType: 1, AirType: 1,
 		FallAnimType: 3, YAccel: 0.35, FallYVelocity: -4.5, FallEnvShakeFreq: 60, FallEnvShakeAmpl: -4, FallKill: true, DownRecoverTime: -1, FallRecover: true, FallRecoverTime: 4, GuardHitTime: -1, GuardSlideTime: -1, GuardCtrlTime: -1, AirGuardCtrlTime: -1, GuardKill: true}
 	want.GuardPauseTime = want.PauseTime
 	if got != want {
@@ -351,7 +351,7 @@ func TestParseHitDef_ExpressionValuesFallBackToTheirDefault(t *testing.T) {
 	})
 	// The literal second pausetime value survives; each non-literal one is
 	// replaced by its own default, independently.
-	want := HitDefParams{PauseTime: [2]int{0, 3}, GroundHitTime: 0, AirHitTime: 20, AnimType: 0, GroundType: 1, AirType: 1,
+	want := HitDefParams{HitFlag: HitHigh | HitLow | HitAir | HitFall, PauseTime: [2]int{0, 3}, GroundHitTime: 0, AirHitTime: 20, AnimType: 0, GroundType: 1, AirType: 1,
 		FallAnimType: 3, YAccel: 0.35, FallYVelocity: -4.5, FallEnvShakeFreq: 60, FallEnvShakeAmpl: -4, FallKill: true, DownRecoverTime: -1, FallRecover: true, FallRecoverTime: 4, GuardHitTime: -1, GuardSlideTime: -1, GuardCtrlTime: -1, AirGuardCtrlTime: -1, GuardKill: true}
 	want.GuardPauseTime = want.PauseTime
 	if got != want {
@@ -542,6 +542,27 @@ func TestParseHitDef_AirAndFallAnimTypesDefaultLikeIkemenGO(t *testing.T) {
 		got := ParseHitDef(tc.params)
 		if got.AnimType != tc.wantGround || got.AirAnimType != tc.wantAir || got.FallAnimType != tc.want {
 			t.Errorf("%s: AnimType, AirAnimType, FallAnimType = %d, %d, %d, want %d, %d, %d", tc.name, got.AnimType, got.AirAnimType, got.FallAnimType, tc.wantGround, tc.wantAir, tc.want)
+		}
+	}
+}
+
+// char.go:11100-11118 and bytecode.go:142-167.
+func TestHitFlagAllows(t *testing.T) {
+	cases := []struct {
+		flag string
+		set  bool
+		st   byte
+		tmp  int
+		want bool
+	}{
+		{"", false, 'S', 0, true}, {"", false, 'A', 2, true}, {"", false, 'L', 0, false},
+		{"M-", true, 'S', 0, true}, {"M-", true, 'S', 1, false}, {"M-", true, 'A', 0, false},
+		{"H", true, 'C', 0, false}, {"L", true, 'C', 0, true}, {"MA", true, 'A', 2, false},
+		{"MAF+", true, 'S', 0, false}, {"MAF+", true, 'S', 1, true}, {"D", true, 'L', 0, true},
+	}
+	for _, c := range cases {
+		if got := HitFlagAllows(hitFlag(c.flag, c.set), c.st, c.tmp); got != c.want {
+			t.Errorf("hitflag %q (written %v) on %c hittmp %d = %v, want %v", c.flag, c.set, c.st, c.tmp, got, c.want)
 		}
 	}
 }

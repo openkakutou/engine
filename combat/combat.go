@@ -284,6 +284,9 @@ type HitDefParams struct {
 	// GuardFlag is guardflag: how the HitDef can be guarded (GuardHigh
 	// standing, GuardLow crouching, GuardAir in the air; M is high and low).
 	GuardFlag int32
+	// HitFlag is hitflag (HitHigh...HitPlus), "MAF" by default
+	// (char.go:809-830).
+	HitFlag int32
 	// GuardPauseTime is guard.pausetime (pausetime by default);
 	// GuardHitTime, GuardSlideTime and GuardCtrlTime are guard.hittime,
 	// guard.slidetime and guard.ctrltime, -1 when absent (the engine chains
@@ -364,6 +367,8 @@ func ParseHitDef(params map[string]string) HitDefParams {
 	p.AirVelocityX = velocityX(params["air.velocity"])
 	p.GroundFall = parseIntOr(params["fall"], 0) != 0
 	p.GuardFlag = guardFlag(params["guardflag"])
+	rawHitFlag, hasHitFlag := params["hitflag"]
+	p.HitFlag = hitFlag(rawHitFlag, hasHitFlag)
 	p.GuardPauseTime = p.PauseTime
 	if raw, ok := params["guard.pausetime"]; ok {
 		first, second, _ := strings.Cut(raw, ",")
@@ -391,6 +396,70 @@ const (
 	GuardLow
 	GuardAir
 )
+
+// The hitflag letters (Ikemen GO HF_*, hitFlagMask, bytecode.go:142-167).
+const (
+	HitHigh int32 = 1 << iota
+	HitLow
+	HitAir
+	HitFall
+	HitDown
+	HitP
+	HitMinus
+	HitPlus
+)
+
+// hitFlag is hitFlagMask for hitflag, "MAF" when not written.
+func hitFlag(raw string, written bool) int32 {
+	if !written {
+		raw = "MAF"
+	}
+	var f int32
+	for _, c := range raw {
+		switch c {
+		case 'H', 'h':
+			f |= HitHigh
+		case 'L', 'l':
+			f |= HitLow
+		case 'M', 'm':
+			f |= HitHigh | HitLow
+		case 'A', 'a':
+			f |= HitAir
+		case 'F', 'f':
+			f |= HitFall
+		case 'D', 'd':
+			f |= HitDown
+		case 'P', 'p':
+			f |= HitP
+		case '-':
+			f |= HitMinus
+		case '+':
+			f |= HitPlus
+		}
+	}
+	return f
+}
+
+// HitFlagAllows reports whether a HitDef of this hitflag can hit a fighter
+// of state type stateType (S, C, A or L) whose hit state is hitTmp (Ikemen
+// GO's hittmp: 0 not hit, 1 hit, 2 hit and falling), as char.go:11100-11118
+// checks it.
+func HitFlagAllows(flag int32, stateType byte, hitTmp int) bool {
+	switch {
+	case flag&HitHigh == 0 && stateType == 'S',
+		flag&HitLow == 0 && stateType == 'C',
+		flag&HitAir == 0 && stateType == 'A',
+		flag&HitDown == 0 && stateType == 'L':
+		return false
+	case flag&HitFall == 0 && hitTmp >= 2:
+		return false
+	case flag&HitMinus != 0 && hitTmp > 0:
+		return false
+	case flag&HitPlus != 0 && hitTmp <= 0:
+		return false
+	}
+	return true
+}
 
 // guardFlag is hitFlagMask (bytecode.go:142-167) for the guard letters.
 func guardFlag(raw string) int32 {

@@ -42,3 +42,17 @@ func TestResolveHitDef_ALiteralHitDefAllocatesNothing(t *testing.T) {
 		t.Errorf("allocs = %v, want 0", n)
 	}
 }
+
+// Sakura CVS: "sparkno = S8210+(random%8)" keeps its prefix, evaluated.
+func TestResolveHitDef_EvaluatesAPrefixedSparkNo(t *testing.T) {
+	ctx := &evaluator.Context{}
+	ctx.Vars[2] = 3
+	hd := cns.Controller{Parameters: map[string]string{"sparkno": "S8210+var(2)", "guard.sparkno": "F40", "attr": "S, NA"}}
+	got := resolveHitDef(hd, ctx).Parameters
+	if got["sparkno"] != "S8213" || got["guard.sparkno"] != "F40" {
+		t.Errorf("sparkno %q guard %q, want S8213 and F40 as written", got["sparkno"], got["guard.sparkno"])
+	}
+	if got := resolveHitDef(cns.Controller{Parameters: map[string]string{"sparkno": "StateNo"}}, &evaluator.Context{}).Parameters["sparkno"]; got != "0" {
+		t.Errorf("an unprefixed trigger sparkno = %q, want it evaluated (0)", got)
+	}
+}
