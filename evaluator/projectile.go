@@ -22,9 +22,14 @@ type ProjContact struct {
 }
 
 // projTime is the ticks since the player's projectile id hit (guarded for
-// "guarded", either for "contact"), -1 when it never did (Ikemen GO
-// projHitTime, char.go); the tick after the contact reads 0.
+// "guarded", either for "contact", cancelled by another projectile for
+// "cancel"), -1 when it never did (Ikemen GO projHitTime and siblings,
+// char.go:6306-6330); the tick after the contact reads 0.
+// shortcut: projectiles do not cancel each other yet, so "cancel" is -1.
 func projTime(ctx *Context, kind string, id int) int {
+	if kind == "cancel" {
+		return -1
+	}
 	last := 0
 	for _, c := range ctx.ProjContacts {
 		if c.ID != id {

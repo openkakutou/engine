@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.61.0] - 2026-11-21
+
+### Added
+- Triggers `ProjCancelTime(id)` (-1: projectiles do not cancel each other yet) and `InCustomState` (also redirected).
+
+### Fixed
+- Characters keep playing where Ikemen GO only warns, as the corpus showed:
+  - a division or modulo by 0 is undefined (read 0) instead of an error (Aino);
+  - `ignorehitpause` is read as a leading integer, as Ikemen GO does, not evaluated: an empty one is 0 (Balrog CVS2);
+  - an old projectile trigger with a non-numeric suffix is projectile 0, and the tokens before its `=` are skipped (Sagat CVS2 `projguardede=1`, Robert XIII `projhitid[3001] = 1`);
+  - a name trigger skips the tokens before its `=` (Shion `P2Name! = "millia"`);
+  - a VarSet with a value but no variable does nothing (Hulk).
+
 ## [2.60.0] - 2026-11-21
 
 ### Added

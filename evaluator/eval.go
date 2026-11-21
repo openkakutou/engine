@@ -347,6 +347,10 @@ func evalIdentifier(name string, ctx *Context) (Value, error) {
 		return Value{}, fmt.Errorf("evaluator: AnimElem must be compared to an element number, e.g. AnimElem = 3")
 	case "ctrl":
 		return boolValue(ctx.Ctrl), nil
+	case "incustomstate":
+		// Ikemen GO: the fighter runs another player's states (a throw's
+		// custom state).
+		return boolValue(ctx.InOpponentStates), nil
 	case "hitshakeover":
 		return boolValue(ctx.GetHit.HitShakeTime <= 0), nil
 	case "hitover":
@@ -828,8 +832,10 @@ func evalArithmetic(op string, left, right Value) (Value, error) {
 	case "*":
 		return arithResult(left, right, left.Float()*right.Float()), nil
 	case "/":
+		// Ikemen GO makes a division by 0 undefined and only prints an
+		// error (bytecode.go:1759-1775); undefined reads 0 here.
 		if right.Float() == 0 {
-			return Value{}, fmt.Errorf("evaluator: division by zero")
+			return intValue(0), nil
 		}
 		if left.Kind == KindFloat || right.Kind == KindFloat {
 			return floatValue(left.Float() / right.Float()), nil
@@ -837,7 +843,7 @@ func evalArithmetic(op string, left, right Value) (Value, error) {
 		return intValue(float64(toInt32(left) / toInt32(right))), nil
 	case "%":
 		if toInt32(right) == 0 {
-			return Value{}, fmt.Errorf("evaluator: modulo by zero")
+			return intValue(0), nil // undefined, as a division by 0
 		}
 		return intValue(float64(toInt32(left) % toInt32(right))), nil
 	case "**":

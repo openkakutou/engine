@@ -267,23 +267,6 @@ func TestStep_VarSetController_AssignsVariable(t *testing.T) {
 	}
 }
 
-func TestStep_VarSetMissingVParameter_ReturnsDescriptiveError(t *testing.T) {
-	states := map[int]cns.StateDef{
-		0: {
-			Number: 0,
-			Controllers: []cns.Controller{
-				{Type: "VarSet", Parameters: map[string]string{"value": "7"}},
-			},
-		},
-	}
-	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
-
-	_, err := Step(ctx, states)
-	if err == nil {
-		t.Fatal("expected a descriptive error for a VarSet controller missing its \"v\" parameter, got nil")
-	}
-}
-
 func TestStep_VarSetMissingValueParameter_ReturnsDescriptiveError(t *testing.T) {
 	states := map[int]cns.StateDef{
 		0: {
@@ -938,21 +921,20 @@ func TestStepStateDuringHitPause_AppliesOnlyFlaggedControllers(t *testing.T) {
 	}
 }
 
-func TestStepStateDuringHitPause_InvalidIgnoreHitPauseExpression_ReturnsErrorNamingController(t *testing.T) {
+// compiler.go:7332: an ignorehitpause that is not a number reads 0: the
+// controller is skipped while frozen, nothing fails.
+func TestStepStateDuringHitPause_TextIgnoreHitPauseSkipsTheController(t *testing.T) {
 	states := map[int]cns.StateDef{
 		7: {Number: 7, Controllers: []cns.Controller{
-			varSetController("", 1, 1),
 			flaggedVarSet("nosuchtrigger +", "", 2, 2),
 		}},
 	}
-	_, err := StepStateDuringHitPause(evaluator.Context{}, 7, states)
-	if err == nil {
-		t.Fatal("expected an error, got nil")
+	got, err := StepStateDuringHitPause(evaluator.Context{}, 7, states)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, want := range []string{"state 7", "controller 1", "VarSet", "ignorehitpause"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("error %q does not contain %q", err.Error(), want)
-		}
+	if got.Context.Vars[2] != 0 {
+		t.Errorf("var(2) = %d, want the controller skipped", got.Context.Vars[2])
 	}
 }
 

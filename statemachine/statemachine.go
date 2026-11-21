@@ -147,7 +147,7 @@ func StepStateWith(ctx evaluator.Context, number int, states map[int]cns.StateDe
 }
 
 // StepStateDuringHitPause is StepState for a fighter frozen by a hit pause:
-// only the controllers whose "ignorehitpause" parameter evaluates true are
+// only the controllers whose "ignorehitpause" parameter is not 0 are
 // considered (their triggers are evaluated as usual); all others are
 // skipped without evaluating their triggers. MUGEN 1.1 cns doc: a
 // controller without ignorehitpause "will not be checked during a hit
@@ -193,11 +193,7 @@ func stepState(ctx evaluator.Context, number int, states map[int]cns.StateDef, e
 			persistIdx++
 		}
 		if hitPause {
-			run, err := ignoresHitPause(ctrl, &working)
-			if err != nil {
-				return Result{}, fmt.Errorf("statemachine: state %d controller %d (%s): evaluating ignorehitpause: %w", number, i, ctrl.Type, err)
-			}
-			if !run {
+			if !ignoresHitPause(ctrl) {
 				continue
 			}
 		}
@@ -243,18 +239,34 @@ func stepState(ctx evaluator.Context, number int, states map[int]cns.StateDef, e
 	return Result{Context: working, Applied: applied, Sounds: sounds, Unsupported: unsupported, Warnings: warnings}, nil
 }
 
-// ignoresHitPause evaluates "ignorehitpause" as an expression, not a
-// literal 0/1.
-func ignoresHitPause(ctrl cns.Controller, ctx *evaluator.Context) (bool, error) {
+// ignoresHitPause reads "ignorehitpause" as Ikemen GO does: its leading
+// integer, not an expression (Atoi(data) != 0, compiler.go:7332-7335), so
+// an empty value (Balrog CVS2) or one starting with a letter is 0.
+func ignoresHitPause(ctrl cns.Controller) bool {
 	raw, ok := ctrl.Parameters["ignorehitpause"]
 	if !ok {
-		return false, nil
+		return false
 	}
-	v, err := evaluator.EvaluateMut(raw, ctx)
-	if err != nil {
-		return false, err
+	return ikemenAtoi(raw) != 0
+}
+
+// ikemenAtoi is Ikemen GO's Atoi (common.go): the optionally signed digits
+// leading the trimmed text, 0 without any.
+func ikemenAtoi(raw string) int {
+	raw = strings.TrimSpace(raw)
+	neg := false
+	if raw != "" && (raw[0] == '-' || raw[0] == '+') {
+		neg = raw[0] == '-'
+		raw = raw[1:]
 	}
-	return v.Bool(), nil
+	n := 0
+	for i := 0; i < len(raw) && raw[i] >= '0' && raw[i] <= '9'; i++ {
+		n = n*10 + int(raw[i]-'0')
+	}
+	if neg {
+		return -n
+	}
+	return n
 }
 
 // triggersPass reports whether ctrl's trigger condition holds, in Ikemen
@@ -608,6 +620,12 @@ func applyVarAssign(ctrl cns.Controller, ctx evaluator.Context, name string, add
 	form, ok := oldVarSetForm(ctrl)
 	if !ok {
 		form, ok = newVarSetForm(ctrl)
+	}
+	if !ok && hasAnyKey(ctrl, "value") && !hasAnyKey(ctrl, "v", "fv", "sysv", "sysfv") {
+		// A value with no variable: Ikemen GO warns and the controller does
+		// nothing in a CNS file (varSetOlderSub, compiler_functions.go)
+		// (Hulk: "value = var(31) = 0").
+		return ctx, nil
 	}
 	if !ok && hasAnyKey(ctrl, "v", "fv", "sysv", "sysfv") {
 		return evaluator.Context{}, fmt.Errorf(`%s is missing its required "value" parameter`, name)

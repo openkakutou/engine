@@ -352,7 +352,7 @@ func evalFighterCall(n callNode, ctx *Context) (v Value, ok bool, err error) {
 			}
 		}
 		return intValue(float64(count)), true, nil
-	case "projhittime", "projguardedtime", "projcontacttime":
+	case "projhittime", "projguardedtime", "projcontacttime", "projcanceltime":
 		if len(n.args) != 1 {
 			return Value{}, true, fmt.Errorf("evaluator: %s() expects 1 argument, got %d", n.name, len(n.args))
 		}

@@ -138,3 +138,30 @@ func TestEvaluate_PostfixNotNegatesTheValueBefore(t *testing.T) {
 		}
 	}
 }
+
+// readOldProjectileID (compiler.go:1251-1276) and checkEquality: a
+// non-numeric suffix is projectile 0 (Sagat CVS2 "projguardede=1"), and the
+// tokens before the "=" are skipped (Robert XIII "projhitid[3001] = 1").
+func TestParse_OldProjectileTriggersReadAsIkemenGOReadsThem(t *testing.T) {
+	for _, expr := range []string{"projguardede=1", "projhitid[3001] = 1", "15905+(projguardede=1)*4"} {
+		if _, err := Evaluate(expr, Context{}); err != nil {
+			t.Errorf("%s: %v", expr, err)
+		}
+	}
+	if v, err := Evaluate("ProjHitTime(5)", Context{}); err != nil || v.Int() != -1 {
+		t.Errorf("ProjHitTime(5) = %v, %v; want -1, still its own trigger", v, err)
+	}
+}
+
+// checkEquality skips the tokens before a name trigger's "=" in a CNS
+// expression: Shion's 'P2Name! = "millia"' is P2Name = "millia".
+func TestEvaluate_NameTriggerSkipsTokensBeforeItsEquality(t *testing.T) {
+	ctx := Context{}
+	ctx.P2 = Opponent{Valid: true, Name: "Millia"}
+	for expr, want := range map[string]bool{`P2Name! = "millia"`: true, `P2Name != "millia"`: false, `p2name = "Kyo"`: false} {
+		v, err := Evaluate(expr, ctx)
+		if err != nil || v.Bool() != want {
+			t.Errorf("%s = %v, %v; want %v", expr, v, err, want)
+		}
+	}
+}

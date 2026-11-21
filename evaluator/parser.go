@@ -264,9 +264,15 @@ func (p *parser) parseUnary() (node, error) {
 var typeTriggers = map[string]bool{"statetype": true, "movetype": true, "p2statetype": true, "p2movetype": true}
 
 // withTypeComparison is operand with the "= letter" or "!= letter" that
-// follows it when it is a type trigger, else operand.
+// follows it when it is a type trigger, or the '= "text"' when it is a name
+// trigger (nameTriggers), else operand. In a CNS expression Ikemen GO skips
+// any token before a name trigger's "=" (checkEquality): Shion's
+// 'P2Name! = "millia"' is P2Name = "millia".
 func (p *parser) withTypeComparison(operand node) node {
 	id, ok := operand.(identifierNode)
+	if ok && nameTriggers[id.name] {
+		return p.withNameComparison(id)
+	}
 	if !ok || !typeTriggers[id.name] || !p.peekIsOp("=", "!=") {
 		return operand
 	}
@@ -276,6 +282,25 @@ func (p *parser) withTypeComparison(operand node) node {
 	op := p.next().text
 	letter := p.next().text
 	return binaryNode{op: op, left: id, right: identifierNode{name: strings.ToLower(letter)}}
+}
+
+// withNameComparison is a name trigger with its comparison: the tokens
+// before an operator ending in "=" skipped in a CNS expression, a "!="
+// negating, any other read as "=".
+func (p *parser) withNameComparison(id identifierNode) node {
+	start := p.pos
+	if !p.peekIsOp("=", "!=") && !p.skipToOldEquality() {
+		return id
+	}
+	op := p.next().text
+	if p.peek().kind != tokString {
+		p.pos = start
+		return id
+	}
+	if op != "!=" {
+		op = "="
+	}
+	return binaryNode{op: op, left: id, right: stringNode{value: p.next().text}}
 }
 
 func (p *parser) parsePrimary() (node, error) {
@@ -356,9 +381,6 @@ func (p *parser) parseIdentifierOrCall(name string) (node, error) {
 		not := p.next().text == "!="
 		return teamModeNode{mode: strings.ToLower(p.next().text), not: not}, nil
 	}
-	if kind, id, ok := oldTimeTrigger(lower); ok && p.peekOldEquality() {
-		return p.parseOldTime(kind, id)
-	}
 	// "ProjHit(1201)": an id in parentheses is gibberish Ikemen GO reads as 0
 	// (compiler.go:1285-1290).
 	if kind, _, ok := oldTimeTrigger(lower); ok && kind != "timemod" && p.peek().kind == tokLParen {
@@ -366,6 +388,9 @@ func (p *parser) parseIdentifierOrCall(name string) (node, error) {
 			return nil, err
 		}
 		return numberNode{}, nil
+	}
+	if kind, id, ok := oldTimeTrigger(lower); ok && p.skipToOldEquality() {
+		return p.parseOldTime(kind, id)
 	}
 	// Command takes its "= \"name\"" at once (Ikemen GO eqne,
 	// compiler.go:2197-2238), so "Time = command = \"x\"" (kfm.cns state
@@ -505,21 +530,47 @@ func oldTimeTrigger(name string) (kind string, id int, ok bool) {
 	if name == "timemod" {
 		return "timemod", 0, true
 	}
+	if strings.HasSuffix(name, "time") && strings.HasPrefix(name, "proj") {
+		return "", 0, false // ProjHitTime and its siblings are triggers of their own
+	}
 	for _, k := range [...]string{"projhit", "projguarded", "projcontact"} {
 		rest, found := strings.CutPrefix(name, k)
 		if !found {
 			continue
 		}
+		// Only a fully numeric suffix is an id; any other reads 0 with a
+		// warning (readOldProjectileID, compiler.go:1251-1276): Sagat's
+		// "projguardede" is ProjGuarded0.
 		n := 0
 		for _, c := range rest {
 			if c < '0' || c > '9' {
-				return "", 0, false
+				return strings.TrimPrefix(k, "proj"), 0, true
 			}
 			n = n*10 + int(c-'0')
 		}
 		return strings.TrimPrefix(k, "proj"), n, true
 	}
 	return "", 0, false
+}
+
+// skipToOldEquality moves to the operator an old-style trigger takes before
+// its number: in a CNS expression Ikemen GO skips any token before one
+// ending in "=" (checkEquality with ignoreMostErrors, compiler.go:951-971),
+// so Robert's "projhitid[3001] = 1" is ProjHit0 = 1. It reports false, and
+// moves nothing, when there is none.
+func (p *parser) skipToOldEquality() bool {
+	start := p.pos
+	for p.pos < len(p.toks) {
+		if p.peekOldEquality() {
+			return true
+		}
+		if p.shortCircuit || p.peek().kind == tokEOF {
+			break
+		}
+		p.next()
+	}
+	p.pos = start
+	return false
 }
 
 // parseOldTime parses "= n" and an optional ", op value" after an old time

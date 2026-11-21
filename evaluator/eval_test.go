@@ -187,13 +187,13 @@ func TestEval_Arithmetic_Division(t *testing.T) {
 	}
 }
 
-func TestEval_Arithmetic_DivisionByZero_ReturnsError(t *testing.T) {
-	e, err := Parse("1 / 0")
-	if err != nil {
-		t.Fatalf("unexpected parse error: %v", err)
-	}
-	if _, err := e.Eval(Context{}); err == nil {
-		t.Error("expected error for division by zero, got nil")
+// bytecode.go:1759-1775: a division by 0 is undefined (an error printed,
+// the character goes on), read as 0 (Aino: "0.75/fvar(16)/fvar(17)").
+func TestEval_Arithmetic_DivisionByZero_IsUndefinedNotFatal(t *testing.T) {
+	for _, expr := range []string{"1 / 0", "0.75 / 0.0"} {
+		if v := mustEval(t, expr, Context{}); v.Float() != 0 {
+			t.Errorf("%s = %v, want 0", expr, v)
+		}
 	}
 }
 
@@ -204,13 +204,10 @@ func TestEval_Arithmetic_Modulo(t *testing.T) {
 	}
 }
 
-func TestEval_Arithmetic_ModuloByZero_ReturnsError(t *testing.T) {
-	e, err := Parse("1 % 0")
-	if err != nil {
-		t.Fatalf("unexpected parse error: %v", err)
-	}
-	if _, err := e.Eval(Context{}); err == nil {
-		t.Error("expected error for modulo by zero, got nil")
+// bytecode.go:1777-1790: a modulo by 0 is undefined too.
+func TestEval_Arithmetic_ModuloByZero_IsUndefinedNotFatal(t *testing.T) {
+	if v := mustEval(t, "1 % 0", Context{}); v.Float() != 0 {
+		t.Errorf("1 %% 0 = %v, want 0", v)
 	}
 }
 

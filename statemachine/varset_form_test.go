@@ -95,7 +95,6 @@ func TestApplyController_VarSetInvalidForms_ReturnClearErrors(t *testing.T) {
 		{"empty index", map[string]string{"var()": "1"}, "Missing variable index"},
 		{"no variable", map[string]string{"foo": "1"}, "VarSet needs a variable"},
 		{"v without value", map[string]string{"v": "3"}, `"value" parameter`},
-		{"value without v", map[string]string{"value": "3"}, "VarSet needs a variable"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -221,7 +220,7 @@ func TestApplyController_VarSetNamingSeveralVariablesSetsOne(t *testing.T) {
 }
 
 func TestApplyController_VarSetNoVariable_MessageListsAcceptedForms(t *testing.T) {
-	_, err := applyVarSetParams(t, evaluator.Context{}, map[string]string{"value": "1"})
+	_, err := applyVarSetParams(t, evaluator.Context{}, map[string]string{"foo": "1"})
 	if err == nil || !strings.Contains(err.Error(), "sysv") || !strings.Contains(err.Error(), "fvar(N)") {
 		t.Errorf("error = %v, want message listing the accepted forms", err)
 	}
@@ -245,5 +244,17 @@ func TestApplyController_VarSetForms_DoNotAllocateWhenWarm(t *testing.T) {
 		if allocs := testing.AllocsPerRun(100, apply); allocs != 0 {
 			t.Errorf("%s: AllocsPerRun = %v, want 0", name, allocs)
 		}
+	}
+}
+
+// varSetOlderSub: a value with no variable number warns and does nothing in
+// a CNS file (Hulk: "value = var(31) = 0").
+func TestApplyController_VarSetValueWithoutVariableDoesNothing(t *testing.T) {
+	ctx, err := applyVarSetParams(t, evaluator.Context{}, map[string]string{"value": "var(31) = 0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ctx.Vars != (evaluator.Context{}).Vars {
+		t.Errorf("vars = %v, want untouched", ctx.Vars)
 	}
 }

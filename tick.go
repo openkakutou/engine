@@ -1719,6 +1719,7 @@ func snapshotOf(fighter match.FighterState, ctx *evaluator.Context) evaluator.Op
 		GetHit:          ctx.GetHit,
 		MoveContactTime: ctx.MoveContactTime,
 		HitDefAttr:      ctx.HitDefAttr,
+		InCustomState:   ctx.InOpponentStates,
 		GuardDist:       ctx.HitDefGuardDist,
 		Consts:          ctx.Consts,
 		ScreenLeft:      ctx.ScreenLeft,

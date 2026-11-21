@@ -51,6 +51,8 @@ type Opponent struct {
 	// redirections read them).
 	IsHelper bool
 	HelperID int
+	// InCustomState is its being in another player's states (InCustomState).
+	InCustomState bool
 	// Vars, FVars and SysVars are what var(n), fvar(n) and sysvar(n) read
 	// through a redirection (root,var(5) in a helper's states).
 	Vars    [maxVars]int
@@ -64,34 +66,35 @@ type Opponent struct {
 // reads. Fields the snapshot does not carry are zero.
 func (o *Opponent) context() Context {
 	return Context{
-		FighterState:    o.FighterState,
-		Time:            o.Time,
-		Anim:            o.Anim,
-		PrevStateNo:     o.PrevStateNo,
-		Ctrl:            o.Ctrl,
-		StateType:       o.StateType,
-		MoveType:        o.MoveType,
-		GetHit:          o.GetHit,
-		MoveContactTime: o.MoveContactTime,
-		HitDefAttr:      o.HitDefAttr,
-		Consts:          o.Consts,
-		ScreenLeft:      o.ScreenLeft,
-		ScreenRight:     o.ScreenRight,
-		WidthEdge:       o.WidthEdge,
-		IkemenChar:      o.IkemenChar,
-		NumProjectiles:  o.NumProjectiles,
-		Name:            o.Name,
-		AuthorName:      o.AuthorName,
-		IsHelper:        o.IsHelper,
-		HelperID:        o.HelperID,
-		Helpers:         o.Helpers,
-		HitPauseTime:    o.HitPauseTime,
-		AnimElapsed:     o.AnimElapsed,
-		Anims:           o.Anims,
-		PalNo:           o.PalNo,
-		Vars:            o.Vars,
-		FVars:           o.FVars,
-		SysVars:         o.SysVars,
+		FighterState:     o.FighterState,
+		Time:             o.Time,
+		Anim:             o.Anim,
+		PrevStateNo:      o.PrevStateNo,
+		Ctrl:             o.Ctrl,
+		StateType:        o.StateType,
+		MoveType:         o.MoveType,
+		GetHit:           o.GetHit,
+		MoveContactTime:  o.MoveContactTime,
+		HitDefAttr:       o.HitDefAttr,
+		InOpponentStates: o.InCustomState,
+		Consts:           o.Consts,
+		ScreenLeft:       o.ScreenLeft,
+		ScreenRight:      o.ScreenRight,
+		WidthEdge:        o.WidthEdge,
+		IkemenChar:       o.IkemenChar,
+		NumProjectiles:   o.NumProjectiles,
+		Name:             o.Name,
+		AuthorName:       o.AuthorName,
+		IsHelper:         o.IsHelper,
+		HelperID:         o.HelperID,
+		Helpers:          o.Helpers,
+		HitPauseTime:     o.HitPauseTime,
+		AnimElapsed:      o.AnimElapsed,
+		Anims:            o.Anims,
+		PalNo:            o.PalNo,
+		Vars:             o.Vars,
+		FVars:            o.FVars,
+		SysVars:          o.SysVars,
 	}
 }
 

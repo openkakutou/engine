@@ -2,7 +2,6 @@ package engine
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/openkakutou/character/cns"
@@ -114,38 +113,20 @@ func TestTick_UnflaggedControllerAfterAFlaggedOne_StaysSkippedWhileFrozen(t *tes
 	}
 }
 
-func TestTick_IgnoreHitPauseExpression_IsEvaluated(t *testing.T) {
-	// var(0) is 1 in tickFrozenP1, var(3) is 0.
+// compiler.go:7332-7335: ignorehitpause is Atoi'd, not evaluated: "var(0)"
+// reads 0 even while var(0) is 1, "2" reads true, an empty value (Balrog
+// CVS2) or text reads 0 without failing the tick.
+func TestTick_IgnoreHitPauseIsReadAsALeadingInteger(t *testing.T) {
+	// var(0) is 1 in tickFrozenP1.
 	states := state0(
 		withFlag(ctrl("VarSet", "v", "1", "value", "10"), "var(0)"),
-		withFlag(ctrl("VarSet", "v", "2", "value", "20"), "var(3)"),
+		withFlag(ctrl("VarSet", "v", "2", "value", "20"), "2"),
+		withFlag(ctrl("VarSet", "v", "3", "value", "30"), ""),
+		withFlag(ctrl("VarSet", "v", "4", "value", "40"), "nosuchtrigger +"),
 	)
 	rt := tickFrozenP1(t, attackerPause, states).Fighters[match.SideP1]
-	if rt.Context.Vars[1] != 10 || rt.Context.Vars[2] != 0 {
-		t.Errorf("var(1), var(2) = %d, %d, want 10, 0", rt.Context.Vars[1], rt.Context.Vars[2])
-	}
-}
-
-func TestTick_InvalidIgnoreHitPauseExpression_FailsTheTick(t *testing.T) {
-	states := state0(withFlag(ctrl("VarSet", "v", "1", "value", "1"), "nosuchtrigger +"))
-	p1 := match.FighterState{Side: match.SideP1, Health: 1000}
-	p2 := match.FighterState{Side: match.SideP2, Position: match.Position{X: 900}, Health: 1000}
-	rt1, err := NewFighterRuntime(p1, states)
-	if err != nil {
-		t.Fatalf("NewFighterRuntime: %v", err)
-	}
-	rt1.HitPause = 3
-	rt2, err := NewFighterRuntime(p2, idleStates())
-	if err != nil {
-		t.Fatalf("NewFighterRuntime: %v", err)
-	}
-	state, err := match.NewMatchState(1, 1000, p1, p2)
-	if err != nil {
-		t.Fatalf("NewMatchState: %v", err)
-	}
-	_, err = Tick(*state, [2]FighterProgram{{States: states}, {States: idleStates()}}, [2]FighterRuntime{rt1, rt2}, [2]input.TickInput{}, TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60})
-	if err == nil || !strings.Contains(err.Error(), "ignorehitpause") {
-		t.Fatalf("err = %v, want an error naming ignorehitpause", err)
+	if got := rt.Context.Vars; got[1] != 0 || got[2] != 20 || got[3] != 0 || got[4] != 0 {
+		t.Errorf("var(1..4) = %d %d %d %d, want 0 20 0 0", got[1], got[2], got[3], got[4])
 	}
 }
 
