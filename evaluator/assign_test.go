@@ -123,9 +123,6 @@ func TestEvaluateMut_AssignErrors_AreReported(t *testing.T) {
 		name, expr, want string
 	}{
 		{"local target", "$x := 1", "local"},
-		{"index too high", "var(60) := 1", "out of range"},
-		{"negative index", "var(0 - 1) := 1", "out of range"},
-		{"sysvar too high", "sysvar(5) := 1", "out of range"},
 		{"literal target", "3 := 1", ":="},
 		{"missing value", "var(1) :=", "end of expression"},
 	}
@@ -176,21 +173,6 @@ func TestEval_FVarAndSysFVar_ReadTheirSlotsAsFloats(t *testing.T) {
 		if got.Number != tc.want || (tc.want != 0 && got.Kind != KindFloat) {
 			t.Errorf("%s = %v (kind %v), want %v", tc.expr, got.Number, got.Kind, tc.want)
 		}
-	}
-}
-
-func TestEval_FloatVarIndexOutOfRange_IsAnErrorNamingTheRange(t *testing.T) {
-	for expr, want := range map[string]string{
-		"FVar(40)":    "fvar index 40 out of range 0-39",
-		"FVar(0 - 1)": "fvar index -1 out of range 0-39",
-		"SysFVar(5)":  "sysfvar index 5 out of range 0-4",
-	} {
-		if _, err := Evaluate(expr, Context{}); err == nil || !strings.Contains(err.Error(), want) {
-			t.Errorf("%s error = %v, want one containing %q", expr, err, want)
-		}
-	}
-	if _, err := EvaluateMut("fvar(40) := 1", &Context{}); err == nil || !strings.Contains(err.Error(), "out of range") {
-		t.Errorf("fvar(40) := 1 error = %v, want out of range", err)
 	}
 }
 
@@ -285,5 +267,37 @@ func TestAssignAndLocals_WarmCachedPath_AllocateNothing(t *testing.T) {
 		if allocs != 0 {
 			t.Errorf("EvaluateMut(%q) allocated %v times per call, want 0", expr, allocs)
 		}
+	}
+}
+
+// Ikemen GO keeps its variables in maps (char.go:8233-8245, 8325-8404): an
+// index past the fixed slots is a variable like any other, 0 until set; a
+// negative one reads 0 and stores nothing. Litchi reads parent,var(60).
+func TestVariablesPastTheSlotsAndNegativeIndexes(t *testing.T) {
+	ctx := &Context{}
+	steps := []struct {
+		expr string
+		want float64
+	}{
+		{"var(60)", 0}, {"var(60) := 7", 7}, {"var(60)", 7}, {"var(999) := 2.9", 2}, {"var(999)", 2},
+		{"fvar(40) := 1.5", 1.5}, {"fvar(40)", 1.5}, {"sysvar(5) := 3", 3}, {"sysvar(5)", 3},
+		{"var(0 - 1) := 4", 4}, {"var(0 - 1)", 0}, {"fvar(0 - 1)", 0},
+	}
+	for _, s := range steps {
+		v, err := EvaluateMut(s.expr, ctx)
+		if err != nil {
+			t.Fatalf("%s: %v", s.expr, err)
+		}
+		if v.Number != s.want {
+			t.Errorf("%s = %v, want %v", s.expr, v.Number, s.want)
+		}
+	}
+	before := ctx.ExtraVars
+	copied := *ctx
+	if _, err := EvaluateMut("var(60) := 8", &copied); err != nil {
+		t.Fatal(err)
+	}
+	if before[extraVarKey{"var", 60}] != 7 {
+		t.Error("writing a copy's variable past the slots changed the original's")
 	}
 }

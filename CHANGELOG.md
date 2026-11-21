@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.47.0] - 2026-11-21
+
+### Added
+- `playerid(id),` and `player(n),` redirections (the fighter itself or its opponent).
+- Variables past the fixed slots (`var(60)`, `fvar(40)`...), as Ikemen GO keeps them in maps: 0 until set; a negative index reads 0 and stores nothing.
+
+### Fixed
+- Two `[Command]` blocks sharing a name are alternatives with their own progress: either activates the name, and a shorter one no longer crashes the engine (backlog item 038; Necro, Fiona Belli, Arale). Input recognition now allocates once per fighter and tick instead of twice.
+- A PlaySnd value with only a group plays its sample 0, and a comma inside an interval no longer splits it (`ifElse((var(3) = [2, 3]), 10, 11), 0`).
+
 ## [2.46.0] - 2026-11-21
 
 ### Added

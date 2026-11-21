@@ -337,9 +337,9 @@ func TestTick_ZssFighter_WarmTickAddsNoAllocationBeyondInputRecognition(t *testi
 	}
 	run() // warm the zssexec local stack and the evaluator caches
 	// Same baseline as the .cns path (TestTick_TickConfigAddsNoAllocation...):
-	// input.Step's own 2 allocations per fighter.
-	if allocs := testing.AllocsPerRun(100, run); allocs != 4 {
-		t.Errorf("Tick with .zss fighters allocated %v times per call, want 4 (input recognition only)", allocs)
+	// input.Step's own allocation per fighter.
+	if allocs := testing.AllocsPerRun(100, run); allocs != 2 {
+		t.Errorf("Tick with .zss fighters allocated %v times per call, want 2 (input recognition only)", allocs)
 	}
 }
 

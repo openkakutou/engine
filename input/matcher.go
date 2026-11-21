@@ -69,7 +69,10 @@ type commandProgress struct {
 // through statemachine.Step calls. Its zero value is valid and usable:
 // every command starts with no progress and no recognized match.
 type State struct {
-	progress map[string]commandProgress
+	// progress is each command's, by its position in the command file:
+	// commands sharing a name are alternatives, each with its own progress
+	// (Ikemen GO keeps one Command per [Command] block, input.go).
+	progress []commandProgress
 	// prevDirs and prevButtons are the previous tick's resolved directions
 	// and held buttons, to tell a press (held now, not before) from a hold.
 	prevDirs    directionSet
@@ -104,7 +107,7 @@ type State struct {
 func Step(state State, tick int, facing match.Facing, in TickInput, cmds cmd.CommandFile) (State, map[string]bool) {
 	held := in.resolve(facing)
 
-	next := State{progress: make(map[string]commandProgress, len(cmds.Commands)), prevDirs: held}
+	next := State{progress: make([]commandProgress, len(cmds.Commands)), prevDirs: held}
 	if len(in.Buttons) > 0 {
 		// A copy: the caller may reuse its map for the next tick.
 		next.prevButtons = make(map[string]bool, len(in.Buttons))
@@ -115,15 +118,16 @@ func Step(state State, tick int, facing match.Facing, in TickInput, cmds cmd.Com
 	now := keys{dirs: held, buttons: in.Buttons, prevDirs: state.prevDirs, prevButtons: state.prevButtons}
 	active := make(map[string]bool, len(cmds.Commands))
 
-	for _, c := range cmds.Commands {
+	for i, c := range cmds.Commands {
 		steps := parseStepsCached(c.Input)
+		next.progress[i] = commandProgress{matchedTick: -1}
 		if len(steps) == 0 {
 			continue
 		}
 
-		p, ok := state.progress[c.Name]
-		if !ok {
-			p = commandProgress{matchedTick: -1}
+		p := commandProgress{matchedTick: -1}
+		if len(state.progress) == len(cmds.Commands) {
+			p = state.progress[i]
 		}
 
 		recognitionWindow := c.Time
@@ -141,7 +145,7 @@ func Step(state State, tick int, facing match.Facing, in TickInput, cmds cmd.Com
 
 		p = advance(p, steps, tick, now)
 
-		next.progress[c.Name] = p
+		next.progress[i] = p
 		if p.matchedTick >= 0 && tick-p.matchedTick <= bufferWindow {
 			active[c.Name] = true
 		}

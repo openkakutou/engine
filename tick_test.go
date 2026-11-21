@@ -513,14 +513,13 @@ func TestTick_TickConfigAddsNoAllocationBeyondInputRecognition(t *testing.T) {
 		tick++
 	})
 
-	// input.Step allocates its per-command progress/active maps fresh every
-	// call -- 2 allocations per fighter, pre-existing and out of this
-	// item's own scope (tracked separately, see roadmap engine backlog).
+	// input.Step allocates its per-command progress slice fresh every call
+	// -- 1 allocation per fighter (its active map is empty, never grown).
 	// TickConfig itself is passed by value, so it must add nothing on top
-	// of that baseline; a regression above 4 here would mean cfg started
+	// of that baseline; a regression above 2 here would mean cfg started
 	// escaping to the heap, exactly what TickConfig's own doc comment
 	// warns against.
-	const wantAllocs = 4
+	const wantAllocs = 2
 	if allocs != wantAllocs {
 		t.Errorf("Tick allocated %v times per call across repeated ticks, want %d (see TickConfig's own doc comment)", allocs, wantAllocs)
 	}

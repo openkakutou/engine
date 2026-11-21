@@ -14,6 +14,7 @@ package evaluator
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"strings"
 )
@@ -527,8 +528,8 @@ func evalGetHitVar(n callNode, ctx *Context) (Value, error) {
 }
 
 // evalVarIndex evaluates the single index argument of var(N), fvar(N) and
-// their system forms and checks it against the slot count.
-func evalVarIndex(n callNode, ctx *Context, fnName string, size int) (int, error) {
+// their system forms.
+func evalVarIndex(n callNode, ctx *Context, fnName string) (int, error) {
 	if len(n.args) != 1 {
 		return 0, fmt.Errorf("evaluator: %s() expects 1 argument, got %d", fnName, len(n.args))
 	}
@@ -536,62 +537,76 @@ func evalVarIndex(n callNode, ctx *Context, fnName string, size int) (int, error
 	if err != nil {
 		return 0, err
 	}
-	idx := idxVal.Int()
-	return idx, checkSlot(fnName, idx, size)
+	return idxVal.Int(), nil
 }
 
-// checkSlot reports an index outside the size slots of variable function name.
-func checkSlot(name string, idx, size int) error {
-	if idx < 0 || idx >= size {
-		return fmt.Errorf("evaluator: %s index %d out of range 0-%d", name, idx, size-1)
-	}
-	return nil
-}
-
-func evalIndexedVar(n callNode, ctx *Context, fnName string, slot []int) (Value, error) {
-	idx, err := evalVarIndex(n, ctx, fnName, len(slot))
+func evalIndexedVar(n callNode, ctx *Context, fnName string, _ []int) (Value, error) {
+	idx, err := evalVarIndex(n, ctx, fnName)
 	if err != nil {
 		return Value{}, err
 	}
-	return intValue(float64(slot[idx])), nil
+	return ctx.VarValue(fnName, idx)
 }
 
-func evalIndexedFloatVar(n callNode, ctx *Context, fnName string, slot []float32) (Value, error) {
-	idx, err := evalVarIndex(n, ctx, fnName, len(slot))
+func evalIndexedFloatVar(n callNode, ctx *Context, fnName string, _ []float32) (Value, error) {
+	idx, err := evalVarIndex(n, ctx, fnName)
 	if err != nil {
 		return Value{}, err
 	}
-	return floatValue(float64(slot[idx])), nil
+	return ctx.VarValue(fnName, idx)
 }
 
 var errAssignNeedsMut = errors.New("evaluator: an expression with := needs EvalMut/EvaluateMut: Eval works on a copy and would drop the write")
 
-// VarValue reads var, sysvar, fvar or sysfvar idx, an error naming it when
-// idx is out of range.
+// VarValue reads var, sysvar, fvar or sysfvar idx. Ikemen GO keeps its
+// variables in maps (char.go:8233-8245, cnsvar): an index past the
+// fixed slots reads the overflow map, 0 when never set, and a negative one
+// reads 0.
 func (c *Context) VarValue(target string, idx int) (Value, error) {
+	isFloat := target == "fvar" || target == "sysfvar"
+	if !isFloat && target != "var" && target != "sysvar" {
+		return Value{}, fmt.Errorf("evaluator: unknown variable kind %q", target)
+	}
+	n, ok := c.slotRead(target, idx)
+	if !ok {
+		n = c.ExtraVars[extraVarKey{target, idx}]
+	}
+	if isFloat {
+		return floatValue(n), nil
+	}
+	return intValue(n), nil
+}
+
+// slotRead is the fixed slot target idx, false outside them.
+func (c *Context) slotRead(target string, idx int) (float64, bool) {
+	if idx < 0 {
+		return 0, true
+	}
 	switch target {
 	case "var":
-		if err := checkSlot(target, idx, len(c.Vars)); err != nil {
-			return Value{}, err
+		if idx < len(c.Vars) {
+			return float64(c.Vars[idx]), true
 		}
-		return intValue(float64(c.Vars[idx])), nil
 	case "sysvar":
-		if err := checkSlot(target, idx, len(c.SysVars)); err != nil {
-			return Value{}, err
+		if idx < len(c.SysVars) {
+			return float64(c.SysVars[idx]), true
 		}
-		return intValue(float64(c.SysVars[idx])), nil
 	case "fvar":
-		if err := checkSlot(target, idx, len(c.FVars)); err != nil {
-			return Value{}, err
+		if idx < len(c.FVars) {
+			return float64(c.FVars[idx]), true
 		}
-		return floatValue(float64(c.FVars[idx])), nil
 	case "sysfvar":
-		if err := checkSlot(target, idx, len(c.SysFVars)); err != nil {
-			return Value{}, err
+		if idx < len(c.SysFVars) {
+			return float64(c.SysFVars[idx]), true
 		}
-		return floatValue(float64(c.SysFVars[idx])), nil
 	}
-	return Value{}, fmt.Errorf("evaluator: unknown variable kind %q", target)
+	return 0, false
+}
+
+// extraVarKey is a variable past the fixed slots.
+type extraVarKey struct {
+	kind string
+	idx  int
 }
 
 // IntValue is an int Value, FloatValue a float one.
@@ -603,36 +618,40 @@ func FloatValue(f float64) Value { return floatValue(f) }
 // AssignVar stores v in var(idx), sysvar(idx), fvar(idx) or sysfvar(idx) (target
 // names the function, lower-case) and returns the stored value, as Ikemen
 // GO's varSet family does (char.go:8325-8404): an int variable keeps v
-// truncated, a float one keeps it as float32. An index outside the slots is
-// an error.
+// truncated, a float one keeps it as float32. An index past the fixed slots
+// goes to the overflow map, copied first so a context handed out before keeps
+// its own; a negative one stores nothing (Ikemen GO warns).
 func (c *Context) AssignVar(target string, idx int, v Value) (Value, error) {
-	switch target {
-	case "var":
-		if err := checkSlot(target, idx, len(c.Vars)); err != nil {
-			return Value{}, err
-		}
-		c.Vars[idx] = v.Int()
-		return intValue(float64(c.Vars[idx])), nil
-	case "sysvar":
-		if err := checkSlot(target, idx, len(c.SysVars)); err != nil {
-			return Value{}, err
-		}
-		c.SysVars[idx] = v.Int()
-		return intValue(float64(c.SysVars[idx])), nil
-	case "fvar":
-		if err := checkSlot(target, idx, len(c.FVars)); err != nil {
-			return Value{}, err
-		}
-		c.FVars[idx] = float32(v.Number)
-		return floatValue(float64(c.FVars[idx])), nil
-	case "sysfvar":
-		if err := checkSlot(target, idx, len(c.SysFVars)); err != nil {
-			return Value{}, err
-		}
-		c.SysFVars[idx] = float32(v.Number)
-		return floatValue(float64(c.SysFVars[idx])), nil
+	stored := float64(v.Int())
+	isFloat := target == "fvar" || target == "sysfvar"
+	if isFloat {
+		stored = float64(float32(v.Number))
 	}
-	return Value{}, fmt.Errorf("evaluator: %q is not a variable", target)
+	if !isFloat && target != "var" && target != "sysvar" {
+		return Value{}, fmt.Errorf("evaluator: %q is not a variable", target)
+	}
+	switch {
+	case idx < 0:
+	case target == "var" && idx < len(c.Vars):
+		c.Vars[idx] = int(stored)
+	case target == "sysvar" && idx < len(c.SysVars):
+		c.SysVars[idx] = int(stored)
+	case target == "fvar" && idx < len(c.FVars):
+		c.FVars[idx] = float32(stored)
+	case target == "sysfvar" && idx < len(c.SysFVars):
+		c.SysFVars[idx] = float32(stored)
+	default:
+		extra := maps.Clone(c.ExtraVars)
+		if extra == nil {
+			extra = map[extraVarKey]float64{}
+		}
+		extra[extraVarKey{target, idx}] = stored
+		c.ExtraVars = extra
+	}
+	if isFloat {
+		return floatValue(stored), nil
+	}
+	return intValue(stored), nil
 }
 
 // evalAssign runs "var(i) := v" and friends, in Ikemen GO's order (index

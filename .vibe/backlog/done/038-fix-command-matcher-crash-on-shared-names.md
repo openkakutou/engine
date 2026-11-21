@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Fix the command matcher crash when two commands share a name
 
@@ -9,9 +9,12 @@ Real `.cmd` files declare several `[Command]` blocks with the same name as alter
 🔒 MUST: MUGEN 1.0/1.1 and Ikemen GO compatibility, verified against Ikemen GO (roadmap decision `038`).
 
 ## Acceptance Criteria
-- [ ] A test reproducing the crash with two same-name commands of different lengths passes
-- [ ] Either alternative activates the command name
-- [ ] No panic on the 7 characters that crashed in the conformance run
+- [x] A test reproducing the crash with two same-name commands of different lengths passes
+- [x] Either alternative activates the command name
+- [x] No panic on the 7 characters that crashed in the conformance run
 
 ## Notes
 Found by the conformance harness (item 030, `docs/conformance.md`, 2026-11-17).
+
+## Done
+2026-11-21 - engine v2.47.0: progress kept per [Command] block (input.State.progress by position), the name active when any alternative matches; TestStep_SameNameAlternativesKeepTheirOwnProgress reproduces the crash; the corpus characters that crashed (Necro, Fiona Belli) run.

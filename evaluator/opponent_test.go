@@ -195,7 +195,7 @@ func TestEval_Redirections_ReadTheOpponent(t *testing.T) {
 }
 
 func TestParse_RedirectionToAnotherPlayer_IsNotSupportedYet(t *testing.T) {
-	for _, expr := range []string{"playerid(2),life", "stateowner,life", "player(2),life"} {
+	for _, expr := range []string{"stateowner,life"} {
 		_, err := Parse(expr)
 		if err == nil || !strings.Contains(err.Error(), "not supported yet") {
 			t.Errorf("Parse(%q) error = %v, want one saying the redirection is not supported yet", expr, err)
@@ -487,6 +487,22 @@ func TestEval_RoundEndTriggers(t *testing.T) {
 			if got := evalFloat(t, expr, c.ctx); got != want {
 				t.Errorf("case %d %s = %v, want %v", i, expr, got, want)
 			}
+		}
+	}
+}
+
+// playerid(id) and player(n) name the fighter itself or its opponent.
+func TestEval_PlayerRedirections(t *testing.T) {
+	ctx := Context{}
+	ctx.Health = 700
+	ctx.P2 = Opponent{Valid: true}
+	ctx.P2.Side, ctx.P2.Health = 1, 400
+	for expr, want := range map[string]float64{
+		"playerid(56),life": 700, "playerid(57),life": 400, "playerid(3),life": 0,
+		"player(1),life": 700, "player(2),life": 400, "player(4),life": 0,
+	} {
+		if got := evalFloat(t, expr, ctx); got != want {
+			t.Errorf("%s = %v, want %v", expr, got, want)
 		}
 	}
 }

@@ -203,3 +203,33 @@ func TestStep_ForwardTappedTwice_IsADoubleTap(t *testing.T) {
 		t.Errorf("FF not recognized after forward, neutral, forward; active = %+v", active)
 	}
 }
+
+// Two [Command] blocks named alike are alternatives (Ikemen GO keeps one
+// Command per block): each has its own progress, and either activates the
+// name. A shorter one used to read the longer one's step and panic (backlog
+// item 038; Arale, Necro, Fiona Belli).
+func TestStep_SameNameAlternativesKeepTheirOwnProgress(t *testing.T) {
+	cmds := cmd.CommandFile{Defaults: cmd.CommandDefaults{Time: 15, BufferTime: 1}, Commands: []cmd.Command{
+		{Name: "fireball", Input: "~D, F, x"},
+		{Name: "fireball", Input: "~D, DF, F, x"},
+	}}
+	var st State
+	feed := func(seq []TickInput) bool {
+		active := false
+		for i, in := range seq {
+			var a map[string]bool
+			st, a = Step(st, i+1, match.FacingRight, in, cmds)
+			active = active || a["fireball"]
+		}
+		return active
+	}
+	down, df, fwd := TickInput{Down: true}, TickInput{Down: true, Right: true}, TickInput{Right: true}
+	x := TickInput{Right: true, Buttons: map[string]bool{"x": true}}
+	if !feed([]TickInput{{}, down, df, fwd, x}) {
+		t.Error("the long alternative did not activate the name")
+	}
+	st = State{}
+	if !feed([]TickInput{{}, down, {}, fwd, x}) {
+		t.Error("the short alternative did not activate the name")
+	}
+}

@@ -335,23 +335,6 @@ func TestStep_VarSetUnevaluableValueExpression_ReturnsDescriptiveError(t *testin
 	}
 }
 
-func TestStep_VarSetIndexOutOfRange_ReturnsDescriptiveError(t *testing.T) {
-	states := map[int]cns.StateDef{
-		0: {
-			Number: 0,
-			Controllers: []cns.Controller{
-				varSetController("", 999, 7),
-			},
-		},
-	}
-	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
-
-	_, err := Step(ctx, states)
-	if err == nil {
-		t.Fatal("expected a descriptive error for a VarSet index out of range, got nil")
-	}
-}
-
 func TestStep_PowerAddController_IncrementsPower(t *testing.T) {
 	states := map[int]cns.StateDef{
 		0: {
@@ -580,20 +563,23 @@ func TestStep_PlaySndMissingValueParameter_ReturnsDescriptiveError(t *testing.T)
 	}
 }
 
-func TestStep_PlaySndValueMissingComma_ReturnsDescriptiveError(t *testing.T) {
-	states := map[int]cns.StateDef{
-		0: {
-			Number: 0,
-			Controllers: []cns.Controller{
-				playSndController("", "1"),
-			},
-		},
+// A PlaySnd value with only a group plays its sample 0 (Ikemen GO reads up
+// to two values, compiler_functions.go:357-365; Yoshi writes "value = F7").
+func TestStep_PlaySndValueWithOnlyAGroupPlaysSample0(t *testing.T) {
+	states := map[int]cns.StateDef{0: {Number: 0, Controllers: []cns.Controller{playSndController("", "F7")}}}
+	res, err := Step(evaluator.Context{FighterState: match.FighterState{StateNo: 0}}, states)
+	if err != nil {
+		t.Fatal(err)
 	}
-	ctx := evaluator.Context{FighterState: match.FighterState{StateNo: 0}}
+	if len(res.Sounds) != 1 || res.Sounds[0].Group != 7 || res.Sounds[0].Sample != 0 || !res.Sounds[0].Common {
+		t.Errorf("sounds = %+v, want common 7,0", res.Sounds)
+	}
+}
 
-	_, err := Step(ctx, states)
-	if err == nil {
-		t.Fatal(`expected a descriptive error for a PlaySnd "value" missing its "group,sample" comma, got nil`)
+func TestStep_PlaySndWithoutAValueIsAnError(t *testing.T) {
+	states := map[int]cns.StateDef{0: {Number: 0, Controllers: []cns.Controller{playSndController("", "")}}}
+	if _, err := Step(evaluator.Context{FighterState: match.FighterState{StateNo: 0}}, states); err == nil {
+		t.Fatal("expected an error for an empty PlaySnd value")
 	}
 }
 
@@ -895,8 +881,11 @@ func TestSplitPlaySndHalves_SplitsAtFirstComma(t *testing.T) {
 	if got != [2]string{"0", "Random % 3"} {
 		t.Errorf("got %q", got)
 	}
-	if _, err := SplitPlaySndValue("5"); err == nil {
-		t.Error("expected error for a value with no comma")
+	if got, err := SplitPlaySndValue("5"); err != nil || got != [2]string{"5", "0"} {
+		t.Errorf("SplitPlaySndValue(5) = %q, %v; want 5 and sample 0", got, err)
+	}
+	if got, _ := SplitPlaySndValue("ifElse((var(3) = [2, 3]), 10, 11), 2"); got != [2]string{"ifElse((var(3) = [2, 3]), 10, 11)", "2"} {
+		t.Errorf("an interval's comma split the group: %q", got)
 	}
 }
 

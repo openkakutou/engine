@@ -29,8 +29,14 @@ func TestApplyController_VarAddAddsInEveryForm(t *testing.T) {
 	if ctx.Vars[3] != 15 || ctx.FVars[1] != 2 || ctx.SysVars[2] != 5 || ctx.SysFVars[0] != 0.75 {
 		t.Errorf("vars = %d %v %d %v, want 15 2 5 0.75", ctx.Vars[3], ctx.FVars[1], ctx.SysVars[2], ctx.SysFVars[0])
 	}
-	if err := applyCtrl(t, &ctx, "VarAdd", map[string]string{"var(99)": "1"}); err == nil {
-		t.Error("var(99): want an index error")
+	// Past the fixed slots too, as Ikemen GO's variable maps (char.go:8233).
+	for range 2 {
+		if err := applyCtrl(t, &ctx, "VarAdd", map[string]string{"var(99)": "3"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if v, _ := ctx.VarValue("var", 99); v.Number != 6 {
+		t.Errorf("var(99) = %v, want 6", v.Number)
 	}
 }
 

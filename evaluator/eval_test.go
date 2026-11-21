@@ -276,16 +276,6 @@ func TestEval_ReturnsError_OnUnknownFunctionName(t *testing.T) {
 	}
 }
 
-func TestEval_ReturnsError_OnVarIndexOutOfRange(t *testing.T) {
-	e, err := Parse("var(999) = 0")
-	if err != nil {
-		t.Fatalf("unexpected parse error: %v", err)
-	}
-	if _, err := e.Eval(Context{}); err == nil {
-		t.Error("expected error for out-of-range var index, got nil")
-	}
-}
-
 func TestEval_ReturnsError_OnWrongArgumentCount(t *testing.T) {
 	e, err := Parse("IfElse(Ctrl, 1)")
 	if err != nil {
@@ -752,12 +742,12 @@ func TestEval_Cond_EvaluatesOnlyTheChosenBranch(t *testing.T) {
 		want float64
 		kind Kind
 	}{
-		{"cond(1, 5, var(99))", 5, KindInt},
-		{"Cond(0, var(99), 7.5)", 7.5, KindFloat},
+		{"cond(1, 5, nosuchtrigger)", 5, KindInt},
+		{"Cond(0, nosuchtrigger, 7.5)", 7.5, KindFloat},
 		{"cond(ctrl, 1, 2) + 1", 2, KindInt},
 	})
-	if _, err := Evaluate("ifelse(1, 5, var(99))", Context{}); err == nil {
-		t.Error("ifelse(1, 5, var(99)) succeeded, want the out-of-range error: IfElse evaluates every branch")
+	if _, err := Evaluate("ifelse(1, 5, nosuchtrigger)", Context{}); err == nil {
+		t.Error("ifelse(1, 5, nosuchtrigger) succeeded, want the unknown trigger: IfElse evaluates every branch")
 	}
 	ctx := Context{}
 	v, err := EvaluateMut("cond(0, var(1) := 5, var(2) := 7)", &ctx)

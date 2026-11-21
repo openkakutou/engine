@@ -2,6 +2,7 @@ package conformance
 
 import (
 	"bytes"
+	"github.com/openkakutou/engine/v2"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -236,25 +237,34 @@ command = ~D, DF, F, x
 time = 30
 `
 
-func TestRun_EnginePanic_IsRecordedAsTickErrorAndNextCharacterStillRuns(t *testing.T) {
+// Same-name commands used to crash the command matcher (engine backlog item
+// 038): such a character now runs, alongside a plain one.
+func TestRun_SameNameCommandsRunAlongsideAnotherCharacter(t *testing.T) {
 	root := t.TempDir()
-	writeCharacter(t, filepath.Join(root, "a-crash"), "crash", exposureCNS, "cns = crash.cns\ncmd = crash.cmd", map[string]string{"crash.cmd": duplicateCommandCMD})
+	writeCharacter(t, filepath.Join(root, "a-alternatives"), "alternatives", exposureCNS, "cns = alternatives.cns\ncmd = alternatives.cmd", map[string]string{"alternatives.cmd": duplicateCommandCMD})
 	writeCharacter(t, filepath.Join(root, "b-fine"), "fine", exposureCNS, "cns = fine.cns", nil)
 
 	report, err := Run([]string{root}, Options{Ticks: 600})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	crash := findCharacter(t, report, filepath.Join("a-crash", "crash.def"))
-	if crash.Status != StatusTickError {
-		t.Fatalf("crash Status = %q, want %q", crash.Status, StatusTickError)
+	for _, name := range []string{filepath.Join("a-alternatives", "alternatives.def"), filepath.Join("b-fine", "fine.def")} {
+		c := findCharacter(t, report, name)
+		if c.Status != StatusRan || c.TicksRun != 600 {
+			t.Errorf("%s Status = %q TicksRun = %d, want ran and 600", name, c.Status, c.TicksRun)
+		}
 	}
-	if !bytes.Contains([]byte(crash.Error), []byte("panic")) {
-		t.Errorf("crash Error = %q, want it to say the engine panicked", crash.Error)
+}
+
+// An engine panic becomes an error saying so, for the run to record the
+// character and move on.
+func TestWithoutPanic_TurnsAPanicIntoAnError(t *testing.T) {
+	_, err := withoutPanic(func() (engine.TickResult, error) { panic("boom") })
+	if err == nil || !bytes.Contains([]byte(err.Error()), []byte("engine panic: boom")) {
+		t.Errorf("err = %v, want an engine panic error", err)
 	}
-	fine := findCharacter(t, report, filepath.Join("b-fine", "fine.def"))
-	if fine.Status != StatusRan || fine.TicksRun != 600 {
-		t.Errorf("fine Status = %q TicksRun = %d, want ran and 600", fine.Status, fine.TicksRun)
+	if _, err := withoutPanic(func() (engine.TickResult, error) { return engine.TickResult{}, nil }); err != nil {
+		t.Errorf("err = %v without a panic", err)
 	}
 }
 

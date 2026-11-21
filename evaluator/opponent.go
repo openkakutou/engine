@@ -101,8 +101,8 @@ func (o *Opponent) context() Context {
 // be answered, and reading 0 would be wrong.
 var redirectKinds = map[string]bool{
 	"p2": true, "enemy": true, "enemynear": true, "target": true,
-	"root": true, "parent": true, "helper": true, "playerid": false,
-	"player": false, "partner": true, "stateowner": false,
+	"root": true, "parent": true, "helper": true, "playerid": true,
+	"player": true, "partner": true, "stateowner": false,
 }
 
 // IsRedirect reports whether word (any case) is a redirection keyword, which
@@ -139,6 +139,9 @@ func (hitDefAttrNode) isNode() {}
 // does not carry (its commands, its random draws) reads as a fighter with
 // none would, rather than stopping the match.
 func evalRedirect(n redirectNode, ctx *Context) (Value, error) {
+	if n.kind == "playerid" || n.kind == "player" {
+		return evalPlayerRedirect(n, ctx)
+	}
 	target, found, err := redirectTarget(n, ctx)
 	if err != nil || !found {
 		return intValue(0), err
@@ -147,6 +150,33 @@ func evalRedirect(n redirectNode, ctx *Context) (Value, error) {
 	// The match's own state reads the same from every fighter.
 	redirected.Round, redirected.GameTime = ctx.Round, ctx.GameTime
 	return evalNode(n.inner, &redirected)
+}
+
+// evalPlayerRedirect is playerid(id), (the players' ids, see "id") and
+// player(n) (player 1 or 2, char.go playerID): the fighter itself or its
+// opponent, nothing for any other.
+// shortcut: helpers have no id of their own yet.
+func evalPlayerRedirect(n redirectNode, ctx *Context) (Value, error) {
+	if n.arg == nil {
+		return intValue(0), fmt.Errorf("evaluator: %s needs an argument", n.kind)
+	}
+	v, err := evalNode(n.arg, ctx)
+	if err != nil {
+		return Value{}, err
+	}
+	first := firstPlayerID
+	if n.kind == "player" {
+		first = 1
+	}
+	if !ctx.IsHelper && v.Int() == first+int(ctx.Side) {
+		return evalNode(n.inner, ctx)
+	}
+	if ctx.P2.Valid && v.Int() == first+int(ctx.P2.Side) {
+		redirected := ctx.P2.context()
+		redirected.Round, redirected.GameTime = ctx.Round, ctx.GameTime
+		return evalNode(n.inner, &redirected)
+	}
+	return intValue(0), nil
 }
 
 // redirectTarget is the Opponent a redirection reads, found false when there is

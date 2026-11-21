@@ -735,11 +735,18 @@ func splitPlaySndValue(raw string) (playSndValue, error) {
 		return value, nil
 	}
 	prefix, rest := playSndPrefix(strings.TrimSpace(raw))
-	idx := strings.IndexByte(rest, ',')
-	if idx < 0 {
+	// The group, then the sample, 0 when not given (Ikemen GO reads up to
+	// two values, compiler_functions.go:357-365); a comma inside parentheses
+	// or an interval belongs to its expression.
+	parts := evaluator.SplitList(rest)
+	if len(parts) == 0 || parts[0] == "" {
 		return playSndValue{}, fmt.Errorf(`PlaySnd value %q must be "group,sample"`, raw)
 	}
-	value := playSndValue{prefix: prefix, halves: [2]string{strings.TrimSpace(rest[:idx]), strings.TrimSpace(rest[idx+1:])}}
+	sample := "0"
+	if len(parts) > 1 && parts[1] != "" {
+		sample = parts[1]
+	}
+	value := playSndValue{prefix: prefix, halves: [2]string{parts[0], sample}}
 	playSndValueCache[raw] = value
 	return value, nil
 }

@@ -153,13 +153,20 @@ func runCharacter(defPath, display string, opts Options) CharacterReport {
 
 // safeTick calls engine.Tick and turns an engine panic into an error, so one
 // character crashing the engine is recorded and the run moves on to the next.
-func safeTick(state match.MatchState, programs [2]engine.FighterProgram, runtimes [2]engine.FighterRuntime, inputs [2]input.TickInput, cfg engine.TickConfig) (result engine.TickResult, err error) {
+func safeTick(state match.MatchState, programs [2]engine.FighterProgram, runtimes [2]engine.FighterRuntime, inputs [2]input.TickInput, cfg engine.TickConfig) (engine.TickResult, error) {
+	return withoutPanic(func() (engine.TickResult, error) {
+		return engine.Tick(state, programs, runtimes, inputs, cfg)
+	})
+}
+
+// withoutPanic runs tick, a panic becoming an error saying so.
+func withoutPanic(tick func() (engine.TickResult, error)) (result engine.TickResult, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("engine panic: %v", r)
 		}
 	}()
-	return engine.Tick(state, programs, runtimes, inputs, cfg)
+	return tick()
 }
 
 // simulate runs the mirror match and fills the report's run figures.

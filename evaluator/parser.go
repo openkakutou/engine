@@ -587,7 +587,7 @@ func (p *parser) parseRedirect(kind string) (node, error) {
 	}
 	p.next()
 	if !redirectKinds[kind] {
-		return nil, fmt.Errorf("evaluator: redirection to %s is not supported yet: the engine has no helpers", kind)
+		return nil, fmt.Errorf("evaluator: redirection to %s is not supported yet", kind)
 	}
 	inner, err := p.parsePrimary()
 	if err != nil {

@@ -81,6 +81,9 @@ type Context struct {
 	// sysfvar(N), stored as float32 like Ikemen GO's (char.go cnsfvar).
 	FVars    [maxFVars]float32
 	SysFVars [maxSysFVars]float32
+	// ExtraVars are the variables past those slots (Ikemen GO's are maps),
+	// replaced, never changed in place, on a write.
+	ExtraVars map[extraVarKey]float64
 	// Consts is the character's constants table, read by Const(name). Set
 	// once per fighter by FighterProgram.NewRuntime, never written after, so
 	// copying a Context copies one pointer. Nil reads Ikemen GO's defaults.

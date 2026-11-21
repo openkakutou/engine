@@ -13,7 +13,8 @@ var listCache = map[string][]string{}
 // SplitList splits a controller parameter written as a list of expressions
 // ("damage = floor(90*root,fvar(0)),10") at its top-level commas, as Ikemen
 // GO reads one expression after another: a comma inside parentheses or right
-// after a redirection ("root,", "enemy(1),") belongs to the expression. Each
+// after a redirection ("root,", "enemy(1),") belongs to the expression, as
+// one inside an interval ("[2, 3]"). Each
 // part is trimmed. The result is shared: do not modify it.
 func SplitList(raw string) []string {
 	if parts, ok := listCache[raw]; ok {
@@ -27,11 +28,16 @@ func SplitList(raw string) []string {
 	closedRedirect := false
 	for i := 0; i < len(raw); i++ {
 		switch raw[i] {
+		case '[':
+			// An interval's "[a, b]" keeps its comma.
+			opener = append(opener, false)
+			depth++
+			closedRedirect = false
 		case '(':
 			opener = append(opener, IsRedirect(lastWord(raw[start:i])))
 			depth++
 			closedRedirect = false
-		case ')':
+		case ']', ')':
 			if depth > 0 {
 				depth--
 				closedRedirect = opener[len(opener)-1]

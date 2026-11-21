@@ -92,9 +92,6 @@ func TestApplyController_VarSetInvalidForms_ReturnClearErrors(t *testing.T) {
 		params map[string]string
 		want   string
 	}{
-		{"negative index", map[string]string{"var(-1)": "1"}, "out of range"},
-		{"var index too high", map[string]string{"var(60)": "1"}, "out of range"},
-		{"sysvar index too high", map[string]string{"sysvar(5)": "1"}, "out of range"},
 		{"empty index", map[string]string{"var()": "1"}, "Missing variable index"},
 		{"two var forms", map[string]string{"var(1)": "1", "sysvar(2)": "1"}, "only set one variable at a time"},
 		{"var form with v", map[string]string{"var(1)": "1", "v": "2", "value": "3"}, "only set one variable at a time"},
@@ -128,15 +125,6 @@ func TestApplyController_VarSetFloatForms_SetFloatVariables(t *testing.T) {
 	}
 	if ctx.SysFVars[4] != float32(2.1) {
 		t.Errorf("SysFVars[4] = %v, want float32(2.1)", ctx.SysFVars[4])
-	}
-}
-
-func TestApplyController_VarSetFloatIndexOutOfRange_ReturnsAnError(t *testing.T) {
-	for _, key := range []string{"fvar(40)", "fvar(-1)", "sysfvar(5)"} {
-		_, err := applyVarSetParams(t, evaluator.Context{}, map[string]string{key: "1"})
-		if err == nil || !strings.Contains(err.Error(), "out of range") {
-			t.Errorf("%s: error = %v, want one containing %q", key, err, "out of range")
-		}
 	}
 }
 
