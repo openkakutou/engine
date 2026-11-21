@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.0] - 2026-11-21
+
+### Fixed
+- The engine's own state changes (walk, crouch, jump, brake, guard, landing, get-hit) into a state the character lacks enter it empty with a warning, as Ikemen GO does, instead of leaving the fighter where it was.
+
 ## [2.76.0] - 2026-11-21
 
 ### Fixed

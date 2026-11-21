@@ -385,7 +385,7 @@ func TestTick_LandedHit_ExpressionHitDefValuesAreEvaluatedWhenItRuns(t *testing.
 	}
 }
 
-func TestTick_LandedHit_WithoutTheGetHitState_FreezesTheDefenderInPlaceAndDoesNotFail(t *testing.T) {
+func TestTick_LandedHit_WithoutTheGetHitState_FreezesTheDefenderAndDoesNotFail(t *testing.T) {
 	cases := []struct {
 		name      string
 		stateType cns.StateType
@@ -409,8 +409,15 @@ func TestTick_LandedHit_WithoutTheGetHitState_FreezesTheDefenderInPlaceAndDoesNo
 			})
 			s.step()
 			d := s.ctx(match.SideP2)
-			if d.StateNo != 0 || !d.GetHit.Active || d.GetHit.HitShakeTime != 8 {
-				t.Fatalf("defender StateNo=%d GetHit=%+v, want state 0 kept with the get-hit vars applied", d.StateNo, d.GetHit)
+			// Without 5000 the defender enters it empty, as Ikemen GO
+			// (char.go:6880-6887); a lying or undefined stance has no
+			// get-hit state and stays.
+			want := 0
+			if c.drop {
+				want = 5000
+			}
+			if d.StateNo != want || !d.GetHit.Active || d.GetHit.HitShakeTime != 8 {
+				t.Fatalf("defender StateNo=%d GetHit=%+v, want state %d with the get-hit vars applied", d.StateNo, d.GetHit, want)
 			}
 			counter := d.Vars[1]
 			for tick := 2; tick <= 9; tick++ {
@@ -420,8 +427,14 @@ func TestTick_LandedHit_WithoutTheGetHitState_FreezesTheDefenderInPlaceAndDoesNo
 				}
 			}
 			s.step()
-			if got := s.ctx(match.SideP2).Vars[1]; got != counter+1 {
-				t.Errorf("tick 10: defender var(1) = %d, want %d (unfrozen)", got, counter+1)
+			// Unfrozen, the defender runs its state again: state 0 counts on,
+			// an empty 5000 runs nothing.
+			after := counter + 1
+			if c.drop {
+				after = counter
+			}
+			if got := s.ctx(match.SideP2).Vars[1]; got != after {
+				t.Errorf("tick 10: defender var(1) = %d, want %d (unfrozen)", got, after)
 			}
 		})
 	}

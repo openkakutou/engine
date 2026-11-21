@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 depends_on: [068]
 ---
 # Hard-coded state entries and negative states as Ikemen GO
@@ -10,8 +10,9 @@ Follow-up of 068. Three engine-driven state entries still skip silently when the
 🔒 MUST: as Ikemen GO (roadmap decision `041`).
 
 ## Acceptance Criteria
-- [ ] Each of the three entries to a missing state enters an empty state with a warning, covered end to end through `Tick`
+- [x] Each of the three entries to a missing state enters an empty state with a warning, covered end to end through `Tick`
 - [x] A change to a negative state warns and goes to state 0, as Ikemen GO
 
 ## Progress
 - 2026-11-21 (v2.76.0): a ChangeState to a negative state warns and goes to 0 (stateChange1, char.go:6812, 6855-6860). Left: the three engine-driven entries into a missing state.
+- 2026-11-21 (v2.77.0): the basic changes (10, 12, 20, 40, 0, 120), the landing into 52 and the get-hit change into 5000/5010/5020 enter a missing state empty with Ikemen GO's warning (`warnIfMissing`); through Tick: `TestTick_LandedHit_WithoutTheGetHitState_FreezesTheDefenderAndDoesNotFail`, the conformance run and the standing-only scenarios.

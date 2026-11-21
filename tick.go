@@ -1331,15 +1331,12 @@ func (r *stateRuns) followChanges(progs fighterPrograms, ctx *evaluator.Context,
 // 105, changes to state 52, entered and run at once like any ChangeState
 // (changeStateEx, char.go:6987-6994): common1's state 52 puts it on the
 // ground itself (common1.cns:273-281).
-// shortcut: a character without state 52 is left falling, as basicChangeState
-// does, where Ikemen GO enters an empty state.
+// A character without state 52 enters it empty, warned, as Ikemen GO does.
 func land(ctx *evaluator.Context, prog FighterProgram, runs *stateRuns) error {
 	if ctx.Physics != 'A' || ctx.Velocity.Y >= 0 || ctx.Position.Y > 0 || ctx.StateNo == 105 {
 		return nil
 	}
-	if !prog.hasState(52) {
-		return nil
-	}
+	warnIfMissing(ctx, prog, 52)
 	ctx.PrevStateNo = ctx.StateNo
 	ctx.StateNo = 52
 	ctx.StateChanged = true
@@ -1451,19 +1448,24 @@ func basicActions(ctx *evaluator.Context, prog FighterProgram, d input.Direction
 }
 
 // basicChangeState changes to state number as a ChangeState with no anim or
-// ctrl does (statemachine applyChangeState).
-// shortcut: a character without that state is left where it is, where
-// Ikemen GO enters an empty state (char.go:6852-6857); every character
-// loading common1 has them.
+// ctrl does (statemachine applyChangeState); a character without that state
+// enters it empty, with Ikemen GO's warning (char.go:6880-6887).
 func basicChangeState(ctx *evaluator.Context, prog FighterProgram, number int) {
-	if !prog.hasState(number) {
-		return
-	}
+	warnIfMissing(ctx, prog, number)
 	ctx.PrevStateNo = ctx.StateNo
 	ctx.StateNo = number
 	ctx.Time = 0
 	ctx.StateChanged = true
 	ctx.Persistent = [evaluator.MaxPersistent]int32{}
+}
+
+// warnIfMissing warns, as Ikemen GO's changeStateEx does (char.go:6880-
+// 6887), when the fighter changes to a state its character lacks: it then
+// runs that state empty.
+func warnIfMissing(ctx *evaluator.Context, prog FighterProgram, number int) {
+	if !prog.hasState(number) {
+		ctx.Warnings = append(ctx.Warnings, fmt.Sprintf("changed to invalid state %d (from state %d)", number, ctx.StateNo))
+	}
 }
 
 // nilIfEmpty returns names, or nil when it is empty, so a side with nothing
@@ -1869,7 +1871,11 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 			return err
 		}
 	}
-	if def, ok := defender.stateHeader(target); ok && target != 0 {
+	if target != 0 {
+		// A character without the get-hit state enters it empty, warned
+		// (char.go:6880-6887).
+		def, _ := defender.stateHeader(target)
+		warnIfMissing(ctx, defender, target)
 		ctx.PrevStateNo = ctx.StateNo
 		ctx.StateNo = target
 		// The get-hit change passes ctrl 0 (changeStateEx(5000, pn, -1, 0),

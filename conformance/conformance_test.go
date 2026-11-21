@@ -37,13 +37,16 @@ func TestRun_CharacterWithUnknownTriggerAndUnsupportedController_ReportsExpected
 	if c.TicksRun != 20 {
 		t.Errorf("TicksRun = %d, want 20", c.TicksRun)
 	}
-	// 20 ticks x 2 fighters in state 0, once per name per state per tick.
-	wantUnsupported := []Count{{Name: "notarealcontroller", Count: 40}}
+	// Once per name per state per tick, while each fighter runs state 0:
+	// the input script walks them into states this character lacks, which
+	// they enter empty as Ikemen GO does (char.go:6880-6887), 21 runs of
+	// state 0 in all over the 20 ticks.
+	wantUnsupported := []Count{{Name: "notarealcontroller", Count: 21}}
 	if !reflect.DeepEqual(c.UnsupportedControllers, wantUnsupported) {
 		t.Errorf("UnsupportedControllers = %+v, want %+v", c.UnsupportedControllers, wantUnsupported)
 	}
 	// Equal counts are ordered by name ascending; a call is named "name()".
-	wantTriggers := []Count{{Name: "bogus2()", Count: 40}, {Name: "foobartrigger", Count: 40}}
+	wantTriggers := []Count{{Name: "bogus2()", Count: 21}, {Name: "foobartrigger", Count: 21}}
 	if !reflect.DeepEqual(c.UnknownTriggers, wantTriggers) {
 		t.Errorf("UnknownTriggers = %+v, want %+v", c.UnknownTriggers, wantTriggers)
 	}

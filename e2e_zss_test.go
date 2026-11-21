@@ -489,11 +489,13 @@ func TestE2EScenarios_WalkAndJump_FailOnACharacterThatDoesNotMove(t *testing.T) 
 		t.Fatalf("character.Load: %v", err)
 	}
 	prog := NewFighterProgram(nil, nil, ch.Commands).WithScripts([]zss.Script{mustScript(t, "[StateDef 0; type: S; physics: S;]\nnull{}")})
-	if err := scenarioWalkForward(t, prog); err == nil || !strings.Contains(err.Error(), "StateNo = 0, want 20") {
-		t.Errorf("walk scenario on a standing-only character: %v, want a StateNo failure", err)
+	// It enters the walk and jump states empty, as Ikemen GO does
+	// (char.go:6880-6887): no walk animation, no jump, so both still fail.
+	if err := scenarioWalkForward(t, prog); err == nil {
+		t.Error("walk scenario on a standing-only character passed, want a failure")
 	}
-	if err := scenarioJump(t, prog); err == nil || !strings.Contains(err.Error(), "want 40") {
-		t.Errorf("jump scenario on a standing-only character: %v, want a StateNo failure", err)
+	if err := scenarioJump(t, prog); err == nil {
+		t.Error("jump scenario on a standing-only character passed, want a failure")
 	}
 }
 

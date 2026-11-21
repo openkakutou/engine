@@ -26,7 +26,8 @@ func TestFromFiles_AHeaderWritingNoOptionalFieldKeepsControl(t *testing.T) {
 		t.Fatal(err)
 	}
 	rts[0] = rt
-	final, _ := runProj(t, state, progs, rts, 2)
+	// One tick: on the next one, crouching without down goes on to 12.
+	final, _ := runProj(t, state, progs, rts, 1)
 	c := final.Fighters[match.SideP1].Context
 	if c.StateNo != 10 || !c.Ctrl {
 		t.Errorf("state %d ctrl %v, want 10 with control kept", c.StateNo, c.Ctrl)
