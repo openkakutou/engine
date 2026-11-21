@@ -376,6 +376,14 @@ func (p *parser) parseIdentifierOrCall(name string) (node, error) {
 	if strings.EqualFold(name, "hitdefattr") && p.peekIsOp("=", "!=") {
 		return p.parseHitDefAttr()
 	}
+	if strings.EqualFold(name, "reversaldefattr") && p.peekIsOp("=", "!=") {
+		n, err := p.parseHitDefAttr()
+		if attrNode, ok := n.(hitDefAttrNode); ok {
+			attrNode.reversal = true
+			return attrNode, err
+		}
+		return n, err
+	}
 	lower := strings.ToLower(name)
 	if lower == "teammode" && p.peekIsOp("=", "!=") && p.pos+1 < len(p.toks) && p.toks[p.pos+1].kind == tokIdent {
 		not := p.next().text == "!="

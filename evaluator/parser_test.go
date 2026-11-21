@@ -165,3 +165,20 @@ func TestEvaluate_NameTriggerSkipsTokensBeforeItsEquality(t *testing.T) {
 		}
 	}
 }
+
+// ReversalDefAttr (char.go:1109-1112): the armed ReversalDef's attr, also
+// redirected (Akiha TL: "EnemyNear,reversaldefattr = SCA,AA,AT,AP").
+func TestEvaluate_ReversalDefAttr(t *testing.T) {
+	attr, err := ParseAttr("SCA, AA", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := Context{ReversalAttr: attr}
+	ctx.P2 = Opponent{Valid: true, ReversalAttr: attr}
+	for expr, want := range map[string]bool{"ReversalDefAttr = SCA, AA": true, "ReversalDefAttr = SCA, AT": false, "p2,reversaldefattr = SCA,AA,AT,AP": true} {
+		v, err := Evaluate(expr, ctx)
+		if err != nil || v.Bool() != want {
+			t.Errorf("%s = %v, %v; want %v", expr, v, err, want)
+		}
+	}
+}

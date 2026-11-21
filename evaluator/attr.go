@@ -107,7 +107,13 @@ func attrMatches(want, have int32) bool {
 // evalHitDefAttr is "HitDefAttr = attr" and "HitDefAttr != attr": true while the
 // fighter is in an attack move type and its HitDef's attr matches (char.go:5829,
 // compiler.go:3030-3057).
+//
+// ReversalDefAttr (Ikemen GO) tests the armed ReversalDef's attr the same
+// way, in any move type (char.go:1109-1112, 6330).
 func evalHitDefAttr(n hitDefAttrNode, ctx *Context) Value {
+	if n.reversal {
+		return boolValue(attrMatches(n.attr, ctx.ReversalAttr) != n.not)
+	}
 	matches := ctx.MoveType == 'A' && attrMatches(n.attr, ctx.HitDefAttr)
 	return boolValue(matches != n.not)
 }

@@ -53,6 +53,8 @@ type Opponent struct {
 	HelperID int
 	// InCustomState is its being in another player's states (InCustomState).
 	InCustomState bool
+	// ReversalAttr is its armed ReversalDef's attr (ReversalDefAttr).
+	ReversalAttr int32
 	// Vars, FVars and SysVars are what var(n), fvar(n) and sysvar(n) read
 	// through a redirection (root,var(5) in a helper's states).
 	Vars    [maxVars]int
@@ -77,6 +79,7 @@ func (o *Opponent) context() Context {
 		MoveContactTime:  o.MoveContactTime,
 		HitDefAttr:       o.HitDefAttr,
 		InOpponentStates: o.InCustomState,
+		ReversalAttr:     o.ReversalAttr,
 		Consts:           o.Consts,
 		ScreenLeft:       o.ScreenLeft,
 		ScreenRight:      o.ScreenRight,
@@ -126,10 +129,12 @@ type redirectNode struct {
 
 func (redirectNode) isNode() {}
 
-// hitDefAttrNode is "HitDefAttr = attr" or "HitDefAttr != attr".
+// hitDefAttrNode is "HitDefAttr = attr" or "HitDefAttr != attr"; reversal
+// makes it Ikemen GO's "ReversalDefAttr = attr".
 type hitDefAttrNode struct {
-	attr int32
-	not  bool
+	attr     int32
+	not      bool
+	reversal bool
 }
 
 func (hitDefAttrNode) isNode() {}

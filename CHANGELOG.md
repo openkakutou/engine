@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.62.0] - 2026-11-21
+
+### Added
+- Trigger `ReversalDefAttr = attr` (Ikemen GO), also redirected: the armed ReversalDef's attr (Akiha TL).
+
 ## [2.61.1] - 2026-11-21
 
 ### Fixed
