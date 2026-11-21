@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.61.1] - 2026-11-21
+
+### Fixed
+- character v0.23.1 (sff v0.10.0): `Copy Action` in `.air` files, and sprites with truncated PCX data load as in Ikemen GO.
+
 ## [2.61.0] - 2026-11-21
 
 ### Added
