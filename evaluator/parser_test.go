@@ -182,3 +182,16 @@ func TestEvaluate_ReversalDefAttr(t *testing.T) {
 		}
 	}
 }
+
+// bytecode.go:3430 and 3533: TicksPerSecond is the logic speed (60), and
+// GetHitVar(fall.time) the ticks spent falling.
+func TestEvaluate_TicksPerSecondAndFallTime(t *testing.T) {
+	ctx := Context{}
+	ctx.GetHit.FallTime = 7
+	for expr, want := range map[string]int{"TicksPerSecond": 60, "GetHitVar(fall.time)": 7} {
+		v, err := Evaluate(expr, ctx)
+		if err != nil || v.Int() != want {
+			t.Errorf("%s = %v, %v; want %d", expr, v, err, want)
+		}
+	}
+}

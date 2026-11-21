@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.72.0] - 2026-11-21
+
+### Added
+- Triggers `TicksPerSecond` (60) and `GetHitVar(fall.time)`.
+
+### Fixed
+- An attr is read as Ikemen GO reads a CNS attr: a word counts by its first two letters and a longer one ends the attr, an unknown word or a non-letter ends it with what was read, instead of failing the character (Ronald's "SCA,NASAHANPSPHPNTSTHT" is SCA, NA).
+
 ## [2.71.0] - 2026-11-21
 
 ### Added

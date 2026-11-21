@@ -56,6 +56,10 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 		return floatValue(edgeDist(ctx, true) - ctx.WidthEdge[0] - mugenBodyOffset(ctx)), true, nil // char.go:5766-5777
 	case "inguarddist":
 		return boolValue(inGuardDist(ctx)), true, nil
+	case "tickspersecond":
+		// Ikemen GO's game logic speed (sys.gameLogicSpeed), 60 at normal
+		// speed.
+		return intValue(60), true, nil
 	case "gametime":
 		// sys.gameTime (system.go:1892-1903): the match's ticks plus the
 		// time before it. shortcut: it is the tick count the caller gives

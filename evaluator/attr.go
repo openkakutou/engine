@@ -69,8 +69,12 @@ func attackClass(word string) (class int32, ok bool) {
 // holds state types, each later word an attack class. A HitDef's attr
 // (hitdef true) takes one state type, the last letter winning (compiler.go:
 // 741-759); the HitDefAttr trigger's (hitdef false) takes any of them. Letters
-// and words are case-insensitive. Anything else is an error, as it is for
-// Ikemen GO's strict compiler. It allocates only to report an error.
+// and words are case-insensitive. It reads them as Ikemen GO reads a CNS
+// attr (attrMask without strict, compiler.go:735-826): a non-letter ends the
+// state types, a word counts by its first two letters and a longer one ends
+// the attr, an unknown word ends it with what was read; a letter that is not
+// a state type is an error. It allocates only to report an error.
+// shortcut: a .zss attr is read as leniently, where Ikemen GO is strict.
 func ParseAttr(text string, hitdef bool) (int32, error) {
 	first, rest, _ := strings.Cut(text, ",")
 	var attr int32
@@ -84,6 +88,10 @@ func ParseAttr(text string, hitdef bool) (int32, error) {
 		case 'A', 'a':
 			bit = attrA
 		default:
+			// A non-letter ends the state types (attrMask, compiler.go:760).
+			if c < 128 && !isASCIILetter(c) {
+				return attr, nil
+			}
 			return 0, fmt.Errorf("evaluator: invalid attr %q: %q is not a state type (S, C or A)", text, c)
 		}
 		if hitdef {
@@ -95,13 +103,27 @@ func ParseAttr(text string, hitdef bool) (int32, error) {
 		var word string
 		word, rest, _ = strings.Cut(rest, ",")
 		word = strings.TrimSpace(word)
+		// A CNS attr reads two letters of a word, and stops after a longer
+		// one (attrMask, compiler.go:769-826): "NASAHANP" is NA.
+		long := len(word) > 2
+		if long {
+			word = strings.TrimSpace(word[:2])
+		}
 		class, ok := attackClass(word)
 		if !ok {
-			return 0, fmt.Errorf("evaluator: invalid attr %q: %q is not an attack class (NA, NT, NP, SA, ST, SP, HA, HT, HP, AA, AT, AP)", text, word)
+			return attr, nil // Ikemen GO warns and keeps what it read
 		}
 		attr |= class
+		if long {
+			break
+		}
 	}
 	return attr, nil
+}
+
+// isASCIILetter reports an A-Z or a-z rune.
+func isASCIILetter(c rune) bool {
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
 }
 
 // attrMatches is Ikemen GO's HitDef.testAttr: the two attrs share a state type

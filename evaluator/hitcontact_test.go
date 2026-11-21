@@ -102,7 +102,7 @@ func TestParseAttr_ReadsStateTypesAndAttackClasses(t *testing.T) {
 		{"s, na", true, attrS | attrNA, false},
 		{"SC, NA", true, attrC | attrNA, false}, // a HitDef holds one state type: the last wins (compiler.go:741-759)
 		{"X, NA", true, 0, true},
-		{"S, ZZ", true, 0, true},
+		{"S, ZZ", true, attrS, false}, // an unknown word ends the attr (attrMask, non-strict)
 	}
 	for _, tc := range cases {
 		got, err := ParseAttr(tc.text, tc.hitdef)
@@ -168,6 +168,21 @@ func TestParse_HitDefAttrWithABadAttribute_IsAnError(t *testing.T) {
 			if _, err = e.Eval(Context{}); err == nil {
 				t.Errorf("%q parsed and evaluated, want an error", expr)
 			}
+		}
+	}
+}
+
+// attrMask without strict (compiler.go:769-826): Ronald's
+// "SCA,NASAHANPSPHPNTSTHT" is SCA, NA; a non-letter ends the state types.
+func TestParseAttr_ReadsACNSAttrAsIkemenGO(t *testing.T) {
+	for text, want := range map[string]int32{
+		"SCA,NASAHANPSPHPNTSTHT": attrStateTypes | attrNA,
+		"S1, NA":                 attrS, // the non-letter ends the whole attr
+		"SC, NA, XX, SA":         attrS | attrC | attrNA,
+	} {
+		got, err := ParseAttr(text, false)
+		if err != nil || got != want {
+			t.Errorf("%q = %#x, %v; want %#x", text, got, err, want)
 		}
 	}
 }

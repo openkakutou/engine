@@ -492,6 +492,8 @@ func evalGetHitVar(n callNode, ctx *Context) (Value, error) {
 		return boolValue(g.FallRecover), nil
 	case "fall.recovertime":
 		return intValue(float64(g.FallRecoverTime)), nil
+	case "fall.time":
+		return intValue(float64(g.FallTime)), nil
 	case "fallcount":
 		return intValue(float64(g.FallCount)), nil
 	case "hitcount":
