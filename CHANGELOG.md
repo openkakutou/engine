@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.60.0] - 2026-11-21
+
+### Added
+- ScreenBound, as Ikemen GO runs it: `value` (false when not given) lets a fighter past the screen edges for the tick, `movecamera` (x, y; false when not given) tells whether the camera follows it; both are back on at the next unfrozen tick (`Context.ScreenBound`, `Context.MoveCamera`). E2E: kfm's Fast Kung Fu Palm stops the camera following the thrown kfm near a screen edge.
+
 ## [2.59.0] - 2026-11-21
 
 ### Added

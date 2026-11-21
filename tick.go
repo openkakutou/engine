@@ -341,7 +341,7 @@ func (p FighterProgram) NewRuntime(fighter match.FighterState) (FighterRuntime, 
 	if !ok {
 		return FighterRuntime{}, fmt.Errorf("engine: NewRuntime: state %d not found in loaded character", fighter.StateNo)
 	}
-	ctx := evaluator.Context{FighterState: fighter, Consts: p.Constants, Anims: p.animationTable()}
+	ctx := evaluator.Context{FighterState: fighter, Consts: p.Constants, Anims: p.animationTable(), ScreenBound: true, MoveCamera: [2]bool{true, true}}
 	ctx.IkemenChar = p.IkemenVersion[0] != 0 || p.IkemenVersion[1] != 0
 	ctx.Name, ctx.AuthorName = p.Name, p.Author
 	ctx.MugenVersion = [2]int{int(p.MugenVersion[0]), int(p.MugenVersion[1])}
@@ -988,11 +988,13 @@ func hittableEvents(events []hitdetect.HitEvent, ctx [2]*evaluator.Context) []hi
 	return kept
 }
 
-// screenBound keeps a fighter between the screen edges, Ikemen GO's
-// xScreenBound (char.go:10322-10336) with widthEdge 0, its default.
-// shortcut: the ScreenBound controller that lifts it is not read; upgrade
-// with that controller.
+// screenBound keeps a fighter between the screen edges unless a ScreenBound
+// controller lifted it this tick, Ikemen GO's xScreenBound
+// (char.go:10322-10336) with widthEdge 0, its default.
 func screenBound(ctx *evaluator.Context, screen [2]float64) {
+	if !ctx.ScreenBound {
+		return
+	}
 	ctx.Position.X = min(max(ctx.Position.X, screen[0]), screen[1])
 }
 
@@ -1075,6 +1077,7 @@ func tickFighter(progs fighterPrograms, runtime FighterRuntime, fighter match.Fi
 		ctx.PlayerPush = true
 		ctx.PushPriority = 0
 		ctx.PushAffectTeam = 1
+		ctx.ScreenBound, ctx.MoveCamera = true, [2]bool{true, true}
 	}
 	asserted := ctx.Asserted
 	ctx.Asserted = evaluator.AssertFlags{} // the states assert them again (char.go:12430-12434)

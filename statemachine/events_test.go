@@ -107,3 +107,20 @@ func TestAfterImage_IsReportedWithItsParameters(t *testing.T) {
 		t.Errorf("second event = %+v", ctx.Events[1])
 	}
 }
+
+// screenBound.Run: value and movecamera are false unless given, as MUGEN.
+func TestScreenBound_DefaultsToFalse(t *testing.T) {
+	ctx := evaluator.Context{ScreenBound: true, MoveCamera: [2]bool{true, true}}
+	if err := applyCtrl(t, &ctx, "ScreenBound", nil); err != nil {
+		t.Fatal(err)
+	}
+	if ctx.ScreenBound || ctx.MoveCamera != [2]bool{} {
+		t.Errorf("bare ScreenBound: bound %v camera %v, want all false", ctx.ScreenBound, ctx.MoveCamera)
+	}
+	if err := applyCtrl(t, &ctx, "ScreenBound", map[string]string{"value": "1", "movecamera": "0,1"}); err != nil {
+		t.Fatal(err)
+	}
+	if !ctx.ScreenBound || ctx.MoveCamera != [2]bool{false, true} {
+		t.Errorf("value 1, movecamera 0,1: bound %v camera %v", ctx.ScreenBound, ctx.MoveCamera)
+	}
+}

@@ -258,7 +258,13 @@ type Context struct {
 	// them to true, 0 and 1 before every unfrozen tick's states, and the
 	// PlayerPush controller changes them for that tick. PushAffectTeam is 1
 	// for enemies, -1 for the own team only, 0 for both.
-	PlayerPush     bool
+	PlayerPush bool
+	// ScreenBound keeps the fighter between the screen edges and MoveCamera
+	// makes the camera follow it (x, y): on at each unfrozen tick, a
+	// ScreenBound controller changes them for that tick (Ikemen GO
+	// CSF_screenbound, CSF_movecamera_x / _y).
+	ScreenBound    bool
+	MoveCamera     [2]bool
 	PushPriority   int
 	PushAffectTeam int
 	// Round is the number of the round being fought, read by RoundNo.

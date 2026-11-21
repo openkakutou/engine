@@ -705,3 +705,30 @@ func TestTick_KOOnTheSameTickTheTimerExpires_IsAKO(t *testing.T) {
 		t.Errorf("Round = %+v, want OutcomeKO won by SideP2", result.Round)
 	}
 }
+
+// char.go:10322-10336: a ScreenBound value 0 lets the fighter past the
+// screen edge for that tick; the next tick it is bound again.
+func TestTick_ScreenBoundZeroLetsTheFighterLeaveTheScreen(t *testing.T) {
+	states := map[int]cns.StateDef{0: {Number: 0, Type: cns.StateTypeStanding, Physics: cns.PhysicsNone, Controllers: []cns.Controller{
+		ctrlWith("ScreenBound", "Time < 2", map[string]string{"value": "0"}),
+		ctrlWith("VelSet", "1", map[string]string{"x": "-10"}),
+	}}}
+	sp, progs, rts := projMatch(t, FighterProgram{States: states}, 900)
+	state := *sp
+	cfg := TickConfig{Bounds: testBounds(), Gravity: 0, Screen: [2]float64{-100, 100}}
+	state.Fighters[0].Position.X = -95
+	rts[0].Context.Position.X = -95
+	x := []float64{}
+	for i := range 3 {
+		cfg.Tick = i + 1
+		res, err := Tick(state, progs, rts, [2]input.TickInput{}, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		state, rts = res.State, res.Fighters
+		x = append(x, state.Fighters[0].Position.X)
+	}
+	if x[0] >= -100 || x[1] >= -100 || x[2] != -100 {
+		t.Errorf("x over 3 ticks = %v, want past -100 twice, then back at the edge", x)
+	}
+}

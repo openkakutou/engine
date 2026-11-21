@@ -22,6 +22,7 @@ func init() {
 	RegisterController("SprPriority", applySprPriority)
 	RegisterController("Width", applyWidth)
 	RegisterController("FallEnvShake", applyFallEnvShake)
+	RegisterController("ScreenBound", applyScreenBound)
 }
 
 // controllerEvent records ctrl's parameters: each comma-separated part is
@@ -91,5 +92,29 @@ func applyFallEnvShake(_ cns.Controller, ctx evaluator.Context) (evaluator.Conte
 		{Name: "phase", Values: []float64{s.Phase}},
 	}})
 	ctx.GetHit.FallEnvShake.Time = 0
+	return ctx, nil
+}
+
+// applyScreenBound is screenBound.Run (bytecode.go): value and movecamera
+// (x, y), each false when not given, as MUGEN does, hold for this tick.
+func applyScreenBound(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
+	v, _, err := evalOptional(ctrl, "value", &ctx)
+	if err != nil {
+		return ctx, err
+	}
+	ctx.ScreenBound = v != 0
+	ctx.MoveCamera = [2]bool{}
+	if raw, ok := ctrl.Parameters["movecamera"]; ok {
+		for i, part := range evaluator.SplitList(raw) {
+			if i > 1 || part == "" {
+				break
+			}
+			m, err := evaluator.EvaluateMut(part, &ctx)
+			if err != nil {
+				return ctx, err
+			}
+			ctx.MoveCamera[i] = m.Bool()
+		}
+	}
 	return ctx, nil
 }
