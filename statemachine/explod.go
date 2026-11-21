@@ -18,7 +18,7 @@ func init() {
 // defaults to 0, F names a common fightfx animation; postype p1, bindtime 1,
 // removetime -2 (until the animation ends), facing and vfacing 1. A MUGEN
 // 1.1 character's postype defaults to none.
-// shortcut: space, random, trans, the interpolation, palfx,
+// shortcut: space, random, the interpolation, palfx,
 // afterimage, angle and the Ikemen GO extensions are not read.
 func applyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
 	e := evaluator.ExplodSpawn{PosType: "p1", Facing: 1, VFacing: 1, BindTime: 1, RemoveTime: -2, Scale: [2]float64{1, 1}}
@@ -33,9 +33,45 @@ func applyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 	return ctx, nil
 }
 
+// transAlpha is each trans type's default source and destination alpha
+// (paramTrans, compiler.go:6874-6904).
+var transAlpha = map[string][2]int{
+	"default": {255, 0}, "none": {255, 0}, "add": {255, 255}, "add1": {255, 128},
+	"addalpha": {255, 0}, "sub": {255, 255}, "subadd": {255, 255},
+}
+
+// readTrans reads trans and alpha (paramTrans): the type, its default alpha
+// unless alpha gives one; a blank or unknown type, or alpha without trans,
+// is ignored as Ikemen GO does in a CNS file.
+func readTrans(ctrl cns.Controller, ctx *evaluator.Context, e *evaluator.ExplodSpawn) error {
+	raw, ok := ctrl.Parameters["trans"]
+	trans := strings.ToLower(strings.TrimSpace(raw))
+	alpha, known := transAlpha[trans]
+	if !ok || !known {
+		return nil
+	}
+	if a, ok := ctrl.Parameters["alpha"]; ok {
+		for i, part := range evaluator.SplitList(a) {
+			if i > 1 || part == "" {
+				break
+			}
+			v, err := evaluator.EvaluateMut(part, ctx)
+			if err != nil {
+				return err
+			}
+			alpha[i] = min(max(v.Int(), 0), 255)
+		}
+	}
+	e.Trans, e.Alpha = trans, alpha
+	return nil
+}
+
 // readExplod reads into e the Explod parameters ctrl writes, leaving the
 // others as they are.
 func readExplod(ctrl cns.Controller, ctx *evaluator.Context, e *evaluator.ExplodSpawn) error {
+	if err := readTrans(ctrl, ctx, e); err != nil {
+		return err
+	}
 	if raw, ok := ctrl.Parameters["anim"]; ok {
 		raw = strings.TrimSpace(raw)
 		if len(raw) > 1 && (raw[0] == 'F' || raw[0] == 'f') {
@@ -184,6 +220,7 @@ func applyModifyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Co
 	m.SetBindTime, m.SetRemoveTime, m.SetSprPriority = has("bindtime"), has("removetime"), has("sprpriority")
 	m.SetOnTop, m.SetRemoveOnGetHit, m.SetAnim = has("ontop"), has("removeongethit"), has("anim")
 	m.SetScale = has("scale")
+	m.SetTrans = m.Trans != ""
 	m.SetMovesInPause = has("supermove") || has("supermovetime") || has("pausemovetime")
 	ctx.ModifiedExplods = append(ctx.ModifiedExplods, m)
 	return ctx, nil

@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.66.0] - 2026-11-21
+
+### Added
+- An explod's `trans` and `alpha` (Explod and ModifyExplod), read as Ikemen GO's paramTrans does: the type, lower-cased, with its default alpha unless `alpha` gives one; a blank or unknown type is ignored (`Explod.Trans`, `Explod.Alpha`).
+
 ## [2.65.0] - 2026-11-21
 
 ### Added

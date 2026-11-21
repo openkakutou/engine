@@ -13,7 +13,11 @@ type ExplodSpawn struct {
 	PosType         string
 	Pos, Vel, Accel [2]float64
 	// Scale is the drawing scale, 1,1 by default.
-	Scale           [2]float64
+	Scale [2]float64
+	// Trans is the trans type, lower-cased ("" for the animation's own
+	// blend); Alpha its source and destination weights (0-255).
+	Trans           string
+	Alpha           [2]int
 	Facing, VFacing int
 	BindTime        int
 	RemoveTime      int
@@ -38,6 +42,7 @@ type ExplodModification struct {
 	SetPosType, SetFacing, SetVFacing, SetPos, SetVel, SetAccel bool
 	SetBindTime, SetRemoveTime, SetSprPriority, SetOnTop        bool
 	SetRemoveOnGetHit, SetAnim, SetMovesInPause, SetScale       bool
+	SetTrans                                                    bool
 	// Relative makes bindtime and removetime count from the explod's age
 	// (an Ikemen GO character).
 	Relative bool

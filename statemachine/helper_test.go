@@ -168,3 +168,28 @@ func TestModifyExplod_DefaultsToEveryExplod(t *testing.T) {
 		t.Errorf("modification = %+v", m)
 	}
 }
+
+// paramTrans (compiler.go:6844-6904): trans picks a type and its default
+// alpha, alpha overrides it; an unknown or blank type is ignored.
+func TestExplod_ReadsTransAndAlpha(t *testing.T) {
+	cases := []struct {
+		params map[string]string
+		trans  string
+		alpha  [2]int
+	}{
+		{map[string]string{"trans": "Add"}, "add", [2]int{255, 255}},
+		{map[string]string{"trans": "add1"}, "add1", [2]int{255, 128}},
+		{map[string]string{"trans": "addalpha", "alpha": "128, 300"}, "addalpha", [2]int{128, 255}},
+		{map[string]string{"trans": "", "alpha": "10,10"}, "", [2]int{}},
+		{map[string]string{"alpha": "10,10"}, "", [2]int{}},
+	}
+	for _, c := range cases {
+		ctx := evaluator.Context{}
+		if _, err := ApplyController(cns.Controller{Type: "Explod", Parameters: c.params}, &ctx, nil); err != nil {
+			t.Fatal(err)
+		}
+		if e := ctx.NewExplods[0]; e.Trans != c.trans || e.Alpha != c.alpha {
+			t.Errorf("%v: trans %q alpha %v, want %q %v", c.params, e.Trans, e.Alpha, c.trans, c.alpha)
+		}
+	}
+}
