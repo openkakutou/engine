@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.71.0] - 2026-11-21
+
+### Added
+- AngleSet, AngleAdd, AngleMul and AngleDraw: the fighter's drawing angle, and for the tick it runs AngleDraw draws it rotated and scaled (`Context.Angle`, `AngleDraw`, `AngleDrawScale`), as Ikemen GO. E2E: the corpus Ryu (SVC)'s Raikou effect is drawn at half size.
+
 ## [2.70.0] - 2026-11-21
 
 ### Added

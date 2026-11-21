@@ -341,7 +341,7 @@ func (p FighterProgram) NewRuntime(fighter match.FighterState) (FighterRuntime, 
 	if !ok {
 		return FighterRuntime{}, fmt.Errorf("engine: NewRuntime: state %d not found in loaded character", fighter.StateNo)
 	}
-	ctx := evaluator.Context{FighterState: fighter, Consts: p.Constants, Anims: p.animationTable(), ScreenBound: true, MoveCamera: [2]bool{true, true}}
+	ctx := evaluator.Context{FighterState: fighter, Consts: p.Constants, Anims: p.animationTable(), ScreenBound: true, MoveCamera: [2]bool{true, true}, AngleDrawScale: [2]float64{1, 1}}
 	ctx.IkemenChar = p.IkemenVersion[0] != 0 || p.IkemenVersion[1] != 0
 	ctx.Name, ctx.AuthorName = p.Name, p.Author
 	ctx.MugenVersion = [2]int{int(p.MugenVersion[0]), int(p.MugenVersion[1])}
@@ -1083,6 +1083,7 @@ func tickFighter(progs fighterPrograms, runtime FighterRuntime, fighter match.Fi
 		ctx.PushAffectTeam = 1
 		ctx.ScreenBound, ctx.MoveCamera = true, [2]bool{true, true}
 		ctx.Trans, ctx.TransAlpha = "", [2]int{}
+		ctx.AngleDraw, ctx.AngleDrawScale = false, [2]float64{1, 1}
 	}
 	asserted := ctx.Asserted
 	ctx.Asserted = evaluator.AssertFlags{} // the states assert them again (char.go:12430-12434)

@@ -274,6 +274,12 @@ type Context struct {
 	// (Ikemen GO attackMul[0], 1 otherwise).
 	// Bind is the helper's BindToParent or BindToRoot.
 	Bind HelperBind
+	// Angle is the fighter's drawing angle in degrees (AngleSet, AngleAdd,
+	// AngleMul); AngleDraw draws it rotated this tick, by AngleDrawScale
+	// (Ikemen GO rot.angle, CSF_angledraw, angleDrawScale).
+	Angle          float64
+	AngleDraw      bool
+	AngleDrawScale [2]float64
 	// ParentVarOps are the ParentVarSet and ParentVarAdd writes a helper
 	// made this tick, for the engine to apply to its parent.
 	ParentVarOps   []VarOp

@@ -182,7 +182,7 @@ func TestE2E_RyusConfigHelperSetsItsPlayersVariables(t *testing.T) {
 
 // Ryu (SVC)'s state 1050 spawns its "Raikou Effect" helper 1055, held with
 // BindToParent at -25,-60 (Ryu-EX.cns) while Ryu stays in 1050: 25 behind
-// him, 60 up.
+// him, 60 up, drawn with its AngleDraw.
 func TestE2E_RyusRaikouEffectIsBoundToHim(t *testing.T) {
 	path := corpusChar(t, "Street Fighter/Ryu (SVC)/Ryu_SS.def")
 	prog, _, err := LoadFighterProgram(loadChar(t, path), path, referenceDir)
@@ -207,6 +207,9 @@ func TestE2E_RyusRaikouEffectIsBoundToHim(t *testing.T) {
 			want := match.Position{X: ryu.Context.Position.X - 25*facingSign(ryu.Context.Facing), Y: ryu.Context.Position.Y + 60}
 			if h.Context.Position != want {
 				t.Fatalf("tick %d: helper 1055 at %v, want %v", i, h.Context.Position, want)
+			}
+			if !h.Context.AngleDraw {
+				t.Fatalf("tick %d: helper 1055 not drawn with its AngleDraw", i)
 			}
 		}
 	}
