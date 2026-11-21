@@ -205,7 +205,7 @@ func TestParse_RedirectionToAnotherPlayer_IsNotSupportedYet(t *testing.T) {
 
 func TestEval_Redirection_OfATriggerTheSnapshotLacks_IsAnUnknownTriggerNotAWrongValue(t *testing.T) {
 	ctx := duel(t, 0, match.FacingRight, 10, match.FacingLeft)
-	for _, expr := range []string{"p2,animelemtime(1)", "p2,noSuchTrigger", "p2,command = \"a\"", "p2,random"} {
+	for _, expr := range []string{"p2,map(\"x\")", "p2,noSuchTrigger", "p2,command = \"a\"", "p2,random"} {
 		e, err := Parse(expr)
 		if err != nil {
 			t.Fatalf("Parse(%q): %v", expr, err)
@@ -333,6 +333,8 @@ func TestEval_HelperRedirections_ReadParentRootAndHelpers(t *testing.T) {
 	ctx.Root.StateNo = 1000
 	ctx.Root.Vars[5] = 9
 	ctx.Root.FVars[2] = 1.5
+	ctx.Root.HitPauseTime = 3
+	ctx.Round = 2
 	h1 := Opponent{Valid: true, IsHelper: true, HelperID: 3}
 	h1.StateNo = 1100
 	h2 := Opponent{Valid: true, IsHelper: true, HelperID: 7}
@@ -341,7 +343,7 @@ func TestEval_HelperRedirections_ReadParentRootAndHelpers(t *testing.T) {
 	ctx.P2 = Opponent{Valid: true, Helpers: []Opponent{h1}}
 	for expr, want := range map[string]float64{
 		"parent,stateno": 1100, "root,stateno": 1000, "root,var(5)": 9, "root,fvar(2)": 1.5,
-		"parent,ishelper": 1, "root,ishelper": 0,
+		"parent,ishelper": 1, "root,ishelper": 0, "root,hitpausetime": 3, "root,roundno": 2,
 		"helper(7),stateno": 1200, "helper,stateno": 1100, "helper(9),stateno": 0,
 		"ishelper": 1, "ishelper(7)": 1, "ishelper(3)": 0, "ishelper(-1)": 1,
 		"numhelper": 2, "numhelper(3)": 1, "numhelper(0)": 2, "numhelper(5)": 0,
@@ -385,5 +387,27 @@ func TestEval_NameTriggers(t *testing.T) {
 		if got := evalFloat(t, expr, alone); got != 0 {
 			t.Errorf("without an opponent %s = %v, want 0", expr, got)
 		}
+	}
+}
+
+// kfm.cns state 1300: "Time = command = \"holdfwd\"" is Time compared to
+// the command test (compiler.go:2197-2238).
+func TestEval_CommandBindsItsOwnComparison(t *testing.T) {
+	ctx := Context{ActiveCommands: map[string]bool{"holdfwd": true}}
+	ctx.Time = 1
+	if got := evalFloat(t, `Time = command = "holdfwd"`, ctx); got != 1 {
+		t.Errorf("= %v, want 1 (Time 1 = holding forward)", got)
+	}
+	ctx.Time = 0
+	if got := evalFloat(t, `Time = command != "holdfwd"`, ctx); got != 1 {
+		t.Errorf("= %v, want 1 (Time 0 = not not-holding)", got)
+	}
+}
+
+func TestEval_StateTimeIsTime(t *testing.T) {
+	ctx := Context{}
+	ctx.Time = 7
+	if got := evalFloat(t, "statetime >= 7", ctx); got != 1 {
+		t.Errorf("statetime >= 7 = %v, want 1", got)
 	}
 }

@@ -323,7 +323,8 @@ func evalNode(n node, ctx *Context) (Value, error) {
 
 func evalIdentifier(name string, ctx *Context) (Value, error) {
 	switch name {
-	case "time":
+	case "time", "statetime":
+		// StateTime is Time (compiler.go:4261).
 		return intValue(float64(ctx.Time)), nil
 	case "stateno":
 		return intValue(float64(ctx.StateNo)), nil
@@ -478,6 +479,30 @@ func evalGetHitVar(n callNode, ctx *Context) (Value, error) {
 		return intValue(float64(g.FallRecoverTime)), nil
 	case "fallcount":
 		return intValue(float64(g.FallCount)), nil
+	case "xvel":
+		// bytecode.go:3491-3492: ghv.xvel, the knock-back away from the
+		// attacker as the engine keeps it (char.go:11719-11778).
+		return floatValue(g.Xvel), nil
+	case "fall.xvel":
+		return floatValue(g.FallXvel), nil
+	case "fall.damage":
+		return intValue(float64(g.FallDamage)), nil
+	case "fall.kill":
+		return boolValue(g.FallKill), nil
+	case "fall.envshake.time":
+		return intValue(float64(g.FallEnvShake.Time)), nil
+	case "fall.envshake.freq":
+		return floatValue(g.FallEnvShake.Freq), nil
+	case "fall.envshake.ampl":
+		return intValue(float64(g.FallEnvShake.Ampl)), nil
+	case "fall.envshake.phase":
+		return floatValue(g.FallEnvShake.Phase), nil
+	case "down.recovertime":
+		return intValue(float64(g.DownRecoverTime)), nil
+	case "hitid", "chainid":
+		return intValue(float64(g.HitID)), nil
+	case "guarded":
+		return boolValue(g.Guarded), nil
 	case "isbound":
 		// bytecode.go:3511. shortcut: nothing binds a fighter yet (BindToTarget,
 		// backlog item 029 area), so it is never bound.

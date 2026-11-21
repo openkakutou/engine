@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.40.0] - 2026-11-21
+
+### Added
+- `StateTime`; `GetHitVar` of `xvel`, `fall.xvel`, `fall.damage`, `fall.kill`, `fall.envshake.*`, `down.recovertime`, `hitid`, `chainid` and `guarded`; redirections now also read `HitPauseTime`, `AnimTime`, `AnimElemTime(n)`, `AnimExist(n)`, `PalNo`, `RoundNo`, `RoundState` and `GameTime`.
+
+### Fixed
+- `Command = "name"` binds its own comparison as in Ikemen GO, so kfm's `Time = command = "holdfwd"` (state 1300) no longer stops the match.
+- A random match of a real corpus character (Ryu, SVC) against kfm now runs without an engine error (`TestE2E_RyuSurvivesARandomMatch`).
+
 ## [2.39.0] - 2026-11-21
 
 ### Added

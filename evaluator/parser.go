@@ -316,6 +316,14 @@ func (p *parser) parseIdentifierOrCall(name string) (node, error) {
 	if strings.EqualFold(name, "hitdefattr") && p.peekIsOp("=", "!=") {
 		return p.parseHitDefAttr()
 	}
+	// Command takes its "= \"name\"" at once (Ikemen GO eqne,
+	// compiler.go:2197-2238), so "Time = command = \"x\"" (kfm.cns state
+	// 1300) is Time = (command = "x").
+	if strings.EqualFold(name, "command") && p.peekIsOp("=", "!=") && p.pos+1 < len(p.toks) && p.toks[p.pos+1].kind == tokString {
+		op := p.next().text
+		text := p.next().text
+		return binaryNode{op: op, left: identifierNode{name: "command"}, right: stringNode{value: text}}, nil
+	}
 	if _, isRedirect := redirectKinds[strings.ToLower(name)]; isRedirect {
 		return p.parseRedirect(strings.ToLower(name))
 	}

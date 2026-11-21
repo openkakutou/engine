@@ -2,6 +2,7 @@ package evaluator
 
 import (
 	"fmt"
+	"github.com/openkakutou/character/air"
 	"math"
 	"strings"
 
@@ -40,6 +41,10 @@ type Opponent struct {
 	// Name and AuthorName are its character's, for P2Name and the
 	// redirected name triggers.
 	Name, AuthorName string
+	// HitPauseTime, AnimElapsed, Anims and PalNo are what HitPauseTime,
+	// AnimTime, AnimElemTime(n), AnimExist(n) and PalNo read.
+	HitPauseTime, AnimElapsed, PalNo int
+	Anims                            map[int]air.Animation
 	// Helpers are its player's helpers, for a redirected NumHelper.
 	Helpers []Opponent
 	// IsHelper and HelperID tell a helper (parent, root and helper(id)
@@ -81,6 +86,10 @@ func (o *Opponent) context() Context {
 		IsHelper:        o.IsHelper,
 		HelperID:        o.HelperID,
 		Helpers:         o.Helpers,
+		HitPauseTime:    o.HitPauseTime,
+		AnimElapsed:     o.AnimElapsed,
+		Anims:           o.Anims,
+		PalNo:           o.PalNo,
 		Vars:            o.Vars,
 		FVars:           o.FVars,
 		SysVars:         o.SysVars,
@@ -126,11 +135,13 @@ func (hitDefAttrNode) isNode() {}
 // redirectableIdentifiers are the argument-free triggers a redirection can
 // read from an Opponent.
 var redirectableIdentifiers = map[string]bool{
-	"time": true, "stateno": true, "anim": true, "ctrl": true, "life": true,
+	"time": true, "statetime": true, "stateno": true, "anim": true, "ctrl": true, "life": true,
 	"power": true, "alive": true, "facing": true, "prevstateno": true,
 	"hitshakeover": true, "hitover": true, "hitfall": true, "canrecover": true,
 	"movecontact": true, "movehit": true, "moveguarded": true, "movereversed": true,
 	"numproj": true, "id": true, "ishelper": true, "numhelper": true,
+	"hitpausetime": true, "animtime": true, "palno": true,
+	"roundno": true, "roundstate": true, "gametime": true,
 	"backedgedist": true, "backedgebodydist": true, "frontedgedist": true, "frontedgebodydist": true,
 }
 
@@ -145,7 +156,8 @@ func redirectable(inner node) (name string, ok bool) {
 		return n.name, n.name == "pos" || n.name == "vel"
 	case callNode:
 		switch n.name {
-		case "gethitvar", "const", "var", "fvar", "sysvar", "sysfvar", "numhelper", "ishelper":
+		case "gethitvar", "const", "var", "fvar", "sysvar", "sysfvar", "numhelper", "ishelper",
+			"animelemtime", "animelemno", "animexist", "selfanimexist":
 			return n.name, true
 		}
 		return n.name, false
@@ -170,6 +182,8 @@ func evalRedirect(n redirectNode, ctx *Context) (Value, error) {
 		return intValue(0), err
 	}
 	redirected := target.context()
+	// The match's own state reads the same from every fighter.
+	redirected.Round, redirected.GameTime = ctx.Round, ctx.GameTime
 	return evalNode(n.inner, &redirected)
 }
 
