@@ -119,3 +119,20 @@ func TestClock_InputWaitFromOverWaitTimeToThePoses(t *testing.T) {
 		t.Error("inputs still wait after the poses")
 	}
 }
+
+func TestClock_IntroCountsDownToTheFightThenBelowZero(t *testing.T) {
+	c := NewClock(Timings{StartWaitTime: 2, CtrlTime: 3, OverWaitTime: 5, OverWinTime: 5, OverTime: 5})
+	if c.Intro() != 6 {
+		t.Fatalf("start intro = %d, want start.waittime+ctrl.time+1 = 6", c.Intro())
+	}
+	for range 6 {
+		c.Step(false, false, true)
+	}
+	if c.Intro() != 0 {
+		t.Fatalf("fight intro = %d, want 0", c.Intro())
+	}
+	c.Step(false, true, true)
+	if c.Intro() != -1 {
+		t.Errorf("decided intro = %d, want -1", c.Intro())
+	}
+}

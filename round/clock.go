@@ -43,6 +43,11 @@ func (c *Clock) State() int {
 	return 3
 }
 
+// Intro is Ikemen GO's sys.intro: the ticks left before the fight starts,
+// 0 during it, then the ticks since the round was decided, negated. The
+// lifebar's round and fight calls start once it reaches ctrl.time.
+func (c *Clock) Intro() int { return c.intro }
+
 // InputWait reports the players' inputs ignored (Ikemen GO inputWait,
 // char.go:9526-9540): from over.waittime after the decision until the poses.
 // shortcut: the time-over case and the winners' input during the poses are

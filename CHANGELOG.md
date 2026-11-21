@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.53.0] - 2026-11-21
+
+### Added
+- `round.Clock.Intro`, Ikemen GO's `sys.intro`, for a lifebar's round, fight and KO calls.
+
 ## [2.52.0] - 2026-11-21
 
 ### Added
