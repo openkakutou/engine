@@ -85,6 +85,10 @@ sound event, `common` unless prefixed `S`.
 array: `id`, `anim` (one of the owner's animations) and `animTime` (ticks
 into it), `x`, `y` (world position, Y up) and `facing`.
 
+A fighter's `animations` entry carries `fromOpponent` when it shows its
+opponent's animation (a thrown fighter in the thrower's state, after
+ChangeAnim2): draw it with the opponent's animations and sprites.
+
 `helpers` is each player's helpers after the tick, always an array: `id`
 (the helper id), `stateNo`, `anim` (one of the player's animations) and
 `animTime`, `x`, `y` (world position, Y up) and `facing`; draw each like a

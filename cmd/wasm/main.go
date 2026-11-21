@@ -161,6 +161,10 @@ type newMatchRequest struct {
 type FighterAnimState struct {
 	AnimNo   int `json:"animNo"`
 	AnimTime int `json:"animTime"`
+	// FromOpponent reports the animation is the opponent's (ChangeAnim2 in
+	// a custom state, a thrown fighter): draw it with the opponent's
+	// animations and sprites. Additive.
+	FromOpponent bool `json:"fromOpponent"`
 }
 
 // animState builds sess's current per-side FighterAnimState, indexed by
@@ -169,8 +173,10 @@ type FighterAnimState struct {
 // responses populate this field identically.
 func animState(sess *session) [2]FighterAnimState {
 	var out [2]FighterAnimState
-	out[match.SideP1] = FighterAnimState{AnimNo: sess.runtimes[match.SideP1].Context.Anim, AnimTime: sess.runtimes[match.SideP1].Context.AnimElapsed}
-	out[match.SideP2] = FighterAnimState{AnimNo: sess.runtimes[match.SideP2].Context.Anim, AnimTime: sess.runtimes[match.SideP2].Context.AnimElapsed}
+	for i := range out {
+		c := &sess.runtimes[i].Context
+		out[i] = FighterAnimState{AnimNo: c.Anim, AnimTime: c.AnimElapsed, FromOpponent: c.AnimFromOpponent}
+	}
 	return out
 }
 

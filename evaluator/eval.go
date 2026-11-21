@@ -519,9 +519,8 @@ func evalGetHitVar(n callNode, ctx *Context) (Value, error) {
 	case "guarded":
 		return boolValue(g.Guarded), nil
 	case "isbound":
-		// bytecode.go:3511. shortcut: nothing binds a fighter yet (BindToTarget,
-		// backlog item 029 area), so it is never bound.
-		return boolValue(false), nil
+		// bytecode.go:3511: bound by the opponent's TargetBind.
+		return boolValue(g.BindTime > 0), nil
 	default:
 		return Value{}, &unknownGetHitVarError{name: id.name}
 	}

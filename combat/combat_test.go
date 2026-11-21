@@ -298,7 +298,7 @@ func TestParseHitDef_ReadsTheRealKfmHitDefValues(t *testing.T) {
 		"ground.type":      "High",
 		"air.type":         "High",
 	})
-	want := HitDefParams{HitFlag: HitHigh | HitLow | HitAir | HitFall, PauseTime: [2]int{8, 8}, GroundHitTime: 11, GroundSlideTime: 5, AirHitTime: 15, AnimType: 0, GroundType: 1, AirType: 1,
+	want := HitDefParams{HitFlag: HitHigh | HitLow | HitAir | HitFall, P1StateNo: -1, P2StateNo: -1, PauseTime: [2]int{8, 8}, GroundHitTime: 11, GroundSlideTime: 5, AirHitTime: 15, AnimType: 0, GroundType: 1, AirType: 1,
 		FallAnimType: 3, YAccel: 0.35, FallYVelocity: -4.5, FallEnvShakeFreq: 60, FallEnvShakeAmpl: -4, FallKill: true, DownRecoverTime: -1, FallRecover: true, FallRecoverTime: 4, GuardHitTime: -1, GuardSlideTime: -1, GuardCtrlTime: -1, AirGuardCtrlTime: -1, GuardKill: true}
 	want.GuardPauseTime = want.PauseTime
 	if got != want {
@@ -308,7 +308,7 @@ func TestParseHitDef_ReadsTheRealKfmHitDefValues(t *testing.T) {
 
 func TestParseHitDef_FallsBackToTheDocumentedDefaults_WhenParametersAreMissing(t *testing.T) {
 	got := ParseHitDef(nil)
-	want := HitDefParams{HitFlag: HitHigh | HitLow | HitAir | HitFall, PauseTime: [2]int{0, 0}, GroundHitTime: 0, GroundSlideTime: 0, AirHitTime: 20, AnimType: 0, GroundType: 1, AirType: 1,
+	want := HitDefParams{HitFlag: HitHigh | HitLow | HitAir | HitFall, P1StateNo: -1, P2StateNo: -1, PauseTime: [2]int{0, 0}, GroundHitTime: 0, GroundSlideTime: 0, AirHitTime: 20, AnimType: 0, GroundType: 1, AirType: 1,
 		FallAnimType: 3, YAccel: 0.35, FallYVelocity: -4.5, FallEnvShakeFreq: 60, FallEnvShakeAmpl: -4, FallKill: true, DownRecoverTime: -1, FallRecover: true, FallRecoverTime: 4, GuardHitTime: -1, GuardSlideTime: -1, GuardCtrlTime: -1, AirGuardCtrlTime: -1, GuardKill: true}
 	want.GuardPauseTime = want.PauseTime
 	if got != want {
@@ -351,7 +351,7 @@ func TestParseHitDef_ExpressionValuesFallBackToTheirDefault(t *testing.T) {
 	})
 	// The literal second pausetime value survives; each non-literal one is
 	// replaced by its own default, independently.
-	want := HitDefParams{HitFlag: HitHigh | HitLow | HitAir | HitFall, PauseTime: [2]int{0, 3}, GroundHitTime: 0, AirHitTime: 20, AnimType: 0, GroundType: 1, AirType: 1,
+	want := HitDefParams{HitFlag: HitHigh | HitLow | HitAir | HitFall, P1StateNo: -1, P2StateNo: -1, PauseTime: [2]int{0, 3}, GroundHitTime: 0, AirHitTime: 20, AnimType: 0, GroundType: 1, AirType: 1,
 		FallAnimType: 3, YAccel: 0.35, FallYVelocity: -4.5, FallEnvShakeFreq: 60, FallEnvShakeAmpl: -4, FallKill: true, DownRecoverTime: -1, FallRecover: true, FallRecoverTime: 4, GuardHitTime: -1, GuardSlideTime: -1, GuardCtrlTime: -1, AirGuardCtrlTime: -1, GuardKill: true}
 	want.GuardPauseTime = want.PauseTime
 	if got != want {

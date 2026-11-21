@@ -59,7 +59,7 @@ func tickHelpers(rt *FighterRuntime, prog FighterProgram, opponent evaluator.Opp
 		if h.Context.KeyCtrl[0] {
 			helperIn = in
 		}
-		res, err := tickFighter(prog, h.FighterRuntime, h.Context.FighterState, opponent, helperIn, cfg.Tick, cfg.Bounds, screen, cfg.Gravity, round, *seed)
+		res, err := tickFighter(fighterPrograms{prog, prog}, h.FighterRuntime, h.Context.FighterState, opponent, helperIn, cfg.Tick, cfg.Bounds, screen, cfg.Gravity, round, *seed)
 		if err != nil {
 			return out, fmt.Errorf("helper %d: %w", h.Context.HelperID, err)
 		}

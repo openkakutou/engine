@@ -447,6 +447,11 @@ func ApplyController(ctrl cns.Controller, ctx *evaluator.Context, exists func(in
 }
 
 func applyChangeState(ctrl cns.Controller, ctx *evaluator.Context, exists func(int) bool) error {
+	// SelfState goes back to the fighter's own states and animations from a
+	// custom state (bytecode.go selfState).
+	if strings.EqualFold(ctrl.Type, "SelfState") {
+		ctx.InOpponentStates, ctx.AnimFromOpponent = false, false
+	}
 	raw, ok := ctrl.Parameters["value"]
 	if !ok {
 		return fmt.Errorf(`ChangeState is missing its required "value" parameter`)

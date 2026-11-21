@@ -222,6 +222,7 @@ func applyChangeAnim(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Cont
 		anim = 0
 	}
 	ctx.Anim = anim
+	ctx.AnimFromOpponent = false // its own animation (ChangeAnim2 sets it back)
 	ctx.AnimElapsed = 0
 	ctx.AnimElem, ctx.AnimElemTime = 0, 0
 	if hasElem || hasElemTime {

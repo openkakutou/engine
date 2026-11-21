@@ -56,7 +56,7 @@ func TestTick_ChangeStateByTheCurrentState_UsesTheNewAnimationsFirstFrameThisTic
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := tickFighter(prog, rt, rt.Context.FighterState, evaluator.Opponent{}, input.TickInput{}, 1, testBounds(), [2]float64{}, 0, 1, 0)
+	out, err := tickFighter(fighterPrograms{prog, prog}, rt, rt.Context.FighterState, evaluator.Opponent{}, input.TickInput{}, 1, testBounds(), [2]float64{}, 0, 1, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestTick_ChangeStateIntoAStateWithAHitDef_ReportsItsHitDefThisTick(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	out, err := tickFighter(prog, rt, rt.Context.FighterState, evaluator.Opponent{}, input.TickInput{}, 1, testBounds(), [2]float64{}, 0, 1, 0)
+	out, err := tickFighter(fighterPrograms{prog, prog}, rt, rt.Context.FighterState, evaluator.Opponent{}, input.TickInput{}, 1, testBounds(), [2]float64{}, 0, 1, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

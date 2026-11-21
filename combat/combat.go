@@ -302,6 +302,13 @@ type HitDefParams struct {
 	GuardKill bool
 	// HitID is the HitDef's id, the one NumTarget(id) filters on.
 	HitID int
+	// P1StateNo and P2StateNo are the states the attacker and the defender
+	// enter on a hit, the defender in the attacker's states; -1 for none
+	// (char.go:809-810). P1Facing and P2Facing turn them: -1 turns the
+	// attacker, 1 faces the defender to the attacker and -1 away; 0 leaves
+	// them.
+	P1StateNo, P2StateNo int
+	P1Facing, P2Facing   int
 }
 
 // ParseHitDef reads a HitDef controller's raw, lower-cased parameter map
@@ -327,6 +334,10 @@ func ParseHitDef(params map[string]string) HitDefParams {
 		FallRecover:       parseIntOr(params["fall.recover"], 1) != 0,
 		FallRecoverTime:   parseIntOr(params["fall.recovertime"], defaultFallRecoverTime),
 		HitID:             parseIntOr(params["id"], 0),
+		P1StateNo:         parseIntOr(params["p1stateno"], -1),
+		P2StateNo:         parseIntOr(params["p2stateno"], -1),
+		P1Facing:          parseIntOr(params["p1facing"], 0),
+		P2Facing:          parseIntOr(params["p2facing"], 0),
 	}
 	if raw, ok := params["pausetime"]; ok {
 		first, second := raw, ""

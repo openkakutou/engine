@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.50.0] - 2026-11-21
+
+### Added
+- Throws, as Ikemen GO plays them: a HitDef's `p1stateno` sends the attacker into its state and `p2stateno` the defender into the attacker's state (a custom state, running the thrower's states with its own -2 only), `p1facing` / `p2facing` turn them; `TargetBind`, `TargetFacing`, `TargetState`, `TargetLifeAdd`, `TargetPowerAdd`, `TargetVelSet`, `TargetVelAdd` and `TargetDrop` act on the target; `ChangeAnim2` shows the thrower's animation; `SelfState` brings the fighter back to its own states and animations; `GetHitVar(isbound)`. The real kfm throws kfm end to end. The WASM `animations` entries gain `fromOpponent`.
+
 ## [2.49.0] - 2026-11-21
 
 ### Added

@@ -486,26 +486,37 @@ func Tick(
 	runtimes[match.SideP2].Context.ProjectileIDs = projectileIDs(runtimes[match.SideP2].Projectiles)
 	p2Seen := snapshotOf(state.Fighter(match.SideP2), &runtimes[match.SideP2].Context)
 	screen := screenEdges(cfg)
-	p1Out, err := tickFighter(programs[match.SideP1], runtimes[match.SideP1], state.Fighter(match.SideP1), p2Seen, inputs[match.SideP1], cfg.Tick, cfg.Bounds, screen, cfg.Gravity, state.Round, state.RandSeed)
+	p1Out, err := tickFighter(fighterPrograms{programs[match.SideP1], programs[match.SideP2]}, runtimes[match.SideP1], state.Fighter(match.SideP1), p2Seen, inputs[match.SideP1], cfg.Tick, cfg.Bounds, screen, cfg.Gravity, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
 	}
 	// Both fighters draw Random from one sequence, P1 first, as Ikemen GO's
 	// single seed is advanced in player order; the seed rides in match state.
 	state.RandSeed = p1Out.Runtime.Context.RandSeed
+	// P1's Target* controllers act on P2 before P2's tick.
+	runtimes[match.SideP2].Context.FighterState = state.Fighters[match.SideP2]
+	if err := applyTargetOps(&p1Out.Runtime.Context, &runtimes[match.SideP2].Context, programs[match.SideP1]); err != nil {
+		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
+	}
+	state.Fighters[match.SideP2] = runtimes[match.SideP2].Context.FighterState
 	// What the controllers did to position, velocity, facing, health and
 	// power is the fighter's new match state: hit detection below and the
 	// next fighter's tick see it, as in Ikemen GO where a controller's
 	// effect is immediate.
 	state.Fighters[match.SideP1] = p1Out.Runtime.Context.FighterState
 	p1Seen := snapshotOf(state.Fighter(match.SideP1), &p1Out.Runtime.Context)
-	p2Out, err := tickFighter(programs[match.SideP2], runtimes[match.SideP2], state.Fighter(match.SideP2), p1Seen, inputs[match.SideP2], cfg.Tick, cfg.Bounds, screen, cfg.Gravity, state.Round, state.RandSeed)
+	p2Out, err := tickFighter(fighterPrograms{programs[match.SideP2], programs[match.SideP1]}, runtimes[match.SideP2], state.Fighter(match.SideP2), p1Seen, inputs[match.SideP2], cfg.Tick, cfg.Bounds, screen, cfg.Gravity, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
 	}
 
 	state.RandSeed = p2Out.Runtime.Context.RandSeed
 	state.Fighters[match.SideP2] = p2Out.Runtime.Context.FighterState
+	// P2's Target* controllers act on P1, which has ticked.
+	if err := applyTargetOps(&p2Out.Runtime.Context, &p1Out.Runtime.Context, programs[match.SideP2]); err != nil {
+		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
+	}
+	state.Fighters[match.SideP1] = p1Out.Runtime.Context.FighterState
 
 	// The runtimes handed in stay as they were: the helpers and projectiles
 	// change in fresh slices (nil stays nil, so a tick without any allocates
@@ -636,6 +647,28 @@ func Tick(
 	}, nil
 }
 
+// fighterPrograms are the programs a fighter's tick reads: its own, and its
+// opponent's, whose states it runs in a custom state (p2stateno,
+// TargetState) and whose animation it shows after ChangeAnim2 (Ikemen GO's
+// ss.sb.playerNo and animPN).
+type fighterPrograms struct{ own, opp FighterProgram }
+
+// states is the program whose states the fighter is running.
+func (p fighterPrograms) states(ctx *evaluator.Context) FighterProgram {
+	if ctx.InOpponentStates {
+		return p.opp
+	}
+	return p.own
+}
+
+// anims is the program whose animation the fighter shows.
+func (p fighterPrograms) anims(ctx *evaluator.Context) FighterProgram {
+	if ctx.AnimFromOpponent {
+		return p.opp
+	}
+	return p.own
+}
+
 // fighterTickOutput is tickFighter's result -- kept as a plain returned
 // struct (not a shared mutable field) so the two calls Tick makes (one per
 // side, explicitly unrolled rather than looped, per this item's own
@@ -740,7 +773,7 @@ func getUp(ctx *evaluator.Context, prog FighterProgram, runs *stateRuns) error {
 		ctx.PrevStateNo = ctx.StateNo
 		ctx.StateNo = 5120
 		ctx.StateChanged = true
-		return runs.followChanges(prog, ctx, false)
+		return runs.followChanges(fighterPrograms{prog, prog}, ctx, false)
 	}
 	if ctx.GetHit.DownRecoverTime > 0 {
 		ctx.GetHit.DownRecoverTime--
@@ -934,7 +967,7 @@ func screenEdges(cfg TickConfig) [2]float64 {
 	return [2]float64{-math.MaxFloat32, math.MaxFloat32}
 }
 
-func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.FighterState, opponent evaluator.Opponent, in input.TickInput, tick int, bounds *stage.StageBoundaries, screen [2]float64, gravity float64, round int, seed int32) (fighterTickOutput, error) {
+func tickFighter(progs fighterPrograms, runtime FighterRuntime, fighter match.FighterState, opponent evaluator.Opponent, in input.TickInput, tick int, bounds *stage.StageBoundaries, screen [2]float64, gravity float64, round int, seed int32) (fighterTickOutput, error) {
 	ctx := runtime.Context
 	ctx.ScreenLeft, ctx.ScreenRight = screen[0], screen[1]
 	ctx.HitPauseTime = runtime.HitPause
@@ -953,6 +986,15 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	ctx.GameTime = tick
 	ctx.RandSeed = seed
 	ctx.YAccel = ctx.Consts.Lookup("movement.yaccel").Number
+	prog := progs.own
+	// The animations the triggers read: the opponent's after ChangeAnim2,
+	// else the fighter's own (set once at its start when not precomputed).
+	switch {
+	case ctx.AnimFromOpponent:
+		ctx.Anims = progs.opp.animationTable()
+	case progs.own.animIndex != nil:
+		ctx.Anims = progs.own.animIndex
+	}
 
 	// The turn comes before the commands, so back and forward follow it the
 	// same tick (system.go:13953-13958).
@@ -967,7 +1009,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	// i.e. before this tick's own state-machine transition (if any) is
 	// applied. A transition's new animation takes effect starting next
 	// tick, once AnimElapsed has actually reset -- see this item's own ADR.
-	frame := currentFrame(findAnimation(prog, ctx.Anim), ctx.AnimElapsed)
+	frame := currentFrame(findAnimation(progs.anims(&ctx), ctx.Anim), ctx.AnimElapsed)
 
 	// A fighter in hit pause (attacker freeze or defender shake) runs only
 	// the controllers flagged ignorehitpause, advances no Time/AnimElapsed and
@@ -999,8 +1041,9 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		basicActions(&ctx, prog, in.Directions(fighter.Facing), asserted)
 	}
 	for _, number := range specialStates {
-		// A helper runs one only with its keyctrl (char.go:12506-12527).
-		if !prog.hasState(number) || (ctx.IsHelper && !ctx.KeyCtrl[-1-number]) {
+		// A helper runs one only with its keyctrl (char.go:12506-12527), and a
+		// fighter in its opponent's states runs only its own -2.
+		if !prog.hasState(number) || (ctx.IsHelper && !ctx.KeyCtrl[-1-number]) || (ctx.InOpponentStates && number != -2) {
 			continue
 		}
 		special, err := prog.step(ctx, number, frozen)
@@ -1024,27 +1067,27 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	ctx.StateChanged = false
 	if enter && !frozen {
 		ctx.StateEntryPending = false
-		entered, _ := prog.stateHeader(ctx.StateNo)
+		entered, _ := progs.states(&ctx).stateHeader(ctx.StateNo)
 		if _, err := enterState(&ctx, entered); err != nil {
 			return fighterTickOutput{}, err
 		}
 		// Ikemen GO applies the new animation in stateChange2, before
 		// collision detection: this tick uses its first frame (char.go:6943,
 		// 13049-13062).
-		frame = currentFrame(findAnimation(prog, ctx.Anim), ctx.AnimElapsed)
+		frame = currentFrame(findAnimation(progs.anims(&ctx), ctx.Anim), ctx.AnimElapsed)
 	}
 
-	result, err := prog.step(ctx, ctx.StateNo, frozen)
+	result, err := progs.states(&ctx).step(ctx, ctx.StateNo, frozen)
 	if err != nil {
 		return fighterTickOutput{}, err
 	}
 	runs := stateRuns{sounds: sounds, warnings: warnings, unsupported: unsupported, skippedCalls: skippedCalls}
 	newCtx := result.Context
-	resolveAnimElem(&newCtx, findAnimation(prog, newCtx.Anim))
+	resolveAnimElem(&newCtx, findAnimation(progs.anims(&newCtx), newCtx.Anim))
 	runs.add(result, &newCtx, frozen)
 	// A ChangeState made by the current state enters the new state and runs
 	// it in this same tick (Ikemen GO changeStateEx, char.go:6966-6994).
-	if err := runs.followChanges(prog, &newCtx, frozen); err != nil {
+	if err := runs.followChanges(progs, &newCtx, frozen); err != nil {
 		return fighterTickOutput{}, err
 	}
 	sounds, warnings, unsupported, skippedCalls = runs.sounds, runs.warnings, runs.unsupported, runs.skippedCalls
@@ -1088,7 +1131,7 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 	// A state entered this tick shows its first frame to collision detection
 	// (char.go:12608-12610); the animation steps after it (char.go:13055-13061).
 	if runs.entered {
-		frame = currentFrame(findAnimation(prog, newCtx.Anim), newCtx.AnimElapsed)
+		frame = currentFrame(findAnimation(progs.anims(&newCtx), newCtx.Anim), newCtx.AnimElapsed)
 	}
 	// Time grows once, at the end of the tick, after the new state's run
 	// (char.go:12592).
@@ -1101,6 +1144,11 @@ func tickFighter(prog FighterProgram, runtime FighterRuntime, fighter match.Figh
 		newCtx.MoveContactTime++
 	}
 	stepFall(&newCtx, true)
+	// A bound fighter stays bound while its opponent binds it again each
+	// tick (TargetBind's time, 1 by default).
+	if newCtx.GetHit.BindTime > 0 {
+		newCtx.GetHit.BindTime--
+	}
 	// Once the shake is over the get-hit time counts down on every
 	// unfrozen tick, stopping at -1 (HitOver).
 	if newCtx.GetHit.Active && newCtx.GetHit.HitTime >= 0 {
@@ -1185,26 +1233,26 @@ func guardDist(hitDef cns.Controller, ctx *evaluator.Context) [2]float64 {
 // changeStateEx, char.go:6966-6994). During a hit pause the entry waits
 // (char.go:6943): the state is only left pending, but its ignorehitpause
 // controllers still run.
-func (r *stateRuns) followChanges(prog FighterProgram, ctx *evaluator.Context, frozen bool) error {
+func (r *stateRuns) followChanges(progs fighterPrograms, ctx *evaluator.Context, frozen bool) error {
 	for loops := 1; ctx.StateChanged; loops++ {
 		ctx.StateChanged = false
 		if frozen {
 			ctx.StateEntryPending = true
 		} else {
 			ctx.StateEntryPending = false
-			entered, _ := prog.stateHeader(ctx.StateNo)
+			entered, _ := progs.states(ctx).stateHeader(ctx.StateNo)
 			if _, err := enterState(ctx, entered); err != nil {
 				return err
 			}
 			r.entered = true
 		}
 		stateNo, prevStateNo, time, persistent := ctx.StateNo, ctx.PrevStateNo, ctx.Time, ctx.Persistent
-		step, err := prog.step(*ctx, ctx.StateNo, frozen)
+		step, err := progs.states(ctx).step(*ctx, ctx.StateNo, frozen)
 		if err != nil {
 			return err
 		}
 		*ctx = step.Context
-		resolveAnimElem(ctx, findAnimation(prog, ctx.Anim))
+		resolveAnimElem(ctx, findAnimation(progs.anims(ctx), ctx.Anim))
 		r.add(step, ctx, frozen)
 		if loops == maxStateLoop && ctx.StateChanged {
 			ctx.StateNo, ctx.PrevStateNo, ctx.Time, ctx.Persistent = stateNo, prevStateNo, time, persistent
@@ -1231,7 +1279,7 @@ func land(ctx *evaluator.Context, prog FighterProgram, runs *stateRuns) error {
 	ctx.PrevStateNo = ctx.StateNo
 	ctx.StateNo = 52
 	ctx.StateChanged = true
-	return runs.followChanges(prog, ctx, false)
+	return runs.followChanges(fighterPrograms{prog, prog}, ctx, false)
 }
 
 // autoTurn turns a fighter toward an opponent behind it, Ikemen GO's
@@ -1697,6 +1745,24 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 	}
 	runtimes[attacker].HitPause = params.PauseTime[0]
 
+	attackerCtx := &runtimes[attacker].Context
+	// p1facing and p2facing turn the fighters (char.go hit, p1facing /
+	// p2facing): 1 faces the defender to the attacker, -1 turns.
+	switch params.P2Facing {
+	case 1:
+		ctx.Facing = 1 - attackerCtx.Facing
+	case -1:
+		ctx.Facing = attackerCtx.Facing
+	}
+	if params.P1Facing < 0 {
+		attackerCtx.Facing = 1 - attackerCtx.Facing
+	}
+	if params.P1StateNo >= 0 {
+		if err := programs[attacker].selfState(&runtimes[attacker], params.P1StateNo); err != nil {
+			return err
+		}
+	}
+
 	hitTime := params.GroundHitTime
 	target := 0
 	switch ctx.StateType {
@@ -1712,6 +1778,17 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 	// Ikemen GO makes the defender's move type H before entering the get-hit
 	// state, whose StateDef may then set its own (char.go:13123-13129).
 	ctx.MoveType = 'H'
+	// p2stateno sends the defender into the attacker's state of that number
+	// instead of its get-hit state: a custom state (char.go:13176-13197).
+	if params.P2StateNo >= 0 {
+		if def, ok := programs[attacker].stateHeader(params.P2StateNo); ok {
+			ctx.PrevStateNo, ctx.StateNo = ctx.StateNo, params.P2StateNo
+			ctx.InOpponentStates = true
+			ctx.Ctrl = false
+			_, err := enterState(ctx, def)
+			return err
+		}
+	}
 	if def, ok := defender.stateHeader(target); ok && target != 0 {
 		ctx.PrevStateNo = ctx.StateNo
 		ctx.StateNo = target

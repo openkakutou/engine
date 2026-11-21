@@ -128,6 +128,14 @@ type Context struct {
 	// Name and AuthorName are the character's .def [Info] name and author,
 	// for the Name, P1Name and AuthorName triggers.
 	Name, AuthorName string
+	// InOpponentStates reports the fighter running its opponent's states (a
+	// custom state: p2stateno, TargetState; Ikemen GO's ss.sb.playerNo), and
+	// AnimFromOpponent its opponent's animation (ChangeAnim2), until
+	// SelfState and ChangeAnim.
+	InOpponentStates, AnimFromOpponent bool
+	// TargetOps are the Target* controllers that ran this tick, which the
+	// engine applies to the fighter's target.
+	TargetOps []TargetOp
 	// IsHelper is set on a helper, HelperID its helper id.
 	IsHelper bool
 	HelperID int
@@ -364,7 +372,10 @@ type GetHit struct {
 	FallCount int
 	// HitCount is the hits taken in this combo, Damage the last one's.
 	HitCount, Damage int
-	HitID            int
+	// BindTime is the ticks the fighter stays bound to its opponent
+	// (TargetBind), for GetHitVar(isbound).
+	BindTime int
+	HitID    int
 }
 
 // SoundEvent is one PlaySnd controller execution recorded onto a fighter's
@@ -415,4 +426,15 @@ type RoundEnd struct {
 	Winner    match.Side
 	Draw, KO  bool
 	MatchOver bool
+}
+
+// TargetOp is a Target* controller that ran (TargetBind, TargetFacing,
+// TargetState, TargetLifeAdd, TargetPowerAdd, TargetVelSet, TargetVelAdd,
+// TargetDrop): Kind its type lower-cased, the rest its evaluated parameters.
+type TargetOp struct {
+	Kind           string
+	X, Y           float64
+	HasX, HasY     bool
+	Value, Time    int
+	Kill, Absolute bool
 }
