@@ -26,3 +26,4 @@ Found by item 041 (2026-11-19).
 - 2026-11-21: `StateTime` done. Still to do: `MatchOver`, `RoundsExisted`, `TeamSide`, `aiw`.
 - 2026-11-21: `TeamSide` done. Still to do: `MatchOver`, `RoundsExisted`, `aiw`.
 - 2026-11-21: `RoundsExisted`, `MatchOver` done (with a corpus batch, see CHANGELOG 2.43.0). Still to do: `aiw`.
+- 2026-11-21 (v2.58.0 to v2.72.0): `ProjCancelTime`, `InCustomState`, `ReversalDefAttr`, `TicksPerSecond`, `GetHitVar(fall.time)`; Ikemen GO's CNS tolerance for postfix `!`, `!MoveType = H`, type comparisons binding first, old-style triggers' `>=`/`<=`/`!=` and odd suffixes, name triggers' skipped tokens, division by 0, CNS attrs. A 3000-tick mirror survey of the 373 corpus characters fails on 6, each failing or unverifiable in Ikemen GO's reference commit too (`MajorVersion` absent there, a `>=` inside a VarSet key, Shift-JIS spaces in a trigger).
