@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.58.0] - 2026-11-21
+
+### Fixed
+- A `!` after a value negates it in a CNS trigger, as Ikemen GO reads it (expPostNot): `HitShakeOver!`, `Time = 0 && fvar(8)!` (Cody CVS and 13 other corpus characters) no longer fail the character.
+
 ## [2.57.0] - 2026-11-21
 
 ### Fixed

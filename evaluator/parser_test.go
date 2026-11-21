@@ -122,3 +122,19 @@ func TestEvaluate_OldStyleTriggersTakeAnyEqualityInCNS(t *testing.T) {
 		}
 	}
 }
+
+// expPostNot (compiler.go:5689-5700): in a CNS trigger a "!" after a value
+// negates it (Cody CVS: "HitShakeOver!", "Time = 0 && fvar(8)!").
+func TestEvaluate_PostfixNotNegatesTheValueBefore(t *testing.T) {
+	ctx := Context{}
+	ctx.FVars[8] = 1
+	for expr, want := range map[string]bool{"fvar(8)!": false, "fvar(7)!": true, "Time = 0 && fvar(8)!": false, "fvar(8)!!": true, "fvar(7)! = 1": true} {
+		v, err := Evaluate(expr, ctx)
+		if err != nil {
+			t.Fatalf("%s: %v", expr, err)
+		}
+		if v.Bool() != want {
+			t.Errorf("%s = %v, want %v", expr, v.Bool(), want)
+		}
+	}
+}

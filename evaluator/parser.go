@@ -244,7 +244,18 @@ func (p *parser) parseUnary() (node, error) {
 		}
 		return unaryNode{op: op, operand: operand}, nil
 	}
-	return p.parsePrimary()
+	n, err := p.parsePrimary()
+	if err != nil {
+		return nil, err
+	}
+	// A "!" after a value negates it in a CNS trigger (Ikemen GO
+	// expPostNot with ignoreMostErrors, compiler.go:5689-5700):
+	// "HitShakeOver!" is !HitShakeOver (Cody CVS).
+	for !p.shortCircuit && p.peekIsOp("!") {
+		p.next()
+		n = unaryNode{op: "!", operand: n}
+	}
+	return n, nil
 }
 
 // typeTriggers are the triggers that read their own "= letter" comparison
