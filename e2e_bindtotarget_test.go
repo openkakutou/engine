@@ -11,7 +11,7 @@ import (
 // grabs a real kfm into Blanka's state 820 while Blanka goes to 810, where
 // BindToTarget (pos = 40,70,head) holds him on the thrown kfm's head:
 // 40 + kfm's size.head.pos.x (-5) toward kfm's facing, 70 + its
-// size.head.pos.y (-90) below it.
+// size.head.pos.y (-90) below it; his bites' HitAdd add to kfm's combo.
 func TestE2E_BlankaBindsHimselfToTheThrownKfm(t *testing.T) {
 	path := corpusChar(t, "Street Fighter/Blanka (SFA)/Blanka.def")
 	blanka, _, err := LoadFighterProgram(loadChar(t, path), path, referenceDir)
@@ -26,12 +26,13 @@ func TestE2E_BlankaBindsHimselfToTheThrownKfm(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.programs[match.SideP2], m.runtimes[match.SideP2], m.state.Fighters[match.SideP2] = kfm, rt2, p2
-	bound := 0
+	bound, maxHits := 0, 0
 	for i := 0; i < 120; i++ {
 		if err := m.step(input.TickInput{}); err != nil {
 			t.Fatal(err)
 		}
 		b, k := m.state.Fighters[match.SideP1], m.state.Fighters[match.SideP2]
+		maxHits = max(maxHits, m.runtimes[match.SideP2].Context.GetHit.HitCount)
 		// From 810's second tick: kfm, ticking after Blanka, moves in the
 		// tick Blanka enters it and the one after.
 		if b.StateNo != 810 || k.StateNo != 820 || m.runtimes[match.SideP1].Context.Time < 2 {
@@ -46,5 +47,9 @@ func TestE2E_BlankaBindsHimselfToTheThrownKfm(t *testing.T) {
 	}
 	if bound == 0 {
 		t.Fatal("Blanka never held kfm in 810 / 820")
+	}
+	// 811's HitAdd (value 1, each bite) adds to kfm's combo (char.go:7814).
+	if maxHits < 2 {
+		t.Errorf("kfm's hit count peaked at %d, want Blanka's HitAdd to add to it", maxHits)
 	}
 }

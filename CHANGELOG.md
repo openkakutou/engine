@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.68.0] - 2026-11-21
+
+### Added
+- Controllers VarRandom (RandI on the match's shared seed, overflow vars included), PowerSet, AttackMulSet (multiplies the damage dealt), MoveHitReset, HitAdd (adds to the hit count and the target's combo: the corpus Blanka's bites now count) and AttackDist (the HitDef's guard.dist x), as Ikemen GO runs them.
+
 ## [2.67.0] - 2026-11-21
 
 ### Added

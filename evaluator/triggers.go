@@ -216,6 +216,23 @@ func numTarget(ctx *Context, id int) Value {
 // (common.go Random: Park-Miller with Schrage's method) and returns
 // Rand(0, 999).
 func drawRandom(ctx *Context) int32 {
+	return nextRandom(ctx) / (randomMax/1000 + 1)
+}
+
+// RandomRange is Ikemen GO's RandI(lo, hi) (common.go:43-62) on the match's
+// shared seed: an integer from lo to hi, either order.
+func RandomRange(ctx *Context, lo, hi int32) int32 {
+	if hi < lo {
+		lo, hi = hi, lo
+	}
+	if uint32(hi-lo) > uint32(randomMax) {
+		return int32(int64(lo) + int64(nextRandom(ctx))*(int64(hi)-int64(lo))/int64(randomMax))
+	}
+	return lo + nextRandom(ctx)/(randomMax/(hi-lo+1)+1)
+}
+
+// nextRandom advances ctx.RandSeed one step of Ikemen GO's Random.
+func nextRandom(ctx *Context) int32 {
 	seed := ctx.RandSeed
 	w := seed / 127773
 	seed = (seed-w*127773)*16807 - w*2836
@@ -226,7 +243,7 @@ func drawRandom(ctx *Context) int32 {
 		}
 	}
 	ctx.RandSeed = seed
-	return seed / (randomMax/1000 + 1)
+	return seed
 }
 
 // evalComponent evaluates "Pos X/Y/Z", "Vel X/Y/Z", "P2Dist X/Y/Z",

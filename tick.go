@@ -951,6 +951,9 @@ func hitDefReady(rt *FighterRuntime) bool {
 // multiplier unless that waits for a hit and the defender is not in one.
 func damageMultiplier(attacker, defender *evaluator.Context) float64 {
 	attack := attacker.Consts.Lookup("data.attack").Number / 100
+	if attacker.HasAttackMul {
+		attack *= attacker.AttackMul
+	}
 	custom := defender.CustomDefence
 	if custom == 0 || (defender.DefenceMulOnHit && defender.MoveType != 'H') {
 		custom = 1

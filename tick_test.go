@@ -747,3 +747,15 @@ func TestTick_TransLastsItsTick(t *testing.T) {
 		t.Errorf("tick 2 trans %q, want back to the animation's blend", got)
 	}
 }
+
+// char.go:8870, 11977: AttackMulSet multiplies the damage a fighter deals.
+func TestDamageMultiplier_AppliesAttackMulSet(t *testing.T) {
+	attacker, defender := evaluator.Context{}, evaluator.Context{}
+	if got := damageMultiplier(&attacker, &defender); got != 1 {
+		t.Fatalf("plain multiplier %v, want 1", got)
+	}
+	attacker.AttackMul, attacker.HasAttackMul = 0.5, true
+	if got := damageMultiplier(&attacker, &defender); got != 0.5 {
+		t.Errorf("AttackMulSet 0.5: multiplier %v, want 0.5", got)
+	}
+}

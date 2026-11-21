@@ -268,8 +268,12 @@ type Context struct {
 	// Trans and TransAlpha are how the fighter is drawn this tick: a Trans
 	// controller's type ("" for its animation's own blend) and alpha
 	// (Ikemen GO c.trans, back to default each unfrozen tick).
-	Trans          string
-	TransAlpha     [2]int
+	Trans      string
+	TransAlpha [2]int
+	// AttackMul is an AttackMulSet's damage multiplier, while HasAttackMul
+	// (Ikemen GO attackMul[0], 1 otherwise).
+	AttackMul      float64
+	HasAttackMul   bool
 	PushPriority   int
 	PushAffectTeam int
 	// Round is the number of the round being fought, read by RoundNo.

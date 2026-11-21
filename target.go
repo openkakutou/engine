@@ -73,6 +73,8 @@ func applyTargetOps(attacker, defender *evaluator.Context, attackerProg FighterP
 				}
 				defender.Velocity.Y = y
 			}
+		case "hitadd":
+			defender.GetHit.HitCount += op.Value
 		case "targetdrop":
 			attacker.HasTarget = false
 			defender.GetHit.BindTime = 0
