@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.3] - 2026-11-23
+
+### Fixed
+- PowerAdd and a Statedef's `poweradd` cap power at the character's own `[Data] power`, as PowerSet, SuperPause and the `PowerMax` trigger already did: a 1000-power character no longer overfills, a 5000-power one no longer stops at 3000.
+
+### Added
+- `evaluator.Context.PowerMax()`, the fighter's power cap.
+
 ## [2.77.2] - 2026-11-22
 
 ### Fixed

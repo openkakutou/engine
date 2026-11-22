@@ -57,16 +57,8 @@ func applyPowerSet(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Contex
 	if err != nil || !ok {
 		return ctx, err
 	}
-	ctx.Power = min(max(int(v), 0), maxPowerOf(&ctx))
+	ctx.Power = min(max(int(v), 0), ctx.PowerMax())
 	return ctx, nil
-}
-
-// maxPowerOf is the fighter's power cap: [Data] power, else 3000.
-func maxPowerOf(ctx *evaluator.Context) int {
-	if p := ctx.Consts.Lookup("data.power").Int(); p > 0 {
-		return p
-	}
-	return DefaultMaxPower
 }
 
 // applyAttackMulSet is attackMulSet.Run: value (or damage) multiplies the

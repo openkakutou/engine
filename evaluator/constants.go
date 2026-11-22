@@ -488,3 +488,17 @@ func atof(s string) float64 {
 	f, _ := strconv.ParseFloat(s[:end], 64)
 	return f
 }
+
+// DefaultPowerMax is the power cap of a fighter whose [Data] power is not
+// read: MUGEN's and Ikemen GO's default (char.go:329-350).
+const DefaultPowerMax = 3000
+
+// PowerMax is the fighter's power cap, its [Data] power, to which Ikemen GO
+// clamps every power change (setPower, char.go:9019-9029; powerMax,
+// char.go:4148).
+func (c *Context) PowerMax() int {
+	if p := c.Consts.Lookup("data.power").Int(); p > 0 {
+		return p
+	}
+	return DefaultPowerMax
+}

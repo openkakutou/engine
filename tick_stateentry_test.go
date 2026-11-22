@@ -1,10 +1,12 @@
 package engine
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/openkakutou/character/cmd"
 	"github.com/openkakutou/character/cns"
+	"github.com/openkakutou/engine/v2/evaluator"
 	"github.com/openkakutou/engine/v2/input"
 	"github.com/openkakutou/engine/v2/match"
 )
@@ -125,5 +127,27 @@ func TestTick_ZssFaceP2_TurnsTowardAnOpponentBehind(t *testing.T) {
 	}
 	if got := result.State.Fighters[match.SideP1].Facing; got != match.FacingRight {
 		t.Errorf("Facing = %v, want FacingRight (facep2 with the opponent behind)", got)
+	}
+}
+
+// A Statedef's poweradd is capped at the character's own [Data] power, as
+// every power change is in Ikemen GO (setPower, char.go:9019-9029).
+func TestTick_StatedefPowerAdd_IsCappedAtTheCharactersPower(t *testing.T) {
+	states := map[int]cns.StateDef{
+		0:  {Number: 0, Type: cns.StateTypeStanding, Ctrl: true, Controllers: []cns.Controller{changeTo("20")}},
+		20: {Number: 20, Type: cns.StateTypeStanding, PowerAdd: 1500},
+	}
+	prog := NewFighterProgram(states, nil, cmd.CommandFile{})
+	consts, err := evaluator.ParseConstants(strings.NewReader("[Data]\npower = 1000\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	prog.Constants = consts
+	result, err := tickP1Only(t, prog, newP1Runtime(t, prog))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := result.State.Fighters[match.SideP1].Power; got != 1000 {
+		t.Errorf("Power = %d, want 1000 (data.power)", got)
 	}
 }

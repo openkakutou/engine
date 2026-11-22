@@ -1644,7 +1644,7 @@ func enterState(ctx *evaluator.Context, def entryHeader) (animRestarted bool, er
 	if hasPower {
 		add = power.Int()
 	}
-	ctx.Power = min(max(ctx.Power+add, 0), statemachine.DefaultMaxPower)
+	ctx.Power = min(max(ctx.Power+add, 0), ctx.PowerMax())
 	return animRestarted, nil
 }
 

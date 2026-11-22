@@ -65,14 +65,9 @@ const (
 	ControllerTypePlayerPush   = "PlayerPush"
 )
 
-// DefaultMaxPower is the power/meter cap applied when clamping a
-// PowerAdd controller's effect -- MUGEN's own default player power cap.
-// engine currently has no lifebar/system-config data flowing into it to
-// override this with (its only cross-repo inputs are character and
-// stage), so this stays a hardcoded constant rather than a configurable
-// parameter until a real such data source exists. See
-// .vibe/decisions/015.
-const DefaultMaxPower = 3000
+// DefaultMaxPower is the power cap of a fighter with no [Data] power, kept
+// for callers; the cap itself is evaluator.Context.PowerMax (decision 035).
+const DefaultMaxPower = evaluator.DefaultPowerMax
 
 // Result is the outcome of one Step call.
 type Result struct {
@@ -759,10 +754,8 @@ func applyVarRangeSet(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Con
 
 // applyPowerAdd applies a PowerAdd controller's effect to ctx: its "value"
 // parameter (an evaluated MUGEN trigger expression, positive or negative)
-// is added to ctx.Power, then the result is clamped to [0, DefaultMaxPower]
-// -- never negative, never above the cap -- matching real MUGEN/Ikemen
-// behavior for both gaining power on a landed hit and spending it on a
-// super move.
+// is added to ctx.Power, then the result is clamped to [0, the fighter's
+// PowerMax], as Ikemen GO's setPower does (char.go:9019-9029).
 func applyPowerAdd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
 	raw, ok := ctrl.Parameters["value"]
 	if !ok {
@@ -773,14 +766,7 @@ func applyPowerAdd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Contex
 		return evaluator.Context{}, fmt.Errorf("PowerAdd value %q: %w", raw, err)
 	}
 
-	power := ctx.Power + v.Int()
-	if power < 0 {
-		power = 0
-	}
-	if power > DefaultMaxPower {
-		power = DefaultMaxPower
-	}
-	ctx.Power = power
+	ctx.Power = min(max(ctx.Power+v.Int(), 0), ctx.PowerMax())
 	return ctx, nil
 }
 

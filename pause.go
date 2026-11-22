@@ -63,7 +63,7 @@ func startPause(state *match.MatchState, rt *FighterRuntime) {
 	}
 	state.SuperTime, state.SuperDarken, rt.SuperMoveTime = r.Time, r.Darken, r.MoveTime
 	c := &rt.Context
-	c.Power = min(max(c.Power+r.PowerAdd, 0), maxPower(c))
+	c.Power = min(max(c.Power+r.PowerAdd, 0), c.PowerMax())
 	state.Fighters[c.Side].Power = c.Power
 	if r.Anim >= 0 && len(rt.Explods) < explodMax {
 		rt.Explods = append(rt.Explods, Explod{Time: 1, Anim: r.Anim, Common: r.AnimCommon, Facing: c.Facing, Scale: [2]float64{1, 1},
@@ -72,12 +72,4 @@ func startPause(state *match.MatchState, rt *FighterRuntime) {
 	if r.Unhittable {
 		c.HitBy[len(c.HitBy)-1] = evaluator.HitBySlot{Attr: unhittableAttr, Time: r.Time + 1, Not: true}
 	}
-}
-
-// maxPower is the fighter's power cap, its [Data] power (3000 by default).
-func maxPower(c *evaluator.Context) int {
-	if p := c.Consts.Lookup("data.power").Int(); p > 0 {
-		return p
-	}
-	return 3000
 }

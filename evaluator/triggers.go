@@ -93,7 +93,7 @@ func evalFighterTrigger(name string, ctx *Context) (v Value, ok bool, err error)
 	case "lifemax":
 		return intValue(float64(constOr(ctx, "data.life", 1000))), true, nil
 	case "powermax":
-		return intValue(float64(constOr(ctx, "data.power", 3000))), true, nil
+		return intValue(float64(ctx.PowerMax())), true, nil
 	case "camerazoom":
 		return floatValue(1), true, nil
 	case "screenwidth":
