@@ -4,5 +4,5 @@ github.com/openkakutou/sff v0.10.1 h1:iyBuIqsaTzODJbm2mvdqZJ9J2fS64Brkq5wkPfWCd+
 github.com/openkakutou/sff v0.10.1/go.mod h1:82EBFkUd/eXXNgfvrHvk2ITwul+X3IEao9jwYGQL44U=
 github.com/openkakutou/snd v0.7.2 h1:CZdAs+a6E6Zp2HSIe9xMXu23vjQk3t6855E6B77kVzU=
 github.com/openkakutou/snd v0.7.2/go.mod h1:fAAbJE/dewexjPY3NyPhmxrYhr2sSPe5wprBVnJwHiw=
-github.com/openkakutou/stage v0.17.0 h1:WUsPvxZPDUM38DqSxcIZp8jyCoJyUSS7EMrmicBDgGo=
-github.com/openkakutou/stage v0.17.0/go.mod h1:c9SVqDOrnOOc1/C023jQk0urHI7DhVdnkULJeP9BvFA=
+github.com/openkakutou/stage v0.18.1 h1:jPPK4e1r7Bvxq3Toa3UU1vS0t3Qr4Q2/osfasIxY7WA=
+github.com/openkakutou/stage v0.18.1/go.mod h1:BR+uOBG21OonKpfKREkbs1+F06BMDxeHbhke805Q9D0=

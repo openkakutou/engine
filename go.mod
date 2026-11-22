@@ -4,7 +4,7 @@ go 1.26.7
 
 require (
 	github.com/openkakutou/character v0.23.1
-	github.com/openkakutou/stage v0.17.0
+	github.com/openkakutou/stage v0.18.1
 )
 
 require (
