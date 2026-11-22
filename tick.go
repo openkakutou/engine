@@ -611,12 +611,12 @@ func Tick(
 		tickProjectiles(&runtimesOut[match.SideP2])
 	}
 
-	// A get-hit state entered by applyHitReaction and a PowerAdd live on the
-	// runtime context: copy them onto the match state.
-	state.Fighters[match.SideP1].StateNo = runtimesOut[match.SideP1].Context.StateNo
-	state.Fighters[match.SideP1].Power = runtimesOut[match.SideP1].Context.Power
-	state.Fighters[match.SideP2].StateNo = runtimesOut[match.SideP2].Context.StateNo
-	state.Fighters[match.SideP2].Power = runtimesOut[match.SideP2].Context.Power
+	// What the hit phase did on the runtime contexts (get-hit or custom
+	// state, p1facing/p2facing, the entered state's facep2 and velset, a
+	// PowerAdd) is the fighters' new match state; strike kept each context's
+	// Health equal to the state's.
+	state.Fighters[match.SideP1] = runtimesOut[match.SideP1].Context.FighterState
+	state.Fighters[match.SideP2] = runtimesOut[match.SideP2].Context.FighterState
 
 	var sounds [2][]evaluator.SoundEvent
 	sounds[match.SideP1] = append(append(p1Out.Sounds, p1Helpers.sounds...), hitSounds[match.SideP1]...)

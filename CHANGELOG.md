@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.2] - 2026-11-22
+
+### Fixed
+- What a landed hit does to the fighters now lasts past the tick it lands in: the turn of `p1facing` / `p2facing`, and the facing and velocity set by the state the hit sends a fighter into (`facep2`, `velset`), were lost on the next tick.
+- Two guarded strikes in one tick (a hit, then a projectile or a helper's hit) judge the guard on the defender's life after the first one, as Ikemen GO does: a chip that would kill is no longer guarded, and life no longer goes below 0.
+
 ## [2.77.1] - 2026-11-21
 
 ### Fixed

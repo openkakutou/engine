@@ -242,6 +242,9 @@ func strike(state *match.MatchState, runtimes *[2]FighterRuntime, attacker match
 	if !combat.HitFlagAllows(params.HitFlag, defender.StateType, hitTmp(defender)) {
 		return combat.HitResult{}, false, params
 	}
+	// The match state holds the defender's life: an earlier strike of this
+	// tick may have lowered it, so the guard is judged on that one value.
+	defender.Health = state.Fighters[1-attacker].Health
 	damage := combat.DamageParams{Damage: hitDef.Parameters["damage"], Multiplier: damageMultiplier(from, defender)}
 	_, guardDamage := combat.Damages(damage)
 	damage.Guarded = guards(from, defender, params, guardDamage)
@@ -252,6 +255,7 @@ func strike(state *match.MatchState, runtimes *[2]FighterRuntime, attacker match
 		newState.Fighters[1-attacker].Health = lifeBefore - guardChip(guardDamage, lifeBefore, params)
 	}
 	*state = newState
+	defender.Health = state.Fighters[1-attacker].Health
 	if !damage.Guarded {
 		rt.Combo = newCombo
 	}
