@@ -59,6 +59,9 @@ type session struct {
 	tick        int
 	state       match.MatchState
 	progress    round.Progress
+	// roundRecorded tells that the round's result is in progress: the
+	// ticks a host plays past a KO report it again, resetRound clears it.
+	roundRecorded bool
 }
 
 var (
@@ -406,9 +409,10 @@ func normalizeEvents(events []evaluator.ControllerEvent) []evaluator.ControllerE
 // matchId's session by exactly one simulation tick and reports the
 // resulting state, this tick's round outcome (if any), updated best-of-N
 // progress, and each fighter's sound events triggered this tick (see
-// tickResponse.Sounds). A round outcome other than OutcomeNone is recorded
-// into the session's Progress automatically -- the caller does not also
-// call anything else to register it -- but the session's own MatchState
+// tickResponse.Sounds). The first round outcome other than OutcomeNone is
+// recorded into the session's Progress automatically, once a round however
+// many ticks keep reporting it -- the caller does not also call anything
+// else to register it -- but the session's own MatchState
 // is not reset for the next round on its own; the caller drives that via
 // resetRound once it has decided to.
 func tickJS(args []js.Value) (any, error) {
@@ -436,8 +440,9 @@ func tickJS(args []js.Value) (any, error) {
 
 	sess.state = result.State
 	sess.runtimes = result.Fighters
-	if result.Round.Outcome != round.OutcomeNone {
+	if result.Round.Outcome != round.OutcomeNone && !sess.roundRecorded {
 		sess.progress = sess.progress.RecordRoundResult(result.Round)
+		sess.roundRecorded = true
 	}
 
 	matchOver, winner := sess.progress.MatchOutcome()
@@ -570,6 +575,7 @@ func resetRoundJS(args []js.Value) (any, error) {
 	sess.state = *state
 	sess.runtimes = [2]engine.FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime}
 	sess.tick = 0
+	sess.roundRecorded = false
 
 	return resetRoundResponse{State: sess.state, Animations: animState(sess)}, nil
 }

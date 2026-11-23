@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.8] - 2026-11-23
+
+### Fixed
+- The WASM module records a round's result once: a host that ticks on to show the KO before `resetRound` no longer gives the winner one round win per tick, which ended a best-of-3 after a single KO.
+
 ## [2.77.7] - 2026-11-23
 
 ### Fixed

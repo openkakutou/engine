@@ -183,6 +183,16 @@ assert(Array.isArray(hitTick.data?.sounds?.[1]) && hitTick.data.sounds[1].length
 assert(JSON.stringify(hitTick.data?.unsupported?.[0]) === JSON.stringify(["displaytoclipboard"]), `hit tick: P1's DisplayToClipboard is reported as unsupported (got: ${JSON.stringify(hitTick.data?.unsupported?.[0])})`);
 assert(Array.isArray(hitTick.data?.unsupported?.[1]) && hitTick.data.unsupported[1].length === 0, `hit tick: P2 has an empty unsupported array (got: ${JSON.stringify(hitTick.data?.unsupported?.[1])})`);
 
+// --- ticks past the KO, as a host showing it before resetRound does: the
+// round's result is recorded once, so the wins stay at 1 and the match goes
+// on (bestOf 3). ---
+for (let i = 0; i < 3; i++) {
+	const after = call(globalThis.OpenKakutouEngine.tick, { matchId, inputs: [{}, {}] });
+	assert(after.error === null, `tick ${i + 1} past the KO reports no error (got: ${after.error})`);
+	assert(after.data?.progress?.wins?.[0] === 1, `tick ${i + 1} past the KO: P1's wins stay at 1 (got: ${after.data?.progress?.wins?.[0]})`);
+	assert(after.data?.matchOver === false, `tick ${i + 1} past the KO: the match is not over`);
+}
+
 // --- resetRound: both fighters restored for round 2 -- edge case: a
 // client that (incorrectly) echoes back P1's round-1 power in its
 // resetRound request must still get power reset to 0, not carried over
@@ -203,6 +213,14 @@ assert(reset.data?.state?.fighters?.[1]?.health === 20, `resetRound restores P2'
 assert(reset.data?.state?.fighters?.[0]?.power === 0, `resetRound forces P1's power back to 0 even though the request echoed back 2000 (got: ${reset.data?.state?.fighters?.[0]?.power})`);
 assert(reset.data?.animations?.[0]?.animNo === 0, `resetRound restores P1's animNo to its round-start state 0 (got: ${reset.data?.animations?.[0]?.animNo})`);
 assert(reset.data?.animations?.[0]?.animTime === 0, `resetRound restores P1's animTime to 0 (got: ${reset.data?.animations?.[0]?.animTime})`);
+
+// --- round 2: the same attack KOs P2 again; resetRound cleared the
+// recorded result, so this KO counts and decides the best-of-3. ---
+call(globalThis.OpenKakutouEngine.tick, { matchId, inputs: [{ buttons: { a: true } }, {}] });
+const secondKO = call(globalThis.OpenKakutouEngine.tick, { matchId, inputs: [{}, {}] });
+assert(secondKO.data?.round?.outcome === 1, `round 2: the attack KOs P2 (got outcome: ${secondKO.data?.round?.outcome})`);
+assert(secondKO.data?.progress?.wins?.[0] === 2, `round 2: P1's second KO is recorded (got: ${secondKO.data?.progress?.wins?.[0]})`);
+assert(secondKO.data?.matchOver === true && secondKO.data?.matchWinner === 0, `round 2: P1 wins the best-of-3 (got: over ${secondKO.data?.matchOver}, winner ${secondKO.data?.matchWinner})`);
 
 // --- error path: an unknown match ID must not crash the module ---
 const unknown = call(globalThis.OpenKakutouEngine.tick, { matchId: 999999, inputs: [{}, {}] });
