@@ -183,9 +183,9 @@ func tickProjectiles(rt *FighterRuntime) {
 
 // hitWithProjectiles lands attacker's active projectiles whose hit boxes
 // touch the defender's hurt boxes, each like a HitDef, the first one
-// touching only: a defender is hit once a tick.
-// shortcut: the owner's contact counters are not modelled; the defender
-// is knocked away along the owner's facing.
+// touching only: a defender is hit once a tick. The defender is knocked
+// away along the projectile's facing; the owner's contact counters are not
+// modelled (shortcut).
 func hitWithProjectiles(state *match.MatchState, programs *[2]FighterProgram, runtimes *[2]FighterRuntime, attacker match.Side, defFrameClsn2 []air.ClsnBox, cfg TickConfig, hitSounds *[2][]evaluator.SoundEvent) error {
 	rt := &runtimes[attacker]
 	defender := &runtimes[1-attacker].Context
@@ -207,7 +207,6 @@ func hitWithProjectiles(state *match.MatchState, programs *[2]FighterProgram, ru
 		}
 		from := rt.Context
 		from.Position, from.Facing = p.Position, p.Facing
-		owner := ownerContact{rt.HitPause, rt.Context.MoveContactTime, rt.Context.ContactGuarded, rt.Context.HasTarget}
 		hit, guarded, params := strike(state, runtimes, attacker, p.HitDef, &from, cfg, hitSounds)
 		if !hit.Hit {
 			continue
@@ -215,17 +214,9 @@ func hitWithProjectiles(state *match.MatchState, programs *[2]FighterProgram, ru
 		p.contact = true
 		p.HitPause = max(params.PauseTime[0], 0)
 		rt.Context.ProjContacts = recordProjContact(rt.Context.ProjContacts, p.ID, cfg.Tick, guarded)
-		err = applyHitReaction(programs, runtimes, attacker, params, hit, guarded)
-		rt.HitPause, rt.Context.MoveContactTime, rt.Context.ContactGuarded, rt.Context.HasTarget = owner.pause, owner.moveContact, owner.guarded, owner.target
-		return err
+		return applyHitReaction(programs, runtimes, striker{side: attacker, rt: rt, projectile: p}, params, hit, guarded)
 	}
 	return nil
-}
-
-// ownerContact is the owner's contact state a projectile hit leaves alone.
-type ownerContact struct {
-	pause, moveContact int
-	guarded, target    bool
 }
 
 // strike lands hitDef from the attacker (from is how it is seen: the

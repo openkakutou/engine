@@ -142,3 +142,17 @@ func TestTick_ProjHitTimeAndNumProjID(t *testing.T) {
 		t.Errorf("three ticks after ProjHitTime = %d, want 2", v)
 	}
 }
+
+// char.go:12194-12198, 14525-14535: a projectile's hit never turns its
+// owner (p1facing is for the player's own HitDef) nor adds to its hit count.
+func TestTick_AProjectilesHitLeavesItsOwnersFacingAndHitCount(t *testing.T) {
+	state, progs, rts := projMatch(t, casterProgram(map[string]string{"p1facing": "-1"}), 60)
+	final, _ := runProj(t, state, progs, rts, 20)
+	if h := final.State.Fighters[match.SideP2].Health; h != 960 {
+		t.Fatalf("defender life = %d, want 960 (the projectile hit)", h)
+	}
+	p := final.Fighters[match.SideP1].Context
+	if p.Facing != match.FacingRight || p.HitCount != 0 {
+		t.Errorf("owner facing %v hit count %d, want right, 0", p.Facing, p.HitCount)
+	}
+}

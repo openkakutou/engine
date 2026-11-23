@@ -458,13 +458,13 @@ func TestApplyHitReaction_AllocatesNothingOnALandedHit(t *testing.T) {
 	hit := combatHit(match.SideP2)
 	allocs := testing.AllocsPerRun(100, func() {
 		rts := s.runtimes
-		applyHitReaction(&s.programs, &rts, match.SideP1, params, hit, false)
+		applyHitReaction(&s.programs, &rts, striker{side: match.SideP1, rt: &rts[match.SideP1]}, params, hit, false)
 	})
 	if allocs != 0 {
 		t.Errorf("applyHitReaction allocated %v times on a landed hit, want 0", allocs)
 	}
 	rts := s.runtimes
-	applyHitReaction(&s.programs, &rts, match.SideP1, params, hit, false)
+	applyHitReaction(&s.programs, &rts, striker{side: match.SideP1, rt: &rts[match.SideP1]}, params, hit, false)
 	if rts[match.SideP2].Context.StateNo != 5000 {
 		t.Fatalf("test setup: the measured call did not enter the get-hit state (StateNo %d)", rts[match.SideP2].Context.StateNo)
 	}

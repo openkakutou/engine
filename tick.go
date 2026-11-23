@@ -833,7 +833,7 @@ func landHit(state *match.MatchState, events []hitdetect.HitEvent, programs *[2]
 	}
 	hit, guarded, params := strike(state, runtimes, attacker, rt.HitDef, &rt.Context, cfg, hitSounds)
 	rt.HitDefHit = hit.Hit
-	if err := applyHitReaction(programs, runtimes, attacker, params, hit, guarded); err != nil {
+	if err := applyHitReaction(programs, runtimes, striker{side: attacker, rt: rt}, params, hit, guarded); err != nil {
 		return fmt.Errorf("engine: Tick: side %v: %w", attacker, err)
 	}
 	return nil
@@ -1772,28 +1772,54 @@ func stepFall(ctx *evaluator.Context, acted bool) {
 	}
 }
 
+// striker is who lands a hit, Ikemen GO's hitting char (hitResultCheck's c,
+// char.go:11414): the player or the helper whose HitDef hit, or the owner
+// of the projectile that hit.
+type striker struct {
+	side match.Side
+	rt   *FighterRuntime
+	// projectile is the projectile that hit, nil for a HitDef.
+	projectile *Projectile
+}
+
+// knockbackFacing is the direction the defender is knocked toward (byf,
+// char.go:11644-11651, 12168-12176): the projectile's facing, else the
+// striker's own once p1facing has turned it.
+func (s striker) knockbackFacing() match.Facing {
+	if s.projectile != nil {
+		return s.projectile.Facing
+	}
+	return s.rt.Context.Facing
+}
+
 // applyHitReaction applies a landed hit's HitDef to both fighters on the
-// tick it lands (a no-op for a miss): the attacker is frozen for
+// tick it lands (a no-op for a miss): the striker is frozen for
 // pausetime[0] ticks; the defender records its get-hit variables, is
 // frozen for pausetime[1] ticks, and enters the get-hit state matching its
 // current StateDef type (first letter, case-insensitive; omitted = S) --
-// S 5000, C 5010, A 5020 -- in the same tick.
+// S 5000, C 5010, A 5020 -- in the same tick. A projectile's owner gets
+// neither the contact, the pause, the hit count nor p1facing: they are the
+// projectile's (char.go:14525-14535), p1stateno is still the owner's.
 // A defender whose stance is L/U, or whose character has no such state,
 // keeps its current state (the freeze and variables still apply), no
 // error. It returns the error of a get-hit header expression the defender's
 // state entry could not evaluate. See .vibe/decisions/018.
-func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, attacker match.Side, params combat.HitDefParams, hit combat.HitResult, guarded bool) error {
+func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, by striker, params combat.HitDefParams, hit combat.HitResult, guarded bool) error {
 	if !hit.Hit {
 		return nil
 	}
-	// The contact counter starts at 1 on the tick of the hit (Ikemen GO
-	// char.go:14270-14271, 13125-13126), and the defender becomes a target.
-	runtimes[attacker].Context.MoveContactTime = 1
-	runtimes[attacker].Context.ContactGuarded = guarded
-	runtimes[attacker].Context.HasTarget = true
-	// A hit adds to the attacker's hit count (char.go:13125-13129).
-	if !guarded {
-		runtimes[attacker].Context.HitCount++
+	attackerCtx := &by.rt.Context
+	if by.projectile == nil {
+		// The contact counter starts at 1 on the tick of the hit (Ikemen GO
+		// char.go:14270-14271, 13125-13126), and the defender becomes a
+		// target.
+		attackerCtx.MoveContactTime = 1
+		attackerCtx.ContactGuarded = guarded
+		attackerCtx.HasTarget = true
+		// A hit adds to the attacker's hit count (char.go:13125-13129).
+		if !guarded {
+			attackerCtx.HitCount++
+		}
 	}
 
 	ctx := &runtimes[hit.Defender].Context
@@ -1810,25 +1836,28 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 	}()
 	defender := programs[hit.Defender]
 	if guarded {
-		runtimes[attacker].HitPause = params.GuardPauseTime[0]
-		return guardReaction(ctx, defender, params, runtimes[attacker].Context.Facing)
+		if by.projectile == nil {
+			by.rt.HitPause = params.GuardPauseTime[0]
+		}
+		return guardReaction(ctx, defender, params, by.knockbackFacing())
 	}
-	runtimes[attacker].HitPause = params.PauseTime[0]
+	if by.projectile == nil {
+		by.rt.HitPause = params.PauseTime[0]
+	}
 
-	attackerCtx := &runtimes[attacker].Context
-	// p1facing and p2facing turn the fighters (char.go hit, p1facing /
-	// p2facing): 1 faces the defender to the attacker, -1 turns.
+	// p1facing and p2facing turn the fighters (char.go:12194-12209): 1
+	// faces the defender to the attacker, -1 turns.
 	switch params.P2Facing {
 	case 1:
-		ctx.Facing = 1 - attackerCtx.Facing
+		ctx.Facing = 1 - by.knockbackFacing()
 	case -1:
-		ctx.Facing = attackerCtx.Facing
+		ctx.Facing = by.knockbackFacing()
 	}
-	if params.P1Facing < 0 {
+	if params.P1Facing < 0 && by.projectile == nil {
 		attackerCtx.Facing = 1 - attackerCtx.Facing
 	}
 	if params.P1StateNo >= 0 {
-		if err := programs[attacker].selfState(&runtimes[attacker], params.P1StateNo); err != nil {
+		if err := programs[by.side].selfState(by.rt, params.P1StateNo); err != nil {
 			return err
 		}
 	}
@@ -1844,7 +1873,7 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 		target = 5020
 		hitTime = params.AirHitTime
 	}
-	ctx.GetHit = getHitFor(params, ctx, hitTime, runtimes[attacker].Context.Facing)
+	ctx.GetHit = getHitFor(params, ctx, hitTime, by.knockbackFacing())
 	// Ikemen GO makes the defender's move type H before entering the get-hit
 	// state, whose StateDef may then set its own (char.go:13123-13129).
 	ctx.MoveType = 'H'
@@ -1863,7 +1892,7 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 	// p2stateno sends the defender into the attacker's state of that number
 	// instead of its get-hit state: a custom state (char.go:13176-13197).
 	if params.P2StateNo >= 0 {
-		if def, ok := programs[attacker].stateHeader(params.P2StateNo); ok {
+		if def, ok := programs[by.side].stateHeader(params.P2StateNo); ok {
 			ctx.PrevStateNo, ctx.StateNo = ctx.StateNo, params.P2StateNo
 			ctx.InOpponentStates = true
 			ctx.Ctrl = false

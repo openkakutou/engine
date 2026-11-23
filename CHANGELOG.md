@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.4] - 2026-11-23
+
+### Fixed
+- A helper's hit acts on the helper, as in Ikemen GO: its HitDef's `p1stateno` and `p1facing` and its hit count are the helper's, no longer the player's.
+- A projectile's hit no longer turns its owner (`p1facing`) nor adds to the owner's hit count, and knocks the defender along the projectile's facing rather than the owner's.
+
 ## [2.77.3] - 2026-11-23
 
 ### Fixed

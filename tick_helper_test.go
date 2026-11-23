@@ -206,3 +206,53 @@ func TestTick_ABoundHelperFollowsItsParent(t *testing.T) {
 		t.Errorf("helper facing %v, want away from the player's %v (facing -1)", h.Facing, p.Facing)
 	}
 }
+
+// helperHitter is spawnerProgram with a helper whose state 1000 lands a
+// HitDef with params on its first tick, and an empty state 1002.
+func helperHitter(params map[string]string) FighterProgram {
+	prog := spawnerProgram(nil)
+	s := prog.States[1000]
+	s.MoveType = cns.MoveTypeAttack
+	hd := map[string]string{"attr": "S, SA", "damage": "25"}
+	for k, v := range params {
+		hd[k] = v
+	}
+	s.Controllers = append(s.Controllers, ctrlWith("HitDef", "1", hd))
+	prog.States[1000] = s
+	prog.States[1002] = cns.StateDef{Number: 1002, Type: cns.StateTypeStanding, Anim: 100}
+	return prog
+}
+
+// char.go:12194-12209: the hitting char is the helper, so p1stateno sends
+// the helper, not the player, into that state.
+func TestTick_AHelpersP1StateNoIsTheHelpers(t *testing.T) {
+	state, progs, rts := projMatch(t, helperHitter(map[string]string{"p1stateno": "1002"}), 40)
+	final, _ := runProj(t, state, progs, rts, 1)
+	h := final.Helpers[match.SideP1][0].Context
+	p := final.Fighters[match.SideP1].Context
+	if h.StateNo != 1002 || p.StateNo != 0 {
+		t.Errorf("states: helper %d, player %d; want 1002, 0", h.StateNo, p.StateNo)
+	}
+}
+
+// char.go:13125-13129: the helper's hit adds to its own hit count.
+func TestTick_AHelpersHitCountsForTheHelper(t *testing.T) {
+	state, progs, rts := projMatch(t, helperHitter(nil), 40)
+	final, _ := runProj(t, state, progs, rts, 1)
+	h := final.Helpers[match.SideP1][0].Context
+	p := final.Fighters[match.SideP1].Context
+	if h.HitCount != 1 || p.HitCount != 0 {
+		t.Errorf("hit counts: helper %d, player %d; want 1, 0", h.HitCount, p.HitCount)
+	}
+}
+
+// char.go:12194-12198: p1facing -1 turns the helper that hit, not the player.
+func TestTick_AHelpersP1FacingTurnsTheHelper(t *testing.T) {
+	state, progs, rts := projMatch(t, helperHitter(map[string]string{"p1facing": "-1"}), 40)
+	final, _ := runProj(t, state, progs, rts, 1)
+	h := final.Helpers[match.SideP1][0].Context
+	p := final.Fighters[match.SideP1].Context
+	if h.Facing != match.FacingLeft || p.Facing != match.FacingRight {
+		t.Errorf("facing: helper %v, player %v; want left, right", h.Facing, p.Facing)
+	}
+}

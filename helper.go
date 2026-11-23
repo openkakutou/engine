@@ -164,8 +164,8 @@ func helperSnapshots(dst []evaluator.Opponent, helpers []Helper) []evaluator.Opp
 
 // hitWithHelpers lands the attacker's helpers' HitDefs whose hit boxes touch
 // the defender's hurt boxes, each like the player's own, the first one only
-// (a defender is hit once a tick). The helper, not the player, gets the hit
-// pause and the contact.
+// (a defender is hit once a tick). The helper, not the player, is the
+// striker (char.go:12194-12209).
 func hitWithHelpers(state *match.MatchState, programs *[2]FighterProgram, runtimes *[2]FighterRuntime, attacker match.Side, defClsn2 []air.ClsnBox, cfg TickConfig, hitSounds *[2][]evaluator.SoundEvent) error {
 	rt := &runtimes[attacker]
 	defender := &runtimes[1-attacker].Context
@@ -180,17 +180,12 @@ func hitWithHelpers(state *match.MatchState, programs *[2]FighterProgram, runtim
 		if !evaluator.HittableBy(defender.HitBy, h.Context.HitDefAttr) {
 			continue
 		}
-		owner := ownerContact{rt.HitPause, rt.Context.MoveContactTime, rt.Context.ContactGuarded, rt.Context.HasTarget}
 		hit, guarded, params := strike(state, runtimes, attacker, h.HitDef, &h.Context, cfg, hitSounds)
 		h.HitDefHit = hit.Hit
 		if !hit.Hit {
 			continue
 		}
-		err := applyHitReaction(programs, runtimes, attacker, params, hit, guarded)
-		h.HitPause = rt.HitPause
-		h.Context.MoveContactTime, h.Context.ContactGuarded, h.Context.HasTarget = 1, guarded, true
-		rt.HitPause, rt.Context.MoveContactTime, rt.Context.ContactGuarded, rt.Context.HasTarget = owner.pause, owner.moveContact, owner.guarded, owner.target
-		return err
+		return applyHitReaction(programs, runtimes, striker{side: attacker, rt: &h.FighterRuntime}, params, hit, guarded)
 	}
 	return nil
 }
