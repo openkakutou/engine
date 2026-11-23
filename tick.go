@@ -1034,13 +1034,17 @@ func tickFighter(progs fighterPrograms, runtime FighterRuntime, fighter match.Fi
 	ctx.RandSeed = seed
 	ctx.YAccel = ctx.Consts.Lookup("movement.yaccel").Number
 	prog := progs.own
-	// The animations the triggers read: the opponent's after ChangeAnim2,
-	// else the fighter's own (set once at its start when not precomputed).
-	switch {
-	case ctx.AnimFromOpponent:
-		ctx.Anims = progs.opp.animationTable()
-	case progs.own.animIndex != nil:
+	// The animation tables the triggers read: the fighter's own (set once
+	// at its start when not precomputed) and the opponent's, which a
+	// ChangeAnim2 shows, even one run later in this tick (built once when
+	// not precomputed).
+	if progs.own.animIndex != nil {
 		ctx.Anims = progs.own.animIndex
+	}
+	if progs.opp.animIndex != nil {
+		ctx.OpponentAnims = progs.opp.animIndex
+	} else if ctx.OpponentAnims == nil {
+		ctx.OpponentAnims = progs.opp.animationTable()
 	}
 
 	// The turn comes before the commands, so back and forward follow it the
@@ -1717,38 +1721,40 @@ func headerBool(ctx *evaluator.Context, def entryHeader, name string, literal bo
 // state as of now and the rest from its runtime context.
 func snapshotOf(fighter match.FighterState, ctx *evaluator.Context) evaluator.Opponent {
 	return evaluator.Opponent{
-		Valid:           true,
-		FighterState:    fighter,
-		Time:            ctx.Time,
-		Anim:            ctx.Anim,
-		PrevStateNo:     ctx.PrevStateNo,
-		Ctrl:            ctx.Ctrl,
-		StateType:       ctx.StateType,
-		MoveType:        ctx.MoveType,
-		GetHit:          ctx.GetHit,
-		MoveContactTime: ctx.MoveContactTime,
-		HitDefAttr:      ctx.HitDefAttr,
-		InCustomState:   ctx.InOpponentStates,
-		ReversalAttr:    ctx.ReversalAttr,
-		GuardDist:       ctx.HitDefGuardDist,
-		Consts:          ctx.Consts,
-		ScreenLeft:      ctx.ScreenLeft,
-		ScreenRight:     ctx.ScreenRight,
-		WidthEdge:       ctx.WidthEdge,
-		IkemenChar:      ctx.IkemenChar,
-		NumProjectiles:  ctx.NumProjectiles,
-		Name:            ctx.Name,
-		AuthorName:      ctx.AuthorName,
-		IsHelper:        ctx.IsHelper,
-		HelperID:        ctx.HelperID,
-		Helpers:         ctx.Helpers,
-		HitPauseTime:    ctx.HitPauseTime,
-		AnimElapsed:     ctx.AnimElapsed,
-		Anims:           ctx.Anims,
-		PalNo:           ctx.PalNo,
-		Vars:            ctx.Vars,
-		FVars:           ctx.FVars,
-		SysVars:         ctx.SysVars,
+		Valid:            true,
+		FighterState:     fighter,
+		Time:             ctx.Time,
+		Anim:             ctx.Anim,
+		PrevStateNo:      ctx.PrevStateNo,
+		Ctrl:             ctx.Ctrl,
+		StateType:        ctx.StateType,
+		MoveType:         ctx.MoveType,
+		GetHit:           ctx.GetHit,
+		MoveContactTime:  ctx.MoveContactTime,
+		HitDefAttr:       ctx.HitDefAttr,
+		InCustomState:    ctx.InOpponentStates,
+		ReversalAttr:     ctx.ReversalAttr,
+		GuardDist:        ctx.HitDefGuardDist,
+		Consts:           ctx.Consts,
+		ScreenLeft:       ctx.ScreenLeft,
+		ScreenRight:      ctx.ScreenRight,
+		WidthEdge:        ctx.WidthEdge,
+		IkemenChar:       ctx.IkemenChar,
+		NumProjectiles:   ctx.NumProjectiles,
+		Name:             ctx.Name,
+		AuthorName:       ctx.AuthorName,
+		IsHelper:         ctx.IsHelper,
+		HelperID:         ctx.HelperID,
+		Helpers:          ctx.Helpers,
+		HitPauseTime:     ctx.HitPauseTime,
+		AnimElapsed:      ctx.AnimElapsed,
+		Anims:            ctx.Anims,
+		OpponentAnims:    ctx.OpponentAnims,
+		AnimFromOpponent: ctx.AnimFromOpponent,
+		PalNo:            ctx.PalNo,
+		Vars:             ctx.Vars,
+		FVars:            ctx.FVars,
+		SysVars:          ctx.SysVars,
 	}
 }
 

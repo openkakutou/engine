@@ -479,8 +479,10 @@ func TestCurrentFrame_ReturnsZeroFrame_WhenAnimationHasNoFrames(t *testing.T) {
 
 func TestTick_TickConfigAddsNoAllocationBeyondInputRecognition(t *testing.T) {
 	states := idleStates()
-	p1 := FighterProgram{States: states}
-	p2 := FighterProgram{States: states}
+	// Built as the loader builds them (NewFighterProgramFromFiles), with their
+	// animation index.
+	p1 := NewFighterProgram(states, nil, cmd.CommandFile{})
+	p2 := NewFighterProgram(states, nil, cmd.CommandFile{})
 
 	p1Fighter := match.FighterState{Side: match.SideP1, Position: match.Position{X: -10}, Health: 1000}
 	p2Fighter := match.FighterState{Side: match.SideP2, Position: match.Position{X: 10}, Health: 1000}
@@ -590,8 +592,10 @@ func TestFindAnimation_FallsBackToLinearScan_ForRawStructLiteral(t *testing.T) {
 
 func TestTick_RunsAsAnEmptyState_WhenAFightersCurrentStateIsNotInItsLoadedStates(t *testing.T) {
 	states := idleStates()
-	p1 := FighterProgram{States: states}
-	p2 := FighterProgram{States: states}
+	// Built as the loader builds them (NewFighterProgramFromFiles), with their
+	// animation index.
+	p1 := NewFighterProgram(states, nil, cmd.CommandFile{})
+	p2 := NewFighterProgram(states, nil, cmd.CommandFile{})
 
 	p1Fighter := match.FighterState{Side: match.SideP1, StateNo: 999, Health: 1000}
 	p2Fighter := match.FighterState{Side: match.SideP2, Health: 1000}

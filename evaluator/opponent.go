@@ -41,10 +41,12 @@ type Opponent struct {
 	// Name and AuthorName are its character's, for P2Name and the
 	// redirected name triggers.
 	Name, AuthorName string
-	// HitPauseTime, AnimElapsed, Anims and PalNo are what HitPauseTime,
-	// AnimTime, AnimElemTime(n), AnimExist(n) and PalNo read.
+	// HitPauseTime, AnimElapsed, the animation tables and PalNo are what
+	// HitPauseTime, AnimTime, AnimElemTime(n), AnimExist(n),
+	// SelfAnimExist(n) and PalNo read.
 	HitPauseTime, AnimElapsed, PalNo int
-	Anims                            map[int]air.Animation
+	Anims, OpponentAnims             map[int]air.Animation
+	AnimFromOpponent                 bool
 	// Helpers are its player's helpers, for a redirected NumHelper.
 	Helpers []Opponent
 	// IsHelper and HelperID tell a helper (parent, root and helper(id)
@@ -94,6 +96,8 @@ func (o *Opponent) context() Context {
 		HitPauseTime:     o.HitPauseTime,
 		AnimElapsed:      o.AnimElapsed,
 		Anims:            o.Anims,
+		OpponentAnims:    o.OpponentAnims,
+		AnimFromOpponent: o.AnimFromOpponent,
 		PalNo:            o.PalNo,
 		Vars:             o.Vars,
 		FVars:            o.FVars,

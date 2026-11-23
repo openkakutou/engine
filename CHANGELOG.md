@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.5] - 2026-11-23
+
+### Fixed
+- After a ChangeAnim2, `AnimTime`, `AnimElem`, `AnimElemTime`, `AnimElemNo` and `AnimExist` read the opponent's animation in the same state run, not only from the next tick, and `SelfAnimExist` keeps reading the character's own animations, as Ikemen GO does.
+
+### Added
+- `evaluator.Context.OpponentAnims` and `ShownAnims()`: the opponent's animation table and the one the current animation comes from.
+
 ## [2.77.4] - 2026-11-23
 
 ### Fixed

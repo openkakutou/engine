@@ -59,12 +59,15 @@ type Context struct {
 	// into AnimElapsed and clears it the same tick. Not persistent fighter
 	// state.
 	AnimElem, AnimElemTime int
-	// Anims is the character's animations by number, read by AnimElem,
-	// AnimElemTime, AnimElemNo, AnimExist and SelfAnimExist. Like Consts it
-	// is set once per fighter by FighterProgram.NewRuntime and never written
-	// after, so copying a Context copies one map header, not the table. Nil
-	// means the character has no animation.
+	// Anims is the character's own animations by number, read by
+	// SelfAnimExist, and by AnimElem, AnimElemTime, AnimElemNo and AnimExist
+	// unless AnimFromOpponent (ShownAnims). Like Consts it is set once per
+	// fighter by FighterProgram.NewRuntime, so copying a Context copies one
+	// map header, not the table. Nil means the character has no animation.
 	Anims map[int]air.Animation
+	// OpponentAnims is the opponent's animations, the table a ChangeAnim2
+	// animation comes from; set by the root package each tick.
+	OpponentAnims map[int]air.Animation
 	// YAccel is the vertical acceleration the Gravity controller adds to
 	// the fighter's downward velocity each time it runs (Ikemen GO's
 	// movement.yaccel constant). The caller supplies it from simulation
@@ -527,4 +530,14 @@ type PauseRequest struct {
 	Anim               int
 	AnimCommon         bool
 	Pos                [2]float64
+}
+
+// ShownAnims is the table the current animation comes from (Ikemen GO's
+// c.animPN, char.go:5583-5595): the opponent's after ChangeAnim2, else the
+// character's own.
+func (c *Context) ShownAnims() map[int]air.Animation {
+	if c.AnimFromOpponent {
+		return c.OpponentAnims
+	}
+	return c.Anims
 }

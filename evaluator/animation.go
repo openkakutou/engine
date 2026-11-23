@@ -85,11 +85,11 @@ func animTime(ctx *Context) int {
 }
 
 // currentAnimation returns the fighter's current animation, read from the
-// table in ctx.Anims. ok is false when it has none: no table, or an
+// table it comes from (ShownAnims). ok is false when it has none: no table, or an
 // animation the character lacks (Ikemen GO's nil c.anim) or one without
 // frames.
 func currentAnimation(ctx *Context) (anim air.Animation, ok bool) {
-	anim, ok = ctx.Anims[ctx.Anim]
+	anim, ok = ctx.ShownAnims()[ctx.Anim]
 	return anim, ok && len(anim.Frames) > 0
 }
 
@@ -169,9 +169,7 @@ func animElemNo(ctx *Context, offset int) (no int, ok bool) {
 // they read: AnimExist the table of the player the current animation came
 // from (c.animPN, char.go:5583-5595, changed by ChangeAnim2 and by a state
 // owned by another player), SelfAnimExist the character's own
-// (c.gi().animTable, char.go:5597-5602). The engine has no custom states or
-// ChangeAnim2 yet, so the current animation always comes from the fighter's
-// own table and both read ctx.Anims.
+// (c.gi().animTable, char.go:5597-5602).
 func evalAnimCall(n callNode, ctx *Context) (Value, bool, error) {
 	if len(n.args) != 1 {
 		return Value{}, true, fmt.Errorf("evaluator: %s() expects 1 argument, got %d", n.name, len(n.args))
@@ -188,7 +186,10 @@ func evalAnimCall(n callNode, ctx *Context) (Value, bool, error) {
 	case "animelemno":
 		no, _ := animElemNo(ctx, arg)
 		return intValue(float64(no)), true, nil
-	case "animexist", "selfanimexist":
+	case "animexist":
+		_, exists := ctx.ShownAnims()[arg]
+		return boolValue(exists), true, nil
+	case "selfanimexist":
 		_, exists := ctx.Anims[arg]
 		return boolValue(exists), true, nil
 	}
