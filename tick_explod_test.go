@@ -143,3 +143,28 @@ func TestTick_ModifyExplodChangesThatIDsExplods(t *testing.T) {
 		t.Errorf("after its new remove time: %+v, want only id 4", es)
 	}
 }
+
+// P2's TargetBind moves P1 before P2's explods are placed: a postype p2
+// explod made by P2 the same tick appears at P1's bound position, as P1's
+// own explods see P2 after its tick.
+func TestTick_P2sPostypeP2ExplodSeesP1WhereItsTargetBindPutIt(t *testing.T) {
+	binder := explodProgram(map[string]string{"postype": "p2", "pos": "0, 0"},
+		ctrlWith("TargetBind", "1", map[string]string{"pos": "30, 0", "time": "1"}))
+	state, progs, rts := projMatch(t, hurtProgram(), 900)
+	progs[match.SideP2] = binder
+	p2, err := binder.NewRuntime(state.Fighters[match.SideP2])
+	if err != nil {
+		t.Fatal(err)
+	}
+	p2.Context.HasTarget = true
+	rts[match.SideP2] = p2
+	rts[match.SideP1].Context.MoveType = 'H'
+	final, _ := runProj(t, state, progs, rts, 1)
+	if x := final.State.Fighters[match.SideP1].Position.X; x != 870 {
+		t.Fatalf("P1 at x %v, want 870 (bound 30 in front of P2)", x)
+	}
+	es := final.Explods[match.SideP2]
+	if len(es) != 1 || es[0].Position.X != 870 {
+		t.Errorf("P2's explods = %+v, want one at x 870 (P1 after the bind)", es)
+	}
+}

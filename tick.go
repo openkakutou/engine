@@ -523,6 +523,9 @@ func Tick(
 	state.Fighters[match.SideP1] = p1Out.Runtime.Context.FighterState
 	// BindToTarget moves P2 itself.
 	state.Fighters[match.SideP2] = p2Out.Runtime.Context.FighterState
+	// P2's helpers and explods see P1 after P2's Target* moved it, as P1's
+	// see P2 after its tick: both sides at the same instant.
+	p1Seen = snapshotOf(state.Fighter(match.SideP1), &p1Out.Runtime.Context)
 
 	// The runtimes handed in stay as they were: the helpers and projectiles
 	// change in fresh slices (nil stays nil, so a tick without any allocates

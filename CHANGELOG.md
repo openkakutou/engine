@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.6] - 2026-11-23
+
+### Fixed
+- P2's helpers and explods see P1 where P2's Target controllers put it this tick: a `postype = p2` explod or helper made by P2 during a TargetBind throw is placed from P1's bound position, not from where P1 stood before the bind.
+
 ## [2.77.5] - 2026-11-23
 
 ### Fixed
