@@ -72,3 +72,12 @@ func TestParseHitDef_GuardParameters(t *testing.T) {
 		t.Errorf("explicit guard = %+v", q)
 	}
 }
+
+// bytecode.go:8479-8483, char.go:933-934: a guard.pausetime with one value
+// sets the attacker's pause only; the defender's shake stays pausetime's.
+func TestParseHitDef_GuardPauseTimeWithOneValueKeepsTheShake(t *testing.T) {
+	p := ParseHitDef(map[string]string{"pausetime": "12, 12", "guard.pausetime": "10"})
+	if p.GuardPauseTime != [2]int{10, 12} {
+		t.Errorf("guard.pausetime = %v, want [10 12]", p.GuardPauseTime)
+	}
+}

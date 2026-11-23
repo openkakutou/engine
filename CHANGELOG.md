@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.7] - 2026-11-23
+
+### Fixed
+- A HitDef's `guard.pausetime` with a single value no longer cancels the defender's guard shake: the missing second value keeps `pausetime`'s, as in Ikemen GO.
+- LifeAdd is divided by the fighter's defence (`[Data] defence` and DefenceMulSet) unless `absolute = 1`, a loss of less than 1 counting 1, and a MUGEN character's healing is always absolute, as Ikemen GO does.
+
+### Added
+- `evaluator.Context.FinalDefence()`, the fighter's defence as hits and LifeAdd divide by it.
+
 ## [2.77.6] - 2026-11-23
 
 ### Fixed

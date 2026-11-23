@@ -2,6 +2,7 @@ package statemachine
 
 import (
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 
@@ -309,8 +310,10 @@ func applyTurn(_ cns.Controller, ctx evaluator.Context) (evaluator.Context, erro
 // applyLifeAdd adds "value" to the fighter's health. Ikemen GO bytecode.go
 // lifeAdd.Run calls char.go lifeAdd: "kill" defaults to true and, when
 // false, damage that would reach 0 leaves 1; the result is clamped to
-// [0, max] by lifeSet. "absolute" only decides whether the fighter's defense
-// scales the value; the engine has no defense, so it never matters here.
+// [0, max] by lifeSet. Unless "absolute", the value is divided by the
+// fighter's final defence, a loss of less than 1 then counting 1
+// (char.go:8921-8931); a MUGEN character's healing is always absolute
+// (bytecode.go:10804-10810).
 // A fighter already at 0 health stays there: Ikemen GO keeps its KO flag
 // through lifeAdd, while the engine reads KO from health alone, so adding
 // life to a KO'd fighter must not revive it (see .vibe/decisions/020).
@@ -324,11 +327,24 @@ func applyLifeAdd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context
 		return evaluator.Context{}, err
 	}
 	canKill := !hasKill || kill != 0
+	absolute, _, err := evalOptional(ctrl, "absolute", &ctx)
+	if err != nil {
+		return evaluator.Context{}, err
+	}
 
-	if ctx.Health <= 0 {
+	if ctx.Health <= 0 || int(value) == 0 {
 		return ctx, nil
 	}
-	health := ctx.Health + int(value)
+	add := float64(int(value))
+	scaled := absolute == 0 && (ctx.IkemenChar || add < 0)
+	defence := ctx.FinalDefence()
+	if scaled && defence != 0 {
+		add /= defence
+	}
+	if add > -1 && add < 0 {
+		add = -1
+	}
+	health := ctx.Health + int(math.Round(add))
 	if !canKill && health <= 0 {
 		health = 1
 	}

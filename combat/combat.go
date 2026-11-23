@@ -385,8 +385,13 @@ func ParseHitDef(params map[string]string) HitDefParams {
 	p.HitFlag = hitFlag(rawHitFlag, hasHitFlag)
 	p.GuardPauseTime = p.PauseTime
 	if raw, ok := params["guard.pausetime"]; ok {
-		first, second, _ := strings.Cut(raw, ",")
-		p.GuardPauseTime = [2]int{max(parseIntOr(first, 0), 0), max(parseIntOr(second, 0), 0)}
+		// A missing second value keeps pausetime's (bytecode.go:8479-8483,
+		// char.go:933-934).
+		first, second, hasSecond := strings.Cut(raw, ",")
+		p.GuardPauseTime[0] = max(parseIntOr(first, 0), 0)
+		if hasSecond {
+			p.GuardPauseTime[1] = max(parseIntOr(second, 0), 0)
+		}
 	}
 	p.GuardHitTime = parseIntOr(params["guard.hittime"], -1)
 	p.GuardSlideTime = parseIntOr(params["guard.slidetime"], -1)

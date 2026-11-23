@@ -957,11 +957,7 @@ func damageMultiplier(attacker, defender *evaluator.Context) float64 {
 	if attacker.HasAttackMul {
 		attack *= attacker.AttackMul
 	}
-	custom := defender.CustomDefence
-	if custom == 0 || (defender.DefenceMulOnHit && defender.MoveType != 'H') {
-		custom = 1
-	}
-	defence := defender.Consts.Lookup("data.defence").Number / 100 * custom
+	defence := defender.FinalDefence()
 	if defence == 0 {
 		return attack
 	}
