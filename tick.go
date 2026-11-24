@@ -1862,9 +1862,7 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 		attackerCtx.Facing = 1 - attackerCtx.Facing
 	}
 	if params.P1StateNo >= 0 {
-		if err := programs[by.side].selfState(by.rt, params.P1StateNo); err != nil {
-			return err
-		}
+		pendStateChange(programs[by.side], attackerCtx, params.P1StateNo)
 	}
 
 	hitTime := params.GroundHitTime
@@ -1920,6 +1918,24 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 		}
 	}
 	return nil
+}
+
+// pendStateChange is p1stateno's change of the striker's state (Ikemen GO
+// stateChange1, then setSCF(SCF_ctrl, false), char.go:6802-6853,
+// 12207-12209): the number changes and control goes at the hit, but the
+// state is entered -- its header run -- at the start of the striker's next
+// tick out of its hit pause (stateChange2, char.go:6943-6944), so the hit
+// count added this tick stays until then. A state the character lacks
+// leaves it where it is.
+func pendStateChange(prog FighterProgram, ctx *evaluator.Context, number int) {
+	if !prog.hasState(number) {
+		return
+	}
+	ctx.PrevStateNo, ctx.StateNo = ctx.StateNo, number
+	ctx.Time = 0
+	ctx.Persistent = [evaluator.MaxPersistent]int32{}
+	ctx.Ctrl = false
+	ctx.StateEntryPending = true
 }
 
 // guardReaction is a guarded hit's effect on the defender, Ikemen GO

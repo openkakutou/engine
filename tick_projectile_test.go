@@ -5,6 +5,7 @@ import (
 
 	"github.com/openkakutou/character/air"
 	"github.com/openkakutou/character/cns"
+	"github.com/openkakutou/engine/v2/combat"
 	"github.com/openkakutou/engine/v2/input"
 	"github.com/openkakutou/engine/v2/match"
 )
@@ -154,5 +155,44 @@ func TestTick_AProjectilesHitLeavesItsOwnersFacingAndHitCount(t *testing.T) {
 	p := final.Fighters[match.SideP1].Context
 	if p.Facing != match.FacingRight || p.HitCount != 0 {
 		t.Errorf("owner facing %v hit count %d, want right, 0", p.Facing, p.HitCount)
+	}
+}
+
+// char.go:14527-14533: a projectile freezes for pausetime on its hit, one
+// tick less for a WinMUGEN character (no mugenversion 1.0 or 1.1); read at
+// the end of the hit tick, which already counted one tick down.
+func TestTick_AProjectilesHitPauseIsShorterForAWinMugenCharacter(t *testing.T) {
+	for _, c := range []struct {
+		version [2]uint16
+		want    int
+	}{{[2]uint16{1, 0}, 4}, {[2]uint16{0, 5}, 3}} {
+		caster := casterProgram(map[string]string{"projhits": "2", "pausetime": "5, 5"})
+		caster.MugenVersion = c.version
+		state, progs, rts := projMatch(t, caster, 60)
+		_, all := runProj(t, state, progs, rts, 20)
+		got := -1
+		for _, res := range all {
+			if res.State.Fighters[match.SideP2].Health < 1000 {
+				got = res.Fighters[match.SideP1].Projectiles[0].HitPause
+				break
+			}
+		}
+		if got != c.want {
+			t.Errorf("mugenversion %v: hit pause = %d, want %d", c.version, got, c.want)
+		}
+	}
+}
+
+// char.go:14531-14532: a guarded projectile freezes for guard.pausetime.
+func TestProjectileHitPause_GuardedUsesGuardPauseTime(t *testing.T) {
+	params := combat.HitDefParams{PauseTime: [2]int{5, 5}, GuardPauseTime: [2]int{2, 2}}
+	if got := projectileHitPause(params, true, [2]int{1, 0}); got != 2 {
+		t.Errorf("guarded = %d, want 2", got)
+	}
+	if got := projectileHitPause(params, false, [2]int{1, 0}); got != 5 {
+		t.Errorf("hit = %d, want 5", got)
+	}
+	if got := projectileHitPause(combat.HitDefParams{}, false, [2]int{0, 5}); got != 0 {
+		t.Errorf("WinMUGEN with no pause = %d, want 0, never negative", got)
 	}
 }

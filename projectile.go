@@ -212,11 +212,25 @@ func hitWithProjectiles(state *match.MatchState, programs *[2]FighterProgram, ru
 			continue
 		}
 		p.contact = true
-		p.HitPause = max(params.PauseTime[0], 0)
+		p.HitPause = projectileHitPause(params, guarded, rt.Context.MugenVersion)
 		rt.Context.ProjContacts = recordProjContact(rt.Context.ProjContacts, p.ID, cfg.Tick, guarded)
 		return applyHitReaction(programs, runtimes, striker{side: attacker, rt: rt, projectile: p}, params, hit, guarded)
 	}
 	return nil
+}
+
+// projectileHitPause is how long a projectile freezes on its hit
+// (char.go:14527-14533): pausetime, guard.pausetime when guarded, a WinMUGEN
+// character's (mugenversion major 0) one tick shorter.
+func projectileHitPause(params combat.HitDefParams, guarded bool, mugenVersion [2]int) int {
+	pause := params.PauseTime[0]
+	if guarded {
+		pause = params.GuardPauseTime[0]
+	}
+	if mugenVersion[0] == 0 {
+		pause--
+	}
+	return max(pause, 0)
 }
 
 // strike lands hitDef from the attacker (from is how it is seen: the

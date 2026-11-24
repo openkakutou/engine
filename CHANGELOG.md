@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.9] - 2026-11-24
+
+### Fixed
+- A HitDef's `p1stateno` takes the attacker's control and changes its state number at the hit, but enters the state (its anim, velset, hitcountpersist…) once the hit pause is over, as Ikemen GO: the attacker keeps its animation during the pause and its hit count reads 1 until then.
+- A projectile freezes for `guard.pausetime` when guarded, and a WinMUGEN character's projectile one tick less, as Ikemen GO.
+
 ## [2.77.8] - 2026-11-23
 
 ### Fixed
