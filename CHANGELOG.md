@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.11] - 2026-11-24
+
+### Fixed
+- The conformance tool reads the `value` of `HitBy` / `NotHitBy` as an attribute list, as the engine does: common1.cns's `NotHitBy value = SCA` is no longer reported as an unknown trigger `sca`, nor neutralized in the run.
+
 ## [2.77.10] - 2026-11-24
 
 ### Fixed

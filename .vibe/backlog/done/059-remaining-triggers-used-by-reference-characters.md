@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 ---
 # Remaining Triggers Used by Reference Characters
 
@@ -15,8 +15,8 @@ After item 041, every expression of the reference files parses, but some trigger
 🔒 MUST: Ikemen GO behaviour (roadmap decision `038`), commit `54d4148a`.
 
 ## Acceptance Criteria
-- [ ] Each name evaluates as Ikemen GO does, with the source cited and a test using a value derived independently
-- [ ] The conformance run on `kfm` and `kfm_zss` (with `-common testdata/reference`) lists no unknown trigger
+- [x] Each name evaluates as Ikemen GO does, with the source cited and a test using a value derived independently
+- [x] The conformance run on `kfm` and `kfm_zss` (with `-common testdata/reference`) lists no unknown trigger
 
 ## Notes
 Found by item 041 (2026-11-19).
@@ -27,3 +27,4 @@ Found by item 041 (2026-11-19).
 - 2026-11-21: `TeamSide` done. Still to do: `MatchOver`, `RoundsExisted`, `aiw`.
 - 2026-11-21: `RoundsExisted`, `MatchOver` done (with a corpus batch, see CHANGELOG 2.43.0). Still to do: `aiw`.
 - 2026-11-21 (v2.58.0 to v2.72.0): `ProjCancelTime`, `InCustomState`, `ReversalDefAttr`, `TicksPerSecond`, `GetHitVar(fall.time)`; Ikemen GO's CNS tolerance for postfix `!`, `!MoveType = H`, type comparisons binding first, old-style triggers' `>=`/`<=`/`!=` and odd suffixes, name triggers' skipped tokens, division by 0, CNS attrs. A 3000-tick mirror survey of the 373 corpus characters fails on 6, each failing or unverifiable in Ikemen GO's reference commit too (`MajorVersion` absent there, a `>=` inside a VarSet key, Shift-JIS spaces in a trigger).
+- 2026-11-24: `aiw` is not a trigger: kfm_zss reads it as a map name, `map(AIw)`, already supported. The last unknown name on kfm was `sca`, the conformance tool reading `NotHitBy value = SCA` as an expression; fixed in v2.77.11. The conformance run on kfm and kfm_zss (`-common testdata/reference`) now lists no unknown trigger.

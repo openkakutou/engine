@@ -139,3 +139,21 @@ func TestNeutralize_ControllerWithTriggerGroups_LosesItsGroups(t *testing.T) {
 		t.Error("the given table was modified")
 	}
 }
+
+// HitBy and NotHitBy read value and value2 as attributes (applyHitBy,
+// Ikemen GO hitBySub), not expressions: common1.cns's NotHitBy value = SCA
+// mentions no trigger and keeps firing.
+func TestNeutralize_HitByAttributeValues_AreNotTriggers(t *testing.T) {
+	for _, ctrl := range []cns.Controller{
+		{Type: "NotHitBy", Triggers: []string{"1"}, Parameters: map[string]string{"value": "SCA", "time": "1"}},
+		{Type: "HitBy", Triggers: []string{"1"}, Parameters: map[string]string{"value2": "SCA, NA"}},
+	} {
+		if unknown, _ := inspectController(ctrl); len(unknown) != 0 {
+			t.Errorf("%s unknown triggers = %v, want none", ctrl.Type, unknown)
+		}
+		got, _ := neutralize(map[int]cns.StateDef{170: {Number: 170, Controllers: []cns.Controller{ctrl}}})
+		if !reflect.DeepEqual(got[170].Controllers[0].Triggers, ctrl.Triggers) {
+			t.Errorf("%s neutralized: triggers %v", ctrl.Type, got[170].Controllers[0].Triggers)
+		}
+	}
+}

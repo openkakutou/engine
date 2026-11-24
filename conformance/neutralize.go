@@ -21,6 +21,13 @@ const neverTrue = "0"
 // are not expressions.
 var evaluatedParameters = []string{"value", "v", "x", "y", "elem", "elemtime", "kill"}
 
+// attributeValued reports a controller whose value is an attribute list,
+// not an expression: HitBy and NotHitBy (statemachine applyHitBy, Ikemen GO
+// hitBySub), as in common1.cns's NotHitBy value = SCA.
+func attributeValued(ctrlType string) bool {
+	return strings.EqualFold(ctrlType, "HitBy") || strings.EqualFold(ctrlType, "NotHitBy")
+}
+
 // inspectController lists the unknown trigger names the controller's
 // triggers (and, for a supported type, its evaluated parameters) mention,
 // and whether one of its triggers fails to parse. Names of a call are
@@ -53,6 +60,9 @@ func inspectController(ctrl cns.Controller) (unknown []string, unparsable bool) 
 		for _, key := range evaluatedParameters {
 			value, ok := ctrl.Parameters[key]
 			if !ok {
+				continue
+			}
+			if key == "value" && attributeValued(ctrl.Type) {
 				continue
 			}
 			// PlaySnd's "group,sample" pair is split as statemachine does and
