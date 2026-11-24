@@ -50,8 +50,10 @@ var unhittableAttr, _ = evaluator.ParseAttr("SCA, AA, AT, AP", false)
 // in the next tick as Ikemen GO buffers it (setPauseTime, setSuperPauseTime,
 // char.go:9384-9440): the pause time, the fighter's move time; for a
 // SuperPause the darkening, the power it adds, its effect explod (shown
-// through the pause) and its unhittable time.
-func startPause(state *match.MatchState, rt *FighterRuntime) {
+// through the pause), its unhittable time and its p2defmul, which raises
+// the defence of an opponent already being hit (char.go:9430-9440,
+// 12987-12995, issue 3814).
+func startPause(state *match.MatchState, rt *FighterRuntime, opponent *evaluator.Context) {
 	r := rt.Context.Pause
 	rt.Context.Pause = evaluator.PauseRequest{}
 	if !r.Set {
@@ -72,4 +74,12 @@ func startPause(state *match.MatchState, rt *FighterRuntime) {
 	if r.Unhittable {
 		c.HitBy[len(c.HitBy)-1] = evaluator.HitBySlot{Attr: unhittableAttr, Time: r.Time + 1, Not: true}
 	}
+	if opponent.MoveType != 'H' {
+		return
+	}
+	current := opponent.SuperDefenceMul
+	if current == 0 {
+		current = 1
+	}
+	opponent.SuperDefenceMul = current * r.P2DefMul
 }

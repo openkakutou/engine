@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.10] - 2026-11-24
+
+### Fixed
+- A fighter's defence grows by its `fall.defence_up` each time it lands in a combo (bounce or trip), and a SuperPause raises the defence of an opponent already being hit by `p2defmul` (1.5 by default, `super.targetdefencemul`), until it is out of the hit, as Ikemen GO: hits and LifeAdd after a knockdown or during a super were too strong.
+
 ## [2.77.9] - 2026-11-24
 
 ### Fixed

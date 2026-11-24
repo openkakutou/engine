@@ -202,6 +202,12 @@ type Context struct {
 	// only while the fighter is being hit (defenseMulDelay).
 	CustomDefence   float64
 	DefenceMulOnHit bool
+	// FallDefenceMul is Ikemen GO's fallDefenseMul: each landing of the
+	// combo multiplies it by (fall.defence_up + 100) / 100. SuperDefenceMul
+	// is its superDefenseMul: a SuperPause's p2defmul, kept while the
+	// fighter is being hit. Both read 0 as 1 and go back to 1 out of a hit.
+	FallDefenceMul  float64
+	SuperDefenceMul float64
 	// MugenVersion is the character's .def mugenversion as Ikemen GO keeps it
 	// (1.0, 1.1, else 0.5), read by MugenVersion(major|minor).
 	MugenVersion [2]int
@@ -530,6 +536,9 @@ type PauseRequest struct {
 	Anim               int
 	AnimCommon         bool
 	Pos                [2]float64
+	// P2DefMul multiplies the defence of an opponent being hit (Const
+	// super.targetdefencemul unless a positive p2defmul is given).
+	P2DefMul float64
 }
 
 // ShownAnims is the table the current animation comes from (Ikemen GO's

@@ -21,12 +21,21 @@ func init() {
 // a SuperPause also darkens (darken, 1), adds poweradd, shows anim (100 of
 // the common fightfx; a S prefix is the character's, -1 none) at pos and
 // makes the fighter unhittable (unhittable, 1).
-// shortcut: endcmdbuftime, pausebg, brightness, sound and p2defmul are not
-// read.
+// p2defmul (Const super.targetdefencemul, 1.5) raises the defence of an
+// opponent already being hit; a value not above 0 keeps the default.
+// shortcut: endcmdbuftime, pausebg, brightness and sound are not read.
 func applyPause(ctrl cns.Controller, ctx evaluator.Context, super bool) (evaluator.Context, error) {
 	r := evaluator.PauseRequest{Set: true, Super: super, Darken: super, Unhittable: super, Anim: -1}
 	if super {
 		r.Time, r.Anim, r.AnimCommon = 30, 100, true
+		r.P2DefMul = ctx.Consts.Lookup("super.targetdefencemul").Number
+		v, ok, err := evalOptional(ctrl, "p2defmul", &ctx)
+		if err != nil {
+			return ctx, err
+		}
+		if ok && v > 0 {
+			r.P2DefMul = v
+		}
 	}
 	ints := []struct {
 		key string

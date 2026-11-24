@@ -505,11 +505,20 @@ func (c *Context) PowerMax() int {
 
 // FinalDefence is the fighter's defence over 100, Ikemen GO's finalDefense
 // (char.go:12997-13001): [Data] defence times its DefenceMulSet multiplier,
-// unless that waits for a hit and the fighter is not in one.
+// unless that waits for a hit and the fighter is not in one, times the
+// SuperPause and fall multipliers.
 func (c *Context) FinalDefence() float64 {
 	custom := c.CustomDefence
 	if custom == 0 || (c.DefenceMulOnHit && c.MoveType != 'H') {
 		custom = 1
 	}
-	return c.Consts.Lookup("data.defence").Number / 100 * custom
+	return c.Consts.Lookup("data.defence").Number / 100 * custom * multiplier(c.SuperDefenceMul) * multiplier(c.FallDefenceMul)
+}
+
+// multiplier reads a defence multiplier left at 0 as 1.
+func multiplier(m float64) float64 {
+	if m == 0 {
+		return 1
+	}
+	return m
 }

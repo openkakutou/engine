@@ -649,8 +649,8 @@ func Tick(
 	case state.PauseTime > 0:
 		state.PauseTime--
 	}
-	startPause(&state, &runtimesOut[match.SideP1])
-	startPause(&state, &runtimesOut[match.SideP2])
+	startPause(&state, &runtimesOut[match.SideP1], &runtimesOut[match.SideP2].Context)
+	startPause(&state, &runtimesOut[match.SideP2], &runtimesOut[match.SideP1].Context)
 
 	// Only the fight (RoundState 2) counts the time and decides the round.
 	fighting := cfg.Round == nil || cfg.Round.State == 2
@@ -1761,20 +1761,40 @@ func snapshotOf(fighter match.FighterState, ctx *evaluator.Context) evaluator.Op
 // time counts while the fall flag is set, and the first tick out of one clears
 // the flag (Ikemen GO char.go:12644-12673). canRecover reads the fall time.
 // An acted tick's first in the bounce (5100) or the lie down from a trip
-// (5070) counts a fall unless asserted nofallcount (char.go:12949-12957);
-// out of a hit state the count is reset.
+// (5070) counts a fall unless asserted nofallcount, and raises the fall
+// defence by fall.defence_up unless asserted nofalldefenceup
+// (char.go:12949-12957); out of a hit state the count and the fall and
+// SuperPause defence multipliers are reset (char.go:12671-12673).
 func stepFall(ctx *evaluator.Context, acted bool) {
 	switch {
 	case ctx.MoveType != 'H':
 		ctx.GetHit.Fall = false
 		ctx.GetHit.FallCount = 0
+		ctx.FallDefenceMul, ctx.SuperDefenceMul = 1, 1
 	case ctx.GetHit.Fall:
 		ctx.GetHit.FallTime++
 	}
 	landed := ctx.StateNo == 5070 || ctx.StateNo == 5100
-	if acted && landed && ctx.Time == 1 && !ctx.Asserted.Has("nofallcount") {
+	if !acted || !landed || ctx.Time != 1 {
+		return
+	}
+	if !ctx.Asserted.Has("nofalldefenceup") {
+		current := ctx.FallDefenceMul
+		if current == 0 {
+			current = 1
+		}
+		ctx.FallDefenceMul = current * fallDefenceStep(ctx)
+	}
+	if !ctx.Asserted.Has("nofallcount") {
 		ctx.GetHit.FallCount++
 	}
+}
+
+// fallDefenceStep is Ikemen GO's fall.defence_mul, (fall.defence_up + 100)
+// / 100 in float32 (char.go:4412).
+func fallDefenceStep(ctx *evaluator.Context) float64 {
+	up := float32(ctx.Consts.Lookup("data.fall.defence_up").Number)
+	return float64((up + 100) / 100)
 }
 
 // striker is who lands a hit, Ikemen GO's hitting char (hitResultCheck's c,
