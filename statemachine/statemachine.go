@@ -245,23 +245,34 @@ func ignoresHitPause(ctrl cns.Controller) bool {
 	return ikemenAtoi(raw) != 0
 }
 
-// ikemenAtoi is Ikemen GO's Atoi (common.go): the optionally signed digits
-// leading the trimmed text, 0 without any.
-func ikemenAtoi(raw string) int {
+// ikemenAtoi is Ikemen GO's Atoi (common.go:191-225): the optionally signed
+// digits leading the trimmed text, 0 without any; past the int32 range it
+// saturates to IMax, or IErr (MinInt32) on the negative side.
+func ikemenAtoi(raw string) int32 {
 	raw = strings.TrimSpace(raw)
 	neg := false
 	if raw != "" && (raw[0] == '-' || raw[0] == '+') {
 		neg = raw[0] == '-'
 		raw = raw[1:]
 	}
-	n := 0
+	limit := int64(math.MaxInt32)
+	if neg {
+		limit++
+	}
+	n := int64(0)
 	for i := 0; i < len(raw) && raw[i] >= '0' && raw[i] <= '9'; i++ {
-		n = n*10 + int(raw[i]-'0')
+		n = n*10 + int64(raw[i]-'0')
+		if n > limit && neg {
+			return math.MinInt32
+		}
+		if n > limit {
+			return math.MaxInt32
+		}
 	}
 	if neg {
-		return -n
+		n = -n
 	}
-	return n
+	return int32(n)
 }
 
 // triggersPass reports whether ctrl's trigger condition holds, in Ikemen
@@ -923,27 +934,15 @@ func applyPlaySnd(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context
 // (compiler.go:7319-7330): an integer read as Atoi, 1 when absent or above
 // 128, and "only once" (MaxInt32) when 0 or below.
 func persistentValue(raw string) int32 {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
+	if strings.TrimSpace(raw) == "" {
 		return 1
 	}
-	neg := false
-	if raw[0] == '-' || raw[0] == '+' {
-		neg = raw[0] == '-'
-		raw = raw[1:]
-	}
-	n := 0
-	for i := 0; i < len(raw) && raw[i] >= '0' && raw[i] <= '9' && n <= 128; i++ {
-		n = n*10 + int(raw[i]-'0')
-	}
-	if neg {
-		n = -n
-	}
+	n := ikemenAtoi(raw)
 	if n > 128 {
 		return 1
 	}
 	if n <= 0 {
 		return math.MaxInt32
 	}
-	return int32(n)
+	return n
 }

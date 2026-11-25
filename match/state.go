@@ -41,6 +41,9 @@ const (
 	FacingLeft
 )
 
+// Opposite is the other facing.
+func (f Facing) Opposite() Facing { return 1 - f }
+
 // Position is a fighter's 2D location in stage coordinates. Its zero value
 // (the origin) is a valid, usable position.
 type Position struct {

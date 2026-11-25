@@ -37,7 +37,6 @@ type ExplodRemoval struct{ ID int }
 // 7158-7560): the fighter's explods with ID (every one for -1) take the
 // parameters it wrote. Set* tells which.
 type ExplodModification struct {
-	ID int
 	ExplodSpawn
 	SetPosType, SetFacing, SetVFacing, SetPos, SetVel, SetAccel bool
 	SetBindTime, SetRemoveTime, SetSprPriority, SetOnTop        bool

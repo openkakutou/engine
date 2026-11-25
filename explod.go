@@ -164,7 +164,7 @@ func spawnExplods(rt *FighterRuntime, serial int, opponent evaluator.Opponent, s
 			e.Position = match.Position{X: s.Pos[0], Y: -s.Pos[1]}
 		}
 		if s.Facing < 0 {
-			e.Facing = 1 - e.Facing
+			e.Facing = e.Facing.Opposite()
 		}
 		rt.Explods = append(rt.Explods, e)
 	}
@@ -186,7 +186,7 @@ func modifyExplod(e *Explod, m evaluator.ExplodModification) {
 		e.Accel = m.Accel
 	}
 	if m.SetFacing && m.Facing < 0 {
-		e.Facing = 1 - e.Facing
+		e.Facing = e.Facing.Opposite()
 	}
 	if m.SetVFacing {
 		e.VFlip = m.VFacing < 0

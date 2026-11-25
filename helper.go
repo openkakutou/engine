@@ -227,7 +227,7 @@ func bindHelper(rt *FighterRuntime, h *Helper) {
 	case 1:
 		h.Context.Facing = to.Facing
 	case -1:
-		h.Context.Facing = 1 - to.Facing
+		h.Context.Facing = to.Facing.Opposite()
 	}
 	if b.Time > 0 {
 		b.Time--

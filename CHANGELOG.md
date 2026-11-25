@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.15] - 2026-11-25
+
+### Fixed
+- A ModifyExplod evaluates its `id` once: an `id` reading `Random` draws one number, as Ikemen GO, not two.
+- An explod or projectile animation whose forever frame (-1) is not the last one ends after the frames that follow it, as Ikemen GO's total time; it used to never end.
+- A state, command or constants file that exists but cannot be read (a permission error, a folder that cannot be listed) fails the load with that error instead of being reported missing.
+- `ignorehitpause` and `persistent` read their number as Ikemen GO's Atoi, saturating past the int32 range.
+- The conformance tool starts both fighters in side order, so the error it reports is always the same one.
+
 ## [2.77.14] - 2026-11-25
 
 ### Fixed

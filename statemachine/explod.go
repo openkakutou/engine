@@ -201,18 +201,10 @@ func applyRemoveExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Co
 // shortcut: index, redirectid and the parameters Explod does not read are
 // ignored.
 func applyModifyExplod(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
-	m := evaluator.ExplodModification{ID: -1, Relative: ctx.IkemenChar}
-	m.Facing, m.VFacing, m.Scale = 1, 1, [2]float64{1, 1}
+	m := evaluator.ExplodModification{Relative: ctx.IkemenChar}
+	m.ID, m.Facing, m.VFacing, m.Scale = -1, 1, 1, [2]float64{1, 1}
 	if err := readExplod(ctrl, &ctx, &m.ExplodSpawn); err != nil {
 		return ctx, err
-	}
-	m.ID = -1
-	id, ok, err := evalOptional(ctrl, "id", &ctx)
-	if err != nil {
-		return ctx, err
-	}
-	if ok {
-		m.ID = int(id)
 	}
 	has := func(key string) bool {
 		_, ok := ctrl.Parameters[key]

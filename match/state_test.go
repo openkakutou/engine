@@ -128,3 +128,12 @@ func TestMatchState_Fighter_ReturnsZeroValueFighter_OnZeroValueMatchState(t *tes
 		t.Errorf("ms.Fighter(SideP2) on zero-value MatchState = %+v, want zero FighterState{}", got)
 	}
 }
+
+func TestFacing_Opposite_TurnsAround(t *testing.T) {
+	if got := FacingRight.Opposite(); got != FacingLeft {
+		t.Errorf("FacingRight.Opposite() = %v, want FacingLeft", got)
+	}
+	if got := FacingLeft.Opposite(); got != FacingRight {
+		t.Errorf("FacingLeft.Opposite() = %v, want FacingRight", got)
+	}
+}

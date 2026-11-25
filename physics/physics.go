@@ -1,7 +1,7 @@
 // Package physics implements Ikemen GO's per-tick position update for a
 // fighter (char.go posUpdate, 10102-10139): velocity integrates into
 // position, the horizontal position is clamped to the stage's boundaries,
-// then gravity is added to the vertical velocity. Position.Y follows an
+// then gravity is subtracted from the vertical velocity. Position.Y follows an
 // "upward is positive" convention, 0 being ground level.
 //
 // Like Ikemen GO's posUpdate, Step knows no ground: landing is the caller's

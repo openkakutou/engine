@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -78,7 +79,9 @@ type fileAccess interface {
 	// join appends one path component to dir; false when the result is not
 	// a name this tree can hold.
 	join(dir, component string) (string, bool)
-	exists(name string) bool
+	// exists reports whether name exists; an error other than a missing
+	// file (a permission error) is returned.
+	exists(name string) (bool, error)
 	// readDir lists the entry names of the directory name.
 	readDir(name string) ([]string, error)
 	open(name string) (io.ReadCloser, error)
@@ -91,9 +94,21 @@ func (a fsAccess) join(dir, component string) (string, bool) {
 	return name, fs.ValidPath(name)
 }
 
-func (a fsAccess) exists(name string) bool {
+func (a fsAccess) exists(name string) (bool, error) {
 	_, err := fs.Stat(a.fsys, name)
-	return err == nil
+	return existence(err)
+}
+
+// existence is a stat's err as exists reports it: a missing file is false
+// with no error.
+func existence(err error) (bool, error) {
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	return false, err
 }
 
 func (a fsAccess) readDir(name string) ([]string, error) {
@@ -118,9 +133,9 @@ func (osAccess) join(dir, component string) (string, bool) {
 	return filepath.Join(dir, component), true
 }
 
-func (osAccess) exists(name string) bool {
+func (osAccess) exists(name string) (bool, error) {
 	_, err := os.Stat(name)
-	return err == nil
+	return existence(err)
 }
 
 func (osAccess) readDir(name string) ([]string, error) {
@@ -188,7 +203,10 @@ func loadConstants(files fileAccess, dirs []string, entry string) (*evaluator.Co
 	if entry == "" {
 		return nil, nil
 	}
-	name, ok := searchFile(files, dirs, slashed(entry))
+	name, ok, err := searchFile(files, dirs, slashed(entry))
+	if err != nil {
+		return nil, fmt.Errorf("constants file %q: %w", entry, err)
+	}
 	if !ok {
 		return nil, nil
 	}
@@ -208,9 +226,12 @@ func loadConstants(files fileAccess, dirs []string, entry string) (*evaluator.Co
 // parses it by its extension.
 func loadStateFile(files fileAccess, dirs []string, entry string) (StateFile, bool, error) {
 	relPath := slashed(entry)
-	name, ok := searchFile(files, dirs, relPath)
-	if !ok && !strings.EqualFold(filepath.Ext(relPath), ".zss") {
-		name, ok = searchFile(files, dirs, relPath+".zss")
+	name, ok, err := searchFile(files, dirs, relPath)
+	if err == nil && !ok && !strings.EqualFold(filepath.Ext(relPath), ".zss") {
+		name, ok, err = searchFile(files, dirs, relPath+".zss")
+	}
+	if err != nil {
+		return StateFile{}, false, fmt.Errorf("state file %q: %w", entry, err)
 	}
 	if !ok {
 		return StateFile{}, false, nil
@@ -239,21 +260,27 @@ func slashed(name string) string {
 	return strings.ReplaceAll(name, "\\", "/")
 }
 
-// searchFile returns the first dir's match for relPath, in dirs order.
-func searchFile(files fileAccess, dirs []string, relPath string) (string, bool) {
+// searchFile returns the first dir's match for relPath, in dirs order; an
+// error when a folder or file cannot be read.
+func searchFile(files fileAccess, dirs []string, relPath string) (string, bool, error) {
 	for _, dir := range dirs {
-		if name, ok := resolveCaseInsensitive(files, dir, relPath); ok {
-			return name, true
+		name, ok, err := resolveCaseInsensitive(files, dir, relPath)
+		if err != nil {
+			return "", false, err
+		}
+		if ok {
+			return name, true, nil
 		}
 	}
-	return "", false
+	return "", false, nil
 }
 
 // resolveCaseInsensitive resolves relPath under base one component at a time,
 // matching each component case-insensitively when no exact match exists, as
 // real .def files are written for case-insensitive Windows filesystems. It
-// reports false when a component has no match.
-func resolveCaseInsensitive(files fileAccess, base, relPath string) (string, bool) {
+// reports false when a component has no match, an error when a folder or a
+// file on the way cannot be read.
+func resolveCaseInsensitive(files fileAccess, base, relPath string) (string, bool, error) {
 	current := base
 	for _, component := range strings.Split(relPath, "/") {
 		if component == "" || component == "." {
@@ -261,15 +288,22 @@ func resolveCaseInsensitive(files fileAccess, base, relPath string) (string, boo
 		}
 		candidate, ok := files.join(current, component)
 		if !ok {
-			return "", false
+			return "", false, nil
 		}
-		if files.exists(candidate) {
+		found, err := files.exists(candidate)
+		if err != nil {
+			return "", false, err
+		}
+		if found {
 			current = candidate
 			continue
 		}
 		names, err := files.readDir(current)
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", false, nil
+		}
 		if err != nil {
-			return "", false
+			return "", false, err
 		}
 		match := ""
 		for _, name := range names {
@@ -279,14 +313,14 @@ func resolveCaseInsensitive(files fileAccess, base, relPath string) (string, boo
 			}
 		}
 		if match == "" {
-			return "", false
+			return "", false, nil
 		}
 		current, ok = files.join(current, match)
 		if !ok {
-			return "", false
+			return "", false, nil
 		}
 	}
-	return current, true
+	return current, true, nil
 }
 
 // parseIkemenVersion is Ikemen GO's ParseIkemenVersion (common.go:931-945):

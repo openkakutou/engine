@@ -41,8 +41,7 @@ type FighterProgram struct {
 	Commands   cmd.CommandFile      `json:"commands"`
 
 	// animIndex is Animations precomputed into a map keyed by Number, built
-	// once by NewFighterProgram -- see this item's own ADR (.vibe/decisions/
-	// 013). It stays nil on a FighterProgram built via a raw struct literal
+	// once by NewFighterProgram -- see .vibe/decisions/013. It stays nil on a FighterProgram built via a raw struct literal
 	// (this package's own tests, integration_test.go) or JSON-decoded
 	// directly (cmd/wasm's incoming request shape, whose field tags above
 	// only ever populate Animations, never this unexported field); findAnimation
@@ -238,7 +237,7 @@ func (p FighterProgram) step(ctx evaluator.Context, number int, frozen bool) (st
 // NewFighterProgram builds a FighterProgram with its animation lookup
 // precomputed once, so tickFighter's per-tick findAnimation call is an O(1)
 // map lookup instead of an O(n) scan over animations for the rest of the
-// match -- see this item's own ADR. Precomputing once here, rather than
+// match -- see decision 013. Precomputing once here, rather than
 // lazily on first lookup, matters because tickFighter performs exactly one
 // lookup per fighter per tick: building the index on that same call would
 // cost strictly more (build once *and* look up) than the scan it replaces,
@@ -799,12 +798,12 @@ func guardChip(guardDamage, life int, params combat.HitDefParams) int {
 	return guardDamage
 }
 
-// getUp is the engine's own end of a lie-down, Ikemen GO actionRun (char.go:
+// riseFromLyingDown is the engine's own end of a lie-down, Ikemen GO actionRun (char.go:
 // 12573-12577, 12702-12704): a fighter lying in state 5110 for at least a
 // tick whose down recover time ran out, alive and without
 // nogetupfromliedown, enters 5120 and runs it; otherwise the time counts
 // down while it lies there. Each hit sets the time (downRecoverTime).
-func getUp(ctx *evaluator.Context, prog FighterProgram, runs *stateRuns) error {
+func riseFromLyingDown(ctx *evaluator.Context, prog FighterProgram, runs *stateRuns) error {
 	if ctx.StateNo != 5110 {
 		return nil
 	}
@@ -1055,10 +1054,8 @@ func tickFighter(progs fighterPrograms, runtime FighterRuntime, fighter match.Fi
 	newInputState, active := input.Step(runtime.Input, tick, fighter.Facing, in, prog.Commands)
 	ctx.ActiveCommands = active
 
-	// The frame resolved here is the one active as this tick begins --
-	// i.e. before this tick's own state-machine transition (if any) is
-	// applied. A transition's new animation takes effect starting next
-	// tick, once AnimElapsed has actually reset -- see this item's own ADR.
+	// The frame active as this tick begins; a state entered this tick
+	// replaces it below with its first frame (decision 033).
 	frame := currentFrame(findAnimation(progs.anims(&ctx), ctx.Anim), ctx.AnimElapsed)
 
 	// A fighter in hit pause (attacker freeze or defender shake) runs only
@@ -1146,7 +1143,7 @@ func tickFighter(progs fighterPrograms, runtime FighterRuntime, fighter match.Fi
 	}
 	sounds, warnings, unsupported, skippedCalls = runs.sounds, runs.warnings, runs.unsupported, runs.skippedCalls
 	if !frozen {
-		if err := getUp(&newCtx, prog, &runs); err != nil {
+		if err := riseFromLyingDown(&newCtx, prog, &runs); err != nil {
 			return fighterTickOutput{}, err
 		}
 		sounds, warnings, unsupported, skippedCalls = runs.sounds, runs.warnings, runs.unsupported, runs.skippedCalls
@@ -1875,12 +1872,12 @@ func applyHitReaction(programs *[2]FighterProgram, runtimes *[2]FighterRuntime, 
 	// faces the defender to the attacker, -1 turns.
 	switch params.P2Facing {
 	case 1:
-		ctx.Facing = 1 - by.knockbackFacing()
+		ctx.Facing = by.knockbackFacing().Opposite()
 	case -1:
 		ctx.Facing = by.knockbackFacing()
 	}
 	if params.P1Facing < 0 && by.projectile == nil {
-		attackerCtx.Facing = 1 - attackerCtx.Facing
+		attackerCtx.Facing = attackerCtx.Facing.Opposite()
 	}
 	if params.P1StateNo >= 0 {
 		pendStateChange(programs[by.side], attackerCtx, params.P1StateNo)

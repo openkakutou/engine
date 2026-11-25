@@ -32,7 +32,7 @@ func applyTargetOps(attacker, defender *evaluator.Context, attackerProg FighterP
 		case "targetfacing":
 			defender.Facing = attacker.Facing
 			if op.Value < 0 {
-				defender.Facing = 1 - attacker.Facing
+				defender.Facing = attacker.Facing.Opposite()
 			}
 		case "targetstate":
 			def, ok := attackerProg.stateHeader(op.Value)

@@ -123,7 +123,7 @@ func updateProjectiles(rt *FighterRuntime, prog FighterProgram, screen [2]float6
 			p.Velocity[i] = (p.Velocity[i] + p.Accel[i]) * p.VelMul[i]
 		}
 		if p.Velocity[0] < 0 {
-			p.Facing = 1 - p.Facing
+			p.Facing = p.Facing.Opposite()
 			p.Velocity[0], p.Accel[0] = -p.Velocity[0], -p.Accel[0]
 		}
 		kept = append(kept, p)
@@ -278,13 +278,20 @@ func strike(state *match.MatchState, runtimes *[2]FighterRuntime, attacker match
 	return hit, damage.Guarded, params
 }
 
-// animationLength is the ticks anim plays before it ends, 0 or less when it
-// holds a frame forever (a frame time of -1).
+// animationLength is the ticks anim plays before it ends, Ikemen GO's
+// totaltime (anim.go:440-460): -1 when its last frame holds forever; a
+// forever frame before the last restarts the count, its -1 included.
 func animationLength(anim air.Animation) int {
+	if len(anim.Frames) == 0 {
+		return 0
+	}
+	if anim.Frames[len(anim.Frames)-1].Time == -1 {
+		return -1
+	}
 	total := 0
 	for _, f := range anim.Frames {
-		if f.Time < 0 {
-			return -1
+		if f.Time == -1 {
+			total = 0
 		}
 		total += f.Time
 	}

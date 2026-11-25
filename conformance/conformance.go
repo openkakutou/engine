@@ -257,7 +257,8 @@ func startRound(number int, p1Start, p2Start match.FighterState, prog engine.Fig
 		return nil, [2]engine.FighterRuntime{}, err
 	}
 	var runtimes [2]engine.FighterRuntime
-	for side, start := range map[match.Side]match.FighterState{match.SideP1: p1Start, match.SideP2: p2Start} {
+	// In side order, so the error reported is always P1's first.
+	for side, start := range [2]match.FighterState{match.SideP1: p1Start, match.SideP2: p2Start} {
 		runtimes[side], err = prog.NewRuntime(start)
 		if err != nil {
 			return nil, [2]engine.FighterRuntime{}, err

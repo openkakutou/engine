@@ -16,7 +16,7 @@ import (
 // "[Statedef ...]"/"[Function ...]" block plus body per string, joined with
 // blank lines the same way real .zss text separates blocks. Compiled (see
 // Compile) before returning, since Step now takes a CompiledScript rather
-// than a raw zss.Script -- see this item's own ADR.
+// than a raw zss.Script -- see .vibe/decisions/013.
 func mustParseScript(t *testing.T, blocks ...string) CompiledScript {
 	t.Helper()
 	source := ""

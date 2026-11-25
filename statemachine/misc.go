@@ -134,7 +134,8 @@ func applyOffset(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 // applyExplodBindTime is explodBindTime.Run: the fighter's explods with id
 // (every one for -1) take bindtime time (0), a ModifyExplod of it alone.
 func applyExplodBindTime(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, error) {
-	m := evaluator.ExplodModification{ID: -1, SetBindTime: true}
+	m := evaluator.ExplodModification{SetBindTime: true}
+	m.ID = -1
 	id, ok, err := evalOptional(ctrl, "id", &ctx)
 	if err != nil {
 		return ctx, err

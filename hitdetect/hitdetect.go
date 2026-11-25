@@ -62,10 +62,10 @@ func detectDirection(events []HitEvent, state *match.MatchState, frames [2]air.F
 	defenderState := state.Fighter(defender)
 
 	for _, hitBox := range frames[attacker].Clsn1 {
-		aMinX, aMinY, aMaxX, aMaxY := worldBox(attackerState.Position, attackerState.Facing, hitBox)
+		aMinX, aMinY, aMaxX, aMaxY := WorldBox(attackerState.Position, attackerState.Facing, hitBox)
 
 		for _, hurtBox := range frames[defender].Clsn2 {
-			dMinX, dMinY, dMaxX, dMaxY := worldBox(defenderState.Position, defenderState.Facing, hurtBox)
+			dMinX, dMinY, dMaxX, dMaxY := WorldBox(defenderState.Position, defenderState.Facing, hurtBox)
 
 			if overlaps(aMinX, aMinY, aMaxX, aMaxY, dMinX, dMinY, dMaxX, dMaxY) {
 				events = append(events, HitEvent{
@@ -81,7 +81,7 @@ func detectDirection(events []HitEvent, state *match.MatchState, frames [2]air.F
 	return events
 }
 
-// worldBox transforms box from a fighter's local .air coordinates (Left/
+// WorldBox transforms box from a fighter's local .air coordinates (Left/
 // Right along facing-relative X, Top/Bottom increasing downward) into a
 // world-space axis-aligned bounding box: minX/maxX/minY/maxY, in that
 // order. facing mirrors the X axis (FacingLeft negates and swaps Left/
@@ -89,7 +89,7 @@ func detectDirection(events []HitEvent, state *match.MatchState, frames [2]air.F
 // since match.Position.Y increases upward while a Clsn box's local Y
 // increases downward. Both axes are returned already sorted (min <= max)
 // regardless of a box's own Left/Top vs. Right/Bottom ordering.
-func worldBox(position match.Position, facing match.Facing, box air.ClsnBox) (minX, minY, maxX, maxY float64) {
+func WorldBox(position match.Position, facing match.Facing, box air.ClsnBox) (minX, minY, maxX, maxY float64) {
 	left, right := float64(box.Left), float64(box.Right)
 	if facing == match.FacingLeft {
 		left, right = -right, -left
@@ -119,9 +119,9 @@ func overlaps(aMinX, aMinY, aMaxX, aMaxY, bMinX, bMinY, bMaxX, bMaxY float64) bo
 // two fighters, for a projectile against a fighter.
 func BoxesOverlap(attackerPos match.Position, attackerFacing match.Facing, attackBoxes []air.ClsnBox, defenderPos match.Position, defenderFacing match.Facing, hurtBoxes []air.ClsnBox) bool {
 	for _, a := range attackBoxes {
-		aMinX, aMinY, aMaxX, aMaxY := worldBox(attackerPos, attackerFacing, a)
+		aMinX, aMinY, aMaxX, aMaxY := WorldBox(attackerPos, attackerFacing, a)
 		for _, d := range hurtBoxes {
-			dMinX, dMinY, dMaxX, dMaxY := worldBox(defenderPos, defenderFacing, d)
+			dMinX, dMinY, dMaxX, dMaxY := WorldBox(defenderPos, defenderFacing, d)
 			if overlaps(aMinX, aMinY, aMaxX, aMaxY, dMinX, dMinY, dMaxX, dMaxY) {
 				return true
 			}

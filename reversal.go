@@ -41,12 +41,12 @@ func reverse(state *match.MatchState, frames [2]air.Frame, programs *[2]FighterP
 	}
 	switch params.P2Facing {
 	case 1:
-		att.Context.Facing = 1 - rev.Facing
+		att.Context.Facing = rev.Facing.Opposite()
 	case -1:
 		att.Context.Facing = rev.Facing
 	}
 	if params.P1Facing < 0 {
-		rev.Facing = 1 - rev.Facing
+		rev.Facing = rev.Facing.Opposite()
 	}
 	if params.P1StateNo >= 0 {
 		if err := programs[reverser].selfState(rt, params.P1StateNo); err != nil {

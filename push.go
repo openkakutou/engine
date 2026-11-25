@@ -5,6 +5,7 @@ import (
 
 	"github.com/openkakutou/character/air"
 	"github.com/openkakutou/engine/v2/evaluator"
+	"github.com/openkakutou/engine/v2/hitdetect"
 	"github.com/openkakutou/engine/v2/match"
 	"github.com/openkakutou/stage"
 )
@@ -183,11 +184,8 @@ func clsn2Touch(p1, p2 *evaluator.Context, frames [2]air.Frame) bool {
 
 // clsnWorld is box in world space, Y up (decision 009).
 func clsnWorld(ctx *evaluator.Context, box air.ClsnBox) (left, right, bottom, top float64) {
-	l, r := float64(box.Left), float64(box.Right)
-	if ctx.Facing == match.FacingLeft {
-		l, r = -r, -l
-	}
-	return ordered(ctx.Position.X+l, ctx.Position.X+r, ctx.Position.Y-float64(box.Bottom), ctx.Position.Y-float64(box.Top))
+	left, bottom, right, top = hitdetect.WorldBox(ctx.Position, ctx.Facing, box)
+	return left, right, bottom, top
 }
 
 func ordered(l, r, b, t float64) (float64, float64, float64, float64) {
