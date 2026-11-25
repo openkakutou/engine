@@ -54,7 +54,6 @@ type session struct {
 	programs    [2]engine.FighterProgram
 	runtimes    [2]engine.FighterRuntime
 	bounds      *stage.StageBoundaries
-	gravity     float64
 	comboWindow int
 	tick        int
 	state       match.MatchState
@@ -144,7 +143,6 @@ type newMatchRequest struct {
 	RoundTimer  int                   `json:"roundTimer"`
 	BestOf      int                   `json:"bestOf"`
 	Bounds      stage.StageBoundaries `json:"bounds"`
-	Gravity     float64               `json:"gravity"`
 	ComboWindow int                   `json:"comboWindow"`
 	// RandSeed seeds the match's Random sequence (match.MatchState.RandSeed);
 	// omitted, it is 0.
@@ -239,7 +237,6 @@ func newMatch(args []js.Value) (any, error) {
 		programs:    programs,
 		runtimes:    [2]engine.FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
 		bounds:      &req.Bounds,
-		gravity:     req.Gravity,
 		comboWindow: req.ComboWindow,
 		state:       *state,
 		progress:    progress,
@@ -432,7 +429,7 @@ func tickJS(args []js.Value) (any, error) {
 	}
 
 	sess.tick++
-	cfg := engine.TickConfig{Bounds: sess.bounds, Gravity: sess.gravity, Tick: sess.tick, ComboWindow: sess.comboWindow}
+	cfg := engine.TickConfig{Bounds: sess.bounds, Tick: sess.tick, ComboWindow: sess.comboWindow}
 	result, err := engine.Tick(sess.state, sess.programs, sess.runtimes, req.Inputs, cfg)
 	if err != nil {
 		return nil, err

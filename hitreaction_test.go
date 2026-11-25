@@ -120,7 +120,7 @@ func newHitScenario(t *testing.T, tweak func(attacker, defender map[int]cns.Stat
 func (s *hitScenario) step() TickResult {
 	s.t.Helper()
 	s.tick++
-	res, err := Tick(s.state, s.programs, s.runtimes, s.in, TickConfig{Bounds: testBounds(), Gravity: 0, Tick: s.tick, ComboWindow: 60})
+	res, err := Tick(s.state, s.programs, s.runtimes, s.in, TickConfig{Bounds: testBounds(), Tick: s.tick, ComboWindow: 60})
 	if err != nil {
 		s.t.Fatalf("Tick %d: %v", s.tick, err)
 	}
@@ -444,7 +444,7 @@ func TestTick_LandedHit_WithoutTheGetHitState_FreezesTheDefenderAndDoesNotFail(t
 func ticksAllocs(s *hitScenario) float64 {
 	tick := 1
 	return testing.AllocsPerRun(100, func() {
-		cfg := TickConfig{Bounds: testBounds(), Gravity: 0, Tick: tick, ComboWindow: 60}
+		cfg := TickConfig{Bounds: testBounds(), Tick: tick, ComboWindow: 60}
 		if _, err := Tick(s.state, s.programs, s.runtimes, [2]input.TickInput{}, cfg); err != nil {
 			s.t.Fatalf("Tick: %v", err)
 		}

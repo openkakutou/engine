@@ -111,7 +111,6 @@ const newMatchRequest = {
 	roundTimer: 1000,
 	bestOf: 3,
 	bounds: { left: -1000, right: 1000, topBound: 0, bottomBound: 0 },
-	gravity: 0,
 	comboWindow: 60,
 };
 

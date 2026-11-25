@@ -56,7 +56,7 @@ func tickP1(t *testing.T, states map[int]cns.StateDef, pressA bool) (TickResult,
 		[2]FighterProgram{match.SideP1: prog, match.SideP2: idle},
 		[2]FighterRuntime{match.SideP1: r1, match.SideP2: r2},
 		[2]input.TickInput{match.SideP1: in},
-		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60})
+		TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60})
 }
 
 func TestTick_CommandInState1_MovesFighterIntoSpecialMoveAndRunsItThisTick(t *testing.T) {
@@ -198,14 +198,14 @@ func TestTickFighter_StateEnteredFromState1_UsesNewAnimationsFirstFrameThisTick(
 		t.Fatalf("NewFighterRuntime: %v", err)
 	}
 
-	out, err := tickFighter(fighterPrograms{prog, prog}, runtime, fighter, evaluator.Opponent{}, input.TickInput{}, 1, testBounds(), [2]float64{}, 0, 1, 0)
+	out, err := tickFighter(fighterPrograms{prog, prog}, runtime, fighter, evaluator.Opponent{}, input.TickInput{}, 1, testBounds(), [2]float64{}, 1, 0)
 	if err != nil {
 		t.Fatalf("tickFighter: %v", err)
 	}
 	if out.Frame.Group != 200 || out.Frame.Image != 0 {
 		t.Errorf("frame this tick = %d,%d, want 200,0 (the entered animation's first frame)", out.Frame.Group, out.Frame.Image)
 	}
-	next, err := tickFighter(fighterPrograms{prog, prog}, out.Runtime, out.Runtime.Context.FighterState, evaluator.Opponent{}, input.TickInput{}, 2, testBounds(), [2]float64{}, 0, 1, 0)
+	next, err := tickFighter(fighterPrograms{prog, prog}, out.Runtime, out.Runtime.Context.FighterState, evaluator.Opponent{}, input.TickInput{}, 2, testBounds(), [2]float64{}, 1, 0)
 	if err != nil {
 		t.Fatalf("tickFighter: %v", err)
 	}

@@ -279,7 +279,7 @@ func main() {
 		[2]engine.FighterProgram{prog, prog},
 		[2]engine.FighterRuntime{p1Runtime, p2Runtime},
 		[2]input.TickInput{},
-		engine.TickConfig{Bounds: bounds, Gravity: 1.0, Tick: 1, ComboWindow: 60},
+		engine.TickConfig{Bounds: bounds, Tick: 1, ComboWindow: 60},
 	)
 	if err != nil {
 		panic(err)
@@ -318,7 +318,7 @@ func main() {
 A game running in a browser drives a match through the WASM build instead — see `cmd/wasm/main.go` for the full contract; the shape is:
 
 ```js
-const created = OpenKakutouEngine.newMatch(JSON.stringify({ programs, starting, roundTimer, bestOf, bounds, gravity, comboWindow, randSeed }));
+const created = OpenKakutouEngine.newMatch(JSON.stringify({ programs, starting, roundTimer, bestOf, bounds, comboWindow, randSeed }));
 // randSeed (optional, default 0) seeds the match's Random sequence: same seed + same inputs = same match.
 const { matchId } = JSON.parse(created.data);
 

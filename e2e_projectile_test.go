@@ -38,7 +38,7 @@ func TestE2E_AProjectileCrossesTheStageAndHits(t *testing.T) {
 			in[0] = input.TickInput{Buttons: map[string]bool{"x": true}}
 		}
 		m.tick++
-		res, err := Tick(m.state, m.programs, m.runtimes, in, TickConfig{Bounds: testBounds(), Gravity: e2eGravity, Tick: m.tick, ComboWindow: 60})
+		res, err := Tick(m.state, m.programs, m.runtimes, in, TickConfig{Bounds: testBounds(), Tick: m.tick, ComboWindow: 60})
 		if err != nil {
 			t.Fatal(err)
 		}

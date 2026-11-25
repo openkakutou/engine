@@ -409,12 +409,12 @@ type TickResult struct {
 }
 
 // TickConfig bundles Tick's simulation-constant parameters (bounds,
-// gravity, comboWindow) together with the current simulation tick number,
-// which the caller advances by exactly 1 between successive calls (see
-// input.Step). bounds is the current stage's horizontal boundaries;
-// gravity and comboWindow are simulation constants the caller supplies
-// (engine holds no default balance data of its own, matching physics.Step
-// and combat.ApplyHits's own existing contracts).
+// comboWindow) together with the current simulation tick number, which the
+// caller advances by exactly 1 between successive calls (see input.Step).
+// bounds is the current stage's horizontal boundaries; comboWindow is a
+// simulation constant the caller supplies (engine holds no default balance
+// data of its own, matching combat.ApplyHits's own existing contract).
+// Gravity is a compatibility field only: Tick ignores it.
 //
 // Passed to Tick by value, not by pointer: at this size (a pointer plus
 // three scalars) it is cheap to copy and Go's calling convention passes it
@@ -490,7 +490,7 @@ func Tick(
 	p2Seen := snapshotOf(state.Fighter(match.SideP2), &runtimes[match.SideP2].Context)
 	screen := screenEdges(cfg)
 	paused := state.PauseTime > 0 || state.SuperTime > 0
-	p1Out, err := tickOrFreeze(&state, fighterPrograms{programs[match.SideP1], programs[match.SideP2]}, runtimes[match.SideP1], state.Fighter(match.SideP1), p2Seen, inputs[match.SideP1], cfg.Tick, cfg.Bounds, screen, cfg.Gravity, state.Round, state.RandSeed)
+	p1Out, err := tickOrFreeze(&state, fighterPrograms{programs[match.SideP1], programs[match.SideP2]}, runtimes[match.SideP1], state.Fighter(match.SideP1), p2Seen, inputs[match.SideP1], cfg.Tick, cfg.Bounds, screen, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP1, err)
 	}
@@ -509,7 +509,7 @@ func Tick(
 	// effect is immediate.
 	state.Fighters[match.SideP1] = p1Out.Runtime.Context.FighterState
 	p1Seen := snapshotOf(state.Fighter(match.SideP1), &p1Out.Runtime.Context)
-	p2Out, err := tickOrFreeze(&state, fighterPrograms{programs[match.SideP2], programs[match.SideP1]}, runtimes[match.SideP2], state.Fighter(match.SideP2), p1Seen, inputs[match.SideP2], cfg.Tick, cfg.Bounds, screen, cfg.Gravity, state.Round, state.RandSeed)
+	p2Out, err := tickOrFreeze(&state, fighterPrograms{programs[match.SideP2], programs[match.SideP1]}, runtimes[match.SideP2], state.Fighter(match.SideP2), p1Seen, inputs[match.SideP2], cfg.Tick, cfg.Bounds, screen, state.Round, state.RandSeed)
 	if err != nil {
 		return TickResult{}, fmt.Errorf("engine: Tick: side %v: %w", match.SideP2, err)
 	}
@@ -1013,7 +1013,7 @@ func screenEdges(cfg TickConfig) [2]float64 {
 	return [2]float64{-math.MaxFloat32, math.MaxFloat32}
 }
 
-func tickFighter(progs fighterPrograms, runtime FighterRuntime, fighter match.FighterState, opponent evaluator.Opponent, in input.TickInput, tick int, bounds *stage.StageBoundaries, screen [2]float64, gravity float64, round int, seed int32) (fighterTickOutput, error) {
+func tickFighter(progs fighterPrograms, runtime FighterRuntime, fighter match.FighterState, opponent evaluator.Opponent, in input.TickInput, tick int, bounds *stage.StageBoundaries, screen [2]float64, round int, seed int32) (fighterTickOutput, error) {
 	ctx := runtime.Context
 	ctx.ScreenLeft, ctx.ScreenRight = screen[0], screen[1]
 	ctx.HitPauseTime = runtime.HitPause
@@ -1171,7 +1171,7 @@ func tickFighter(progs fighterPrograms, runtime FighterRuntime, fighter match.Fi
 	}
 	// Ikemen GO actionRun moves the fighter after its states (posUpdate,
 	// char.go:12583), then lands it (char.go:12584-12590).
-	moved, err := physics.Step(newCtx.FighterState, bounds, gravityFor(&newCtx, newCtx.YAccel))
+	moved, err := physics.Step(newCtx.FighterState, bounds, gravityFor(&newCtx))
 	if err != nil {
 		return fighterTickOutput{}, fmt.Errorf("physics: %w", err)
 	}
@@ -2120,10 +2120,6 @@ func physicsLetter(t cns.PhysicsType) byte {
 	return c
 }
 
-// gravityFor is the gravity physics.Step should apply to a fighter: the
-// configured one in physics type A, none otherwise. Ikemen GO's char.go
-// posUpdate adds yaccel automatically only for ss.physics == ST_A; any other
-// state gets gravity from its Gravity controller.
 // applyFriction slows a fighter on the ground after it moved, Ikemen GO
 // posUpdate (char.go:10121-10137): physics S multiplies the x velocity by
 // the character's stand.friction and zeroes it under 1, physics C by its
@@ -2142,11 +2138,15 @@ func applyFriction(ctx *evaluator.Context) {
 	}
 }
 
-func gravityFor(ctx *evaluator.Context, gravity float64) float64 {
+// gravityFor is the gravity physics.Step should apply to a fighter: its own
+// movement.yaccel in physics type A, none otherwise. Ikemen GO's char.go
+// posUpdate adds yaccel automatically only for ss.physics == ST_A; any other
+// state gets gravity from its Gravity controller.
+func gravityFor(ctx *evaluator.Context) float64 {
 	if ctx.Physics != 'A' {
 		return 0
 	}
-	return gravity
+	return ctx.YAccel
 }
 
 // stanceLetter is a StateDef's type as an upper-case letter: its first

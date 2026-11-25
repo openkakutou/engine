@@ -30,7 +30,7 @@ func tickPair(t *testing.T, progs [2]FighterProgram, fighters [2]match.FighterSt
 	if err != nil {
 		t.Fatalf("NewMatchState: %v", err)
 	}
-	result, err := Tick(*state, progs, runtimes, [2]input.TickInput{}, TickConfig{Bounds: testBounds(), Gravity: gravity, Tick: 1, ComboWindow: 60})
+	result, err := Tick(*state, progs, runtimes, [2]input.TickInput{}, TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60})
 	if err != nil {
 		t.Fatalf("Tick returned an error: %v", err)
 	}
@@ -443,7 +443,7 @@ func allocsPerTick(t *testing.T, states map[int]cns.StateDef) float64 {
 	st := *state
 	tick := 1
 	step := func() {
-		result, err := Tick(st, programs, runtimes, [2]input.TickInput{}, TickConfig{Bounds: testBounds(), Gravity: 0.5, Tick: tick, ComboWindow: 60})
+		result, err := Tick(st, programs, runtimes, [2]input.TickInput{}, TickConfig{Bounds: testBounds(), Tick: tick, ComboWindow: 60})
 		if err != nil {
 			t.Fatalf("Tick: %v", err)
 		}

@@ -45,7 +45,7 @@ func tickP1Only(t *testing.T, prog FighterProgram, rt FighterRuntime) (TickResul
 		[2]FighterProgram{match.SideP1: prog, match.SideP2: {States: idleStates()}},
 		[2]FighterRuntime{match.SideP1: rt, match.SideP2: rt2},
 		[2]input.TickInput{},
-		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60})
+		TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60})
 }
 
 func newP1Runtime(t *testing.T, prog FighterProgram) FighterRuntime {

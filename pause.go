@@ -24,7 +24,7 @@ func pausedFor(state *match.MatchState, superMoveTime, pauseMoveTime int) bool {
 // tickOrFreeze is tickFighter for a fighter the pause leaves moving, its
 // move time counting down; a frozen one stays as it was, showing its current
 // frame.
-func tickOrFreeze(state *match.MatchState, progs fighterPrograms, runtime FighterRuntime, fighter match.FighterState, opponent evaluator.Opponent, in input.TickInput, tick int, bounds *stage.StageBoundaries, screen [2]float64, gravity float64, round int, seed int32) (fighterTickOutput, error) {
+func tickOrFreeze(state *match.MatchState, progs fighterPrograms, runtime FighterRuntime, fighter match.FighterState, opponent evaluator.Opponent, in input.TickInput, tick int, bounds *stage.StageBoundaries, screen [2]float64, round int, seed int32) (fighterTickOutput, error) {
 	if pausedFor(state, runtime.SuperMoveTime, runtime.PauseMoveTime) {
 		runtime.Context.FighterState = fighter
 		runtime.Context.Events = nil
@@ -32,7 +32,7 @@ func tickOrFreeze(state *match.MatchState, progs fighterPrograms, runtime Fighte
 		frame := currentFrame(findAnimation(progs.anims(&runtime.Context), runtime.Context.Anim), runtime.Context.AnimElapsed)
 		return fighterTickOutput{Runtime: runtime, Frame: frame, Frozen: true}, nil
 	}
-	out, err := tickFighter(progs, runtime, fighter, opponent, in, tick, bounds, screen, gravity, round, seed)
+	out, err := tickFighter(progs, runtime, fighter, opponent, in, tick, bounds, screen, round, seed)
 	switch {
 	case state.SuperTime > 0 && out.Runtime.SuperMoveTime > 0:
 		out.Runtime.SuperMoveTime--

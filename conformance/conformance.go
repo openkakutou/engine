@@ -25,8 +25,8 @@ const DefaultTicks = 3600
 
 // Mirror-match constants. Both fighters start in state 0 facing each other,
 // 140 units apart, inside a stage whose boundaries are +-500; they start
-// with 1000 health, the round timer is 99 seconds of 60 ticks, gravity is
-// MUGEN's default yaccel (0.44). When a round ends (KO or timeout) the round
+// with 1000 health, the round timer is 99 seconds of 60 ticks; each falls by
+// its own movement.yaccel. When a round ends (KO or timeout) the round
 // is reset the way integration_test.go does, so the run always reaches the
 // requested tick count unless Tick fails.
 const (
@@ -34,7 +34,6 @@ const (
 	stageBound   = 500
 	startHealth  = 1000
 	roundTimer   = 99 * 60
-	gravity      = 0.44
 	comboWindow  = 60
 	notCharacter = "doesn't look like a character definition"
 )
@@ -223,7 +222,7 @@ func simulate(report *CharacterReport, ch *character.Character, prog engine.Figh
 		for _, side := range []match.Side{match.SideP1, match.SideP2} {
 			inputs[side] = inputFor(side, tick-1, state.Fighter(side).Facing)
 		}
-		result, err := safeTick(*state, programs, runtimes, inputs, engine.TickConfig{Bounds: bounds, Gravity: gravity, Tick: tick, ComboWindow: comboWindow})
+		result, err := safeTick(*state, programs, runtimes, inputs, engine.TickConfig{Bounds: bounds, Tick: tick, ComboWindow: comboWindow})
 		if err != nil {
 			report.Status = StatusTickError
 			report.Error = err.Error()

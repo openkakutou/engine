@@ -42,7 +42,7 @@ files.
 2. **Mirror match.** The character fights itself: both sides run the same
    program, start in state 0 facing each other 140 units apart (x = -70 and
    +70) with 1000 health, in a stage bounded at x = -500..500, round timer 99 s
-   (5940 ticks), gravity 0.44. When a round ends (KO or timeout) the round is
+   (5940 ticks); each fighter falls by its own `movement.yaccel`. When a round ends (KO or timeout) the round is
    reset as in `integration_test.go`, so the requested tick count is reached.
 3. **Input script.** Each side follows a built-in deterministic script (no CPU,
    no randomness): neutral, forward, back, down, up, each button

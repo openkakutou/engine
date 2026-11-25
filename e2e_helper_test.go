@@ -48,7 +48,7 @@ func TestE2E_RyusHadoukenHelperCrossesTheStageAndHits(t *testing.T) {
 	sawHadouken := false
 	for i := 0; i < 120; i++ {
 		m.tick++
-		res, err := Tick(m.state, m.programs, m.runtimes, [2]input.TickInput{}, TickConfig{Bounds: testBounds(), Gravity: e2eGravity, Tick: m.tick, ComboWindow: 60})
+		res, err := Tick(m.state, m.programs, m.runtimes, [2]input.TickInput{}, TickConfig{Bounds: testBounds(), Tick: m.tick, ComboWindow: 60})
 		if err != nil {
 			t.Fatalf("tick %d: %v", m.tick, err)
 		}
@@ -112,7 +112,7 @@ func randomRyuMatch(t *testing.T, start uint32) {
 			}
 		}
 		m.tick++
-		res, err := Tick(m.state, m.programs, m.runtimes, held, TickConfig{Bounds: testBounds(), Gravity: e2eGravity, Tick: m.tick, ComboWindow: 60})
+		res, err := Tick(m.state, m.programs, m.runtimes, held, TickConfig{Bounds: testBounds(), Tick: m.tick, ComboWindow: 60})
 		if err != nil {
 			t.Fatalf("seed %d tick %d: %v", start, m.tick, err)
 		}

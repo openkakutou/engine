@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.12] - 2026-11-25
+
+### Fixed
+- Nothing suggests any more that a gravity setting has an effect: a fighter falls by its own `movement.yaccel`, as Ikemen GO. The WASM `newMatch` ignores a `gravity` key (no longer stored in the session), the conformance tool no longer sets one, and `TickConfig.Gravity` is documented as a compatibility field Tick ignores.
+
 ## [2.77.11] - 2026-11-24
 
 ### Fixed

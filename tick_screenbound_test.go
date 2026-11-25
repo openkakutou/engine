@@ -17,7 +17,7 @@ func TestTick_AFighterWalkingIntoTheScreenEdgeStopsOnIt(t *testing.T) {
 	for range 60 {
 		m.tick++
 		result, err := Tick(m.state, m.programs, m.runtimes, [2]input.TickInput{match.SideP1: {Right: true}},
-			TickConfig{Bounds: testBounds(), Screen: screen, Gravity: e2eGravity, Tick: m.tick, ComboWindow: 60})
+			TickConfig{Bounds: testBounds(), Screen: screen, Tick: m.tick, ComboWindow: 60})
 		if err != nil {
 			t.Fatal(err)
 		}

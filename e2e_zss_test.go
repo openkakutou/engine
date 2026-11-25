@@ -24,12 +24,9 @@ import (
 // Expected values come from the files and from Ikemen GO's source (commit
 // 54d4148a), cited where used.
 
-// e2eMatchConfig mirrors the conformance mirror match: stage bounds +-500,
-// kfm's own yaccel (kfm.cns:76, kfm_zss/kfm.const), a 140-unit start.
-const (
-	e2eP1X     = -70
-	e2eGravity = 0.44
-)
+// e2eP1X mirrors the conformance mirror match: stage bounds +-500, a
+// 140-unit start.
+const e2eP1X = -70
 
 // loadReferenceProgram loads a reference character through LoadFighterProgram,
 // with testdata/reference standing for Ikemen GO's data/ (src/compiler.go:8793,
@@ -92,7 +89,7 @@ func newE2EMatchAt(t *testing.T, prog FighterProgram, stateNo int) *e2eMatch {
 func (m *e2eMatch) step(in input.TickInput) error {
 	m.tick++
 	result, err := Tick(m.state, m.programs, m.runtimes, [2]input.TickInput{match.SideP1: in},
-		TickConfig{Bounds: testBounds(), Gravity: e2eGravity, Tick: m.tick, ComboWindow: 60})
+		TickConfig{Bounds: testBounds(), Tick: m.tick, ComboWindow: 60})
 	if err != nil {
 		return fmt.Errorf("tick %d: %w", m.tick, err)
 	}

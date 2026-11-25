@@ -35,7 +35,7 @@ func tickOne(t *testing.T, physics cns.PhysicsType, consts string, vel match.Vel
 		t.Fatal(err)
 	}
 	res, err := Tick(*state, [2]FighterProgram{prog, prog}, [2]FighterRuntime{r1, r2}, [2]input.TickInput{},
-		TickConfig{Bounds: testBounds(), Gravity: 9, Tick: 1, ComboWindow: 60})
+		TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60})
 	if err != nil {
 		t.Fatal(err)
 	}

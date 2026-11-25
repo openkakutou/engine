@@ -70,7 +70,7 @@ func TestTick_AdvancesPhysics_WhenNoStateChangeOccurs(t *testing.T) {
 		[2]FighterProgram{match.SideP1: p1, match.SideP2: p2},
 		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
 		[2]input.TickInput{},
-		TickConfig{Bounds: testBounds(), Gravity: 1.0, Tick: 1, ComboWindow: 60},
+		TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60},
 	)
 	if err != nil {
 		t.Fatalf("Tick returned an error: %v", err)
@@ -132,7 +132,7 @@ func TestTick_StateTransition_ResetsAnimAndAnimTime_ToTheEnteredStatesOwn(t *tes
 		[2]FighterProgram{match.SideP1: prog, match.SideP2: idleProg},
 		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
 		[2]input.TickInput{match.SideP1: p1Input},
-		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
+		TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60},
 	)
 	if err != nil {
 		t.Fatalf("Tick returned an error: %v", err)
@@ -206,7 +206,7 @@ func TestTick_AppliesActiveHitDef_ReducesDefenderHealthAndReportsKO(t *testing.T
 		[2]FighterProgram{match.SideP1: attacker, match.SideP2: defender},
 		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
 		[2]input.TickInput{},
-		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
+		TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60},
 	)
 	if err != nil {
 		t.Fatalf("Tick returned an error: %v", err)
@@ -275,7 +275,7 @@ func TestTick_AppliesPowerAdd_UpdatesFighterStatesPowerInResultState(t *testing.
 		[2]FighterProgram{match.SideP1: attacker, match.SideP2: defender},
 		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
 		[2]input.TickInput{},
-		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
+		TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60},
 	)
 	if err != nil {
 		t.Fatalf("Tick returned an error: %v", err)
@@ -326,7 +326,7 @@ func TestTick_PlaySndController_RecordsEventForTriggeringFighterOnly(t *testing.
 		[2]FighterProgram{match.SideP1: attacker, match.SideP2: defender},
 		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
 		[2]input.TickInput{},
-		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
+		TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60},
 	)
 	if err != nil {
 		t.Fatalf("Tick returned an error: %v", err)
@@ -368,7 +368,7 @@ func TestTick_NoPlaySndController_ReturnsNoSoundsForEitherFighter(t *testing.T) 
 		[2]FighterProgram{match.SideP1: p1, match.SideP2: p2},
 		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
 		[2]input.TickInput{},
-		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
+		TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60},
 	)
 	if err != nil {
 		t.Fatalf("Tick returned an error: %v", err)
@@ -422,7 +422,7 @@ func TestTick_BothFightersPlaySnd_EventsDoNotCrossSides(t *testing.T) {
 		[2]FighterProgram{match.SideP1: p1, match.SideP2: p2},
 		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
 		[2]input.TickInput{},
-		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
+		TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60},
 	)
 	if err != nil {
 		t.Fatalf("Tick returned an error: %v", err)
@@ -508,7 +508,7 @@ func TestTick_TickConfigAddsNoAllocationBeyondInputRecognition(t *testing.T) {
 
 	tick := 1
 	allocs := testing.AllocsPerRun(100, func() {
-		cfg := TickConfig{Bounds: bounds, Gravity: 0, Tick: tick, ComboWindow: 60}
+		cfg := TickConfig{Bounds: bounds, Tick: tick, ComboWindow: 60}
 		if _, err := Tick(*state, programs, runtimes, inputs, cfg); err != nil {
 			t.Fatalf("Tick returned an error: %v", err)
 		}
@@ -622,7 +622,7 @@ func TestTick_RunsAsAnEmptyState_WhenAFightersCurrentStateIsNotInItsLoadedStates
 		[2]FighterProgram{match.SideP1: p1, match.SideP2: p2},
 		[2]FighterRuntime{match.SideP1: p1Runtime, match.SideP2: p2Runtime},
 		[2]input.TickInput{},
-		TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60},
+		TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60},
 	)
 	if err != nil {
 		t.Fatalf("Tick: %v, want none: a fighter in a state the character lacks runs it as an empty state", err)
@@ -719,7 +719,7 @@ func TestTick_ScreenBoundZeroLetsTheFighterLeaveTheScreen(t *testing.T) {
 	}}}
 	sp, progs, rts := projMatch(t, FighterProgram{States: states}, 900)
 	state := *sp
-	cfg := TickConfig{Bounds: testBounds(), Gravity: 0, Screen: [2]float64{-100, 100}}
+	cfg := TickConfig{Bounds: testBounds(), Screen: [2]float64{-100, 100}}
 	state.Fighters[0].Position.X = -95
 	rts[0].Context.Position.X = -95
 	x := []float64{}

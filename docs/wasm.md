@@ -33,6 +33,9 @@ request/response shape and
 for why per-match runtime state stays Go-side in a session registry rather
 than round-tripping through JSON on every call.
 
+A `gravity` key in a `newMatch` request is ignored: each fighter falls by its
+own `movement.yaccel` constant, as in Ikemen GO.
+
 ### `.zss` characters
 
 A program in a `newMatch` request carries its `.cns` states as `states` and its

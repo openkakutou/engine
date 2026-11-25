@@ -31,7 +31,7 @@ func reentryProgram(states map[int]cns.StateDef) FighterProgram {
 func stepP1(t *testing.T, prog FighterProgram, rt FighterRuntime, n int) FighterRuntime {
 	t.Helper()
 	for i := 0; i < n; i++ {
-		out, err := tickFighter(fighterPrograms{prog, prog}, rt, rt.Context.FighterState, evaluator.Opponent{}, input.TickInput{}, i+1, testBounds(), [2]float64{}, 0, 1, 0)
+		out, err := tickFighter(fighterPrograms{prog, prog}, rt, rt.Context.FighterState, evaluator.Opponent{}, input.TickInput{}, i+1, testBounds(), [2]float64{}, 1, 0)
 		if err != nil {
 			t.Fatalf("tickFighter: %v", err)
 		}

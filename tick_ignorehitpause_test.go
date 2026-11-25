@@ -50,7 +50,7 @@ func tickFrozenP1(t *testing.T, kind freezeKind, states map[int]cns.StateDef) Ti
 		t.Fatalf("NewMatchState: %v", err)
 	}
 	progs := [2]FighterProgram{match.SideP1: {States: states}, match.SideP2: {States: idleStates()}}
-	result, err := Tick(*state, progs, [2]FighterRuntime{rt1, rt2}, [2]input.TickInput{}, TickConfig{Bounds: testBounds(), Gravity: 0, Tick: 1, ComboWindow: 60})
+	result, err := Tick(*state, progs, [2]FighterRuntime{rt1, rt2}, [2]input.TickInput{}, TickConfig{Bounds: testBounds(), Tick: 1, ComboWindow: 60})
 	if err != nil {
 		t.Fatalf("Tick returned an error: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestTickFighter_IgnoreHitPauseHitDef_StartsNoHitWhileFrozen(t *testing.T) {
 		return rt
 	}
 
-	unfrozen, err := tickFighter(fighterPrograms{prog, prog}, build(0), fighter, evaluator.Opponent{}, input.TickInput{}, 1, testBounds(), [2]float64{}, 0, 1, 0)
+	unfrozen, err := tickFighter(fighterPrograms{prog, prog}, build(0), fighter, evaluator.Opponent{}, input.TickInput{}, 1, testBounds(), [2]float64{}, 1, 0)
 	if err != nil {
 		t.Fatalf("tickFighter (unfrozen): %v", err)
 	}
@@ -180,7 +180,7 @@ func TestTickFighter_IgnoreHitPauseHitDef_StartsNoHitWhileFrozen(t *testing.T) {
 		t.Fatal("control case: the same HitDef must start a hit on an unfrozen tick")
 	}
 
-	frozen, err := tickFighter(fighterPrograms{prog, prog}, build(3), fighter, evaluator.Opponent{}, input.TickInput{}, 1, testBounds(), [2]float64{}, 0, 1, 0)
+	frozen, err := tickFighter(fighterPrograms{prog, prog}, build(3), fighter, evaluator.Opponent{}, input.TickInput{}, 1, testBounds(), [2]float64{}, 1, 0)
 	if err != nil {
 		t.Fatalf("tickFighter (frozen): %v", err)
 	}
