@@ -44,7 +44,7 @@ func applyBindToParent(ctrl cns.Controller, ctx evaluator.Context, root bool) (e
 			if i > 1 || part == "" {
 				break
 			}
-			v, err := evaluator.EvaluateMut(part, &ctx)
+			v, err := evalPart(ctrl, "pos", part, &ctx)
 			if err != nil {
 				return ctx, err
 			}

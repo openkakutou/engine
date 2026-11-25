@@ -39,7 +39,7 @@ func applyHelper(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 	// helper_keyctrl).
 	if raw, ok := ctrl.Parameters["keyctrl"]; ok {
 		for _, part := range evaluator.SplitList(raw) {
-			v, err := evaluator.EvaluateMut(part, &ctx)
+			v, err := evalPart(ctrl, "keyctrl", part, &ctx)
 			if err != nil {
 				return ctx, err
 			}
@@ -56,7 +56,7 @@ func applyHelper(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context,
 			if i > 1 || part == "" {
 				break
 			}
-			v, err := evaluator.EvaluateMut(part, &ctx)
+			v, err := evalPart(ctrl, "pos", part, &ctx)
 			if err != nil {
 				return ctx, err
 			}

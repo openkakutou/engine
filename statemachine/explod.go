@@ -66,7 +66,7 @@ func transOf(ctrl cns.Controller, ctx *evaluator.Context) (string, [2]int, bool,
 			if i > 1 || part == "" {
 				break
 			}
-			v, err := evaluator.EvaluateMut(part, ctx)
+			v, err := evalPart(ctrl, "alpha", part, ctx)
 			if err != nil {
 				return "", [2]int{}, false, err
 			}
@@ -167,7 +167,7 @@ func readExplod(ctrl cns.Controller, ctx *evaluator.Context, e *evaluator.Explod
 			if i > 1 || part == "" {
 				break
 			}
-			v, err := evaluator.EvaluateMut(part, ctx)
+			v, err := evalPart(ctrl, p.key, part, ctx)
 			if err != nil {
 				return err
 			}

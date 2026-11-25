@@ -69,7 +69,7 @@ func applyWidth(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Context, 
 		if i > 1 {
 			break
 		}
-		v, err := evaluator.EvaluateMut(part, &ctx)
+		v, err := evalPart(ctrl, "edge", part, &ctx)
 		if err != nil {
 			return ctx, err
 		}
@@ -110,7 +110,7 @@ func applyScreenBound(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Con
 			if i > 1 || part == "" {
 				break
 			}
-			m, err := evaluator.EvaluateMut(part, &ctx)
+			m, err := evalPart(ctrl, "movecamera", part, &ctx)
 			if err != nil {
 				return ctx, err
 			}

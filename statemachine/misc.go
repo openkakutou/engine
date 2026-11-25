@@ -30,7 +30,7 @@ func applyVarRandom(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Conte
 			if part == "" || len(bounds) == 2 {
 				break
 			}
-			b, err := evaluator.EvaluateMut(part, &ctx)
+			b, err := evalPart(ctrl, "range", part, &ctx)
 			if err != nil {
 				return ctx, err
 			}
@@ -108,7 +108,7 @@ func applyAttackDist(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Cont
 		if i > 1 || part == "" {
 			break
 		}
-		v, err := evaluator.EvaluateMut(part, &ctx)
+		v, err := evalPart(ctrl, "x", part, &ctx)
 		if err != nil {
 			return ctx, err
 		}

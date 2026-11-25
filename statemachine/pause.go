@@ -69,7 +69,7 @@ func applyPause(ctrl cns.Controller, ctx evaluator.Context, super bool) (evaluat
 		if len(raw) > 1 && (raw[0] == 'S' || raw[0] == 's') {
 			r.AnimCommon, raw = false, raw[1:]
 		}
-		v, err := evaluator.EvaluateMut(raw, &ctx)
+		v, err := evalPart(ctrl, "anim", raw, &ctx)
 		if err != nil {
 			return ctx, err
 		}
@@ -80,7 +80,7 @@ func applyPause(ctrl cns.Controller, ctx evaluator.Context, super bool) (evaluat
 			if i > 1 || part == "" {
 				break
 			}
-			v, err := evaluator.EvaluateMut(part, &ctx)
+			v, err := evalPart(ctrl, "pos", part, &ctx)
 			if err != nil {
 				return ctx, err
 			}

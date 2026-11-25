@@ -46,7 +46,7 @@ func applyAngleDraw(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Conte
 			if i > 1 || part == "" {
 				break
 			}
-			s, err := evaluator.EvaluateMut(part, &ctx)
+			s, err := evalPart(ctrl, "scale", part, &ctx)
 			if err != nil {
 				return ctx, err
 			}

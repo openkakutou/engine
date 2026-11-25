@@ -75,6 +75,16 @@ func evalOptional(ctrl cns.Controller, key string, ctx *evaluator.Context) (valu
 	return v.Float(), true, nil
 }
 
+// evalPart evaluates part, one item of ctrl's list parameter key, with an
+// error naming the controller and the parameter as evalOptional's does.
+func evalPart(ctrl cns.Controller, key, part string, ctx *evaluator.Context) (evaluator.Value, error) {
+	v, err := evaluator.EvaluateMut(part, ctx)
+	if err != nil {
+		return v, fmt.Errorf("%s %s %q: %w", ctrl.Type, key, part, err)
+	}
+	return v, nil
+}
+
 // evalRequired is evalOptional for a parameter the controller cannot run
 // without (Ikemen GO's compiler marks it required).
 func evalRequired(ctrl cns.Controller, key string, ctx *evaluator.Context) (float64, error) {

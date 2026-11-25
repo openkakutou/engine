@@ -1,6 +1,7 @@
 package zssexec
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -302,6 +303,10 @@ func TestStep_PersistentBeforeIf_GatesTheConditionToo(t *testing.T) {
 
 func TestCompile_BadBodies_ReportOneErrorNamingTheBlockAndTheText(t *testing.T) {
 	long := strings.Repeat("persistent(1) { }\n", evaluator.MaxPersistent+1)
+	var manyLets strings.Builder
+	for i := range maxLocals + 1 {
+		fmt.Fprintf(&manyLets, "let v%d = %d;\n", i, i)
+	}
 	for _, tc := range []struct {
 		name   string
 		blocks []string
@@ -325,6 +330,30 @@ func TestCompile_BadBodies_ReportOneErrorNamingTheBlockAndTheText(t *testing.T) 
 		{"duplicate controller key", []string{"[Statedef 0]\nvarSet{v: 0; v: 1}"}, []string{"Statedef 0", "duplicate"}},
 		{"duplicate parameter", []string{"[Function F(a, a)]"}, []string{"Function f", "duplicate", "a"}},
 		{"unused expression", []string{"[Statedef 0]\nvar(0) = 1;"}, []string{"Statedef 0", "unused value", "var(0) = 1"}},
+		{"return value named _", []string{"[Function F() _]"}, []string{"Function f", "return value name is _"}},
+		{"duplicate return value", []string{"[Function F() r, r]"}, []string{"Function f", "duplicate", "return values"}},
+		{"call without a name", []string{"[Statedef 0]\ncall (1);"}, []string{"Statedef 0", "empty variable name"}},
+		{"invalid let name", []string{"[Statedef 0]\nlet 1a = 1;"}, []string{"Statedef 0", "invalid variable name", "1a"}},
+		{"too many locals", []string{"[Statedef 0]\n" + manyLets.String()}, []string{"Statedef 0", "local variable limit"}},
+		{"stray closing brace", []string{"[Statedef 0]\n}"}, []string{"Statedef 0", "no open block"}},
+		{"if without brace", []string{"[Statedef 0]\nif 1;"}, []string{"Statedef 0", "is not followed by"}},
+		{"if without condition", []string{"[Statedef 0]\nif {\n}"}, []string{"Statedef 0", "without a condition"}},
+		{"attributes without block", []string{"[Statedef 0]\nignoreHitPause varSet{v: 0; value: 1}"}, []string{"Statedef 0", "after the block attributes"}},
+		{"persistent without count", []string{"[Statedef 0]\npersistent { }"}, []string{"Statedef 0", "followed by (N)"}},
+		{"persistent unclosed", []string{"[Statedef 0]\npersistent(1 { }"}, []string{"Statedef 0", "missing its \")\""}},
+		{"persistent not an integer", []string{"[Statedef 0]\npersistent(a) { }"}, []string{"Statedef 0", "not an integer"}},
+		{"let without equals", []string{"[Statedef 0]\nlet a;"}, []string{"Statedef 0", "has no \"=\""}},
+		{"duplicate let name", []string{"[Statedef 0]\nlet a, a = 1, 2;"}, []string{"Statedef 0", "duplicate name", "a"}},
+		{"let without semicolon", []string{"[Statedef 0]\nlet a = 1"}, []string{"Statedef 0", "missing its \";\""}},
+		{"let with empty expression", []string{"[Statedef 0]\nlet a, b = 1, ;"}, []string{"Statedef 0", "empty expression"}},
+		{"call without semicolon", []string{"[Function G()]", "[Statedef 0]\ncall G()"}, []string{"Statedef 0", "call G()", "missing its \";\""}},
+		{"call without parentheses", []string{"[Function G()]", "[Statedef 0]\ncall G;"}, []string{"Statedef 0", "not of the form"}},
+		{"call with trailing tokens", []string{"[Function G()]", "[Statedef 0]\ncall G());"}, []string{"Statedef 0", "tokens after"}},
+		{"call with empty argument", []string{"[Function G(a, b)]", "[Statedef 0]\ncall G(1, );"}, []string{"Statedef 0", "empty argument"}},
+		{"brace after statement", []string{"[Statedef 0]\nsysVar(0) := 1 {\n}"}, []string{"Statedef 0", "unexpected \"{\""}},
+		{"controller unclosed", []string{"[Statedef 0]\nvarSet{v: 0;"}, []string{"Statedef 0", "varSet", "missing \"}\""}},
+		{"controller without colon", []string{"[Statedef 0]\nvarSet{v 0; value: 1}"}, []string{"Statedef 0", "varSet", "key: value"}},
+		{"controller parameter unterminated", []string{"[Statedef 0]\nvarSet{v: 0"}, []string{"Statedef 0", "varSet", "parameter"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			errs := mustParseScript(t, tc.blocks...).Errors()

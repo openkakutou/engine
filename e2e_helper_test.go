@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
 	"testing"
@@ -124,7 +125,13 @@ func randomRyuMatch(t *testing.T, start uint32) {
 			break
 		}
 	}
-	t.Logf("seed %d: unsupported controllers seen: %v", start, unsupported)
+	// Only the debug clipboard controllers, which draw nothing in a match,
+	// are left unsupported; a new entry is a controller Ryu runs that the
+	// engine skips.
+	want := map[string]bool{"appendtoclipboard": true, "displaytoclipboard": true}
+	if !maps.Equal(unsupported, want) {
+		t.Errorf("seed %d: unsupported controllers = %v, want %v", start, unsupported, want)
+	}
 }
 
 // Down, down-forward, forward and x make the corpus Ryu (SVC) throw his

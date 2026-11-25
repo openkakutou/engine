@@ -65,7 +65,7 @@ func applyTargetOp(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Contex
 			if part == "" {
 				break
 			}
-			v, err := evaluator.EvaluateMut(part, &ctx)
+			v, err := evalPart(ctrl, "pos", part, &ctx)
 			if err != nil {
 				return ctx, err
 			}

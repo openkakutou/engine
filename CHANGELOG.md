@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.14] - 2026-11-25
+
+### Fixed
+- A list parameter that does not evaluate (`pos`, `velocity`, `accel`, `offset`, `scale`, `alpha`, `edge`, `movecamera`, `keyctrl`, `range`, AttackDist's `x`) or a SuperPause `anim` that does not evaluate fails with an error naming the controller and the parameter, like every other parameter, instead of a bare "unexpected end of expression".
+
 ## [2.77.13] - 2026-11-25
 
 ### Fixed

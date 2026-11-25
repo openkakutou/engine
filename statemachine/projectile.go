@@ -61,7 +61,7 @@ func applyProjectile(ctrl cns.Controller, ctx evaluator.Context) (evaluator.Cont
 			if i > 1 || part == "" {
 				break
 			}
-			v, err := evaluator.EvaluateMut(part, &ctx)
+			v, err := evalPart(ctrl, p.key, part, &ctx)
 			if err != nil {
 				return ctx, err
 			}
