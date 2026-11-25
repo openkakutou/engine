@@ -185,7 +185,7 @@ func (p FighterProgram) hasState(number int) bool {
 type stateStep struct {
 	Context evaluator.Context
 	// HasHitDef reports whether a HitDef controller applied; HitDef is the
-	// first one, the same shape for both formats.
+	// last one that ran, the same shape for both formats.
 	HasHitDef    bool
 	HitDef       cns.Controller
 	Sounds       []evaluator.SoundEvent
@@ -735,12 +735,6 @@ type fighterTickOutput struct {
 // one, in Ikemen GO's order (char.go actionRun).
 var specialStates = [...]int{-3, -2, -1}
 
-// tickFighter advances one fighter's own per-tick simulation -- input
-// recognition, CNS state-machine execution, and current-frame resolution
-// -- given fighter, that fighter's live match.FighterState as of the start
-// of this tick (position/facing/health, sourced from match.MatchState, the
-// single source of truth Tick reconciles runtime.Context against every
-// call).
 // inGuardState is Ikemen GO's inGuardState (char.go:9958-9961): the guard
 // start, guarding, guard end and guard hit states.
 func inGuardState(no int) bool {
@@ -1013,6 +1007,12 @@ func screenEdges(cfg TickConfig) [2]float64 {
 	return [2]float64{-math.MaxFloat32, math.MaxFloat32}
 }
 
+// tickFighter advances one fighter's own per-tick simulation -- input
+// recognition, CNS state-machine execution, and current-frame resolution
+// -- given fighter, that fighter's live match.FighterState as of the start
+// of this tick (position/facing/health, sourced from match.MatchState, the
+// single source of truth Tick reconciles runtime.Context against every
+// call).
 func tickFighter(progs fighterPrograms, runtime FighterRuntime, fighter match.FighterState, opponent evaluator.Opponent, in input.TickInput, tick int, bounds *stage.StageBoundaries, screen [2]float64, round int, seed int32) (fighterTickOutput, error) {
 	ctx := runtime.Context
 	ctx.ScreenLeft, ctx.ScreenRight = screen[0], screen[1]
@@ -1408,9 +1408,10 @@ func hasAnimation(prog FighterProgram, number int) bool {
 // asserted are the AssertSpecial flags of the previous tick: nohardcodedkeys
 // turns them all off, nojump, nocrouch, nostand, nowalk and nobrake one
 // each.
-// shortcut: there is no guard yet, so the guard entry (120) never fires and
-// back does not cancel forward (char.go:12306, 12332); the air jump (45) and
-// the round-over input lock (char.go:12309) are not done.
+// shortcut: within guard distance, back still counts against forward for the
+// walk (char.go:12332), and the guard entry does not check for a lying
+// fighter (char.go:12306); the air jump (45) and the round-over jump lock
+// (char.go:12309) are not done.
 func basicActions(ctx *evaluator.Context, prog FighterProgram, d input.Directions, asserted evaluator.AssertFlags) {
 	if asserted.Has("nohardcodedkeys") {
 		return

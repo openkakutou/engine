@@ -81,7 +81,7 @@ func spawnProjectiles(thrower *evaluator.Context, rt *FighterRuntime) {
 // or removed one switches to its hit or remove animation (none: it goes at
 // once) and its remove velocity, and goes when that animation ends; then
 // every projectile moves and its velocity takes its acceleration.
-// shortcut: heightbound, depth and hit pause are not read.
+// shortcut: heightbound and depth are not read.
 func updateProjectiles(rt *FighterRuntime, prog FighterProgram, screen [2]float64, cfg TickConfig) {
 	anims := prog.animationTable()
 	kept := rt.Projectiles[:0]

@@ -279,8 +279,6 @@ type Context struct {
 	// (Ikemen GO c.trans, back to default each unfrozen tick).
 	Trans      string
 	TransAlpha [2]int
-	// AttackMul is an AttackMulSet's damage multiplier, while HasAttackMul
-	// (Ikemen GO attackMul[0], 1 otherwise).
 	// Bind is the helper's BindToParent or BindToRoot.
 	Bind HelperBind
 	// Angle is the fighter's drawing angle in degrees (AngleSet, AngleAdd,
@@ -294,7 +292,9 @@ type Context struct {
 	DrawOffset [2]float64
 	// ParentVarOps are the ParentVarSet and ParentVarAdd writes a helper
 	// made this tick, for the engine to apply to its parent.
-	ParentVarOps   []VarOp
+	ParentVarOps []VarOp
+	// AttackMul is an AttackMulSet's damage multiplier, while HasAttackMul
+	// (Ikemen GO attackMul[0], 1 otherwise).
 	AttackMul      float64
 	HasAttackMul   bool
 	PushPriority   int
@@ -317,8 +317,8 @@ type Context struct {
 	// MoveContactTime is Ikemen GO's |mctime|: 0 until this fighter's HitDef
 	// lands, then 1 from the tick it lands, growing by one after each unfrozen
 	// tick and reset when a state is entered (unless its StateDef says
-	// movehitpersist). MoveContact and MoveHit read it; MoveGuarded and
-	// MoveReversed read 0 until guarding and ReversalDef exist.
+	// movehitpersist). MoveContact reads it, MoveHit and MoveGuarded too as
+	// ContactGuarded says; MoveReversed reads MoveReversedTime.
 	MoveContactTime int
 	// HitDefAttr is the attr of the fighter's current HitDef, parsed by
 	// ParseAttr; HitDefAttr reads it while the move type is A.

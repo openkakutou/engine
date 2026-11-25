@@ -445,9 +445,6 @@ func evalCall(n callNode, ctx *Context) (Value, error) {
 	}
 }
 
-// evalGetHitVar reads GetHitVar(name). Like Command, its argument is a name
-// read as written, never evaluated; an unknown name is an error rather than
-// a silent 0.
 // unknownGetHitVarError is evalGetHitVar's rejection of a variable it does
 // not handle; IsKnownTrigger recognizes it by type.
 type unknownGetHitVarError struct{ name string }
@@ -456,6 +453,9 @@ func (e *unknownGetHitVarError) Error() string {
 	return fmt.Sprintf("evaluator: GetHitVar: unknown variable %q", e.name)
 }
 
+// evalGetHitVar reads GetHitVar(name). Like Command, its argument is a name
+// read as written, never evaluated; an unknown name is an error rather than
+// a silent 0.
 func evalGetHitVar(n callNode, ctx *Context) (Value, error) {
 	if len(n.args) != 1 {
 		return Value{}, fmt.Errorf("evaluator: GetHitVar() expects 1 argument, got %d", len(n.args))

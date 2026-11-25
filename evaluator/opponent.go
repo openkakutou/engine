@@ -106,9 +106,9 @@ func (o *Opponent) context() Context {
 }
 
 // redirectKinds are the redirection keywords the parser knows, true for those
-// the engine answers. The others parse and then fail with "not supported yet":
-// there are no helpers yet (backlog item 029), so a redirection to one cannot
-// be answered, and reading 0 would be wrong.
+// the engine answers. stateowner parses and then fails with "not supported
+// yet": the context does not carry who owns the state being run, and reading
+// 0 would be wrong.
 var redirectKinds = map[string]bool{
 	"p2": true, "enemy": true, "enemynear": true, "target": true,
 	"root": true, "parent": true, "helper": true, "playerid": true,

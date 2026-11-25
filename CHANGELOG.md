@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [2.77.13] - 2026-11-25
+
+### Fixed
+- Doc comments say what the engine does: the guard, helpers, custom states, MoveGuarded / MoveReversed, projectile hit pause, paused explods and the round's wait for settled fighters are no longer described as missing; the kept HitDef is the last one that ran; misplaced doc comments sit on their own declarations again.
+
 ## [2.77.12] - 2026-11-25
 
 ### Fixed

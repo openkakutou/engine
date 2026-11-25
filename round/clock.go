@@ -76,8 +76,7 @@ const (
 // decided; then it counts down through RoundState 3 and 4, asking for the
 // poses over.wintime ticks into RoundState 4 and ending the round
 // over.time ticks after that.
-// shortcut: the KO slow motion and the waits for fighters still moving are
-// not modelled.
+// shortcut: the KO slow motion is not modelled.
 //
 // settled reports every fighter at rest (in control, idle and standing, or
 // knocked out): RoundState 4 waits for it (system.go:3441-3466).

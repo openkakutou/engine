@@ -55,7 +55,7 @@ type Result struct {
 	// invalid state N (from state M)"); nil when there were none.
 	Warnings []string
 	// HasHitDef reports whether a HitDef controller ran during this call;
-	// HitDef is the first one, with every parameter that reads a local
+	// HitDef is the last one that ran, with every parameter that reads a local
 	// ($name) already replaced by its value (see hitDefParams). The root
 	// package acts on it as on a .cns HitDef.
 	HasHitDef bool

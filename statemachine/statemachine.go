@@ -329,8 +329,8 @@ type ControllerHandler func(ctrl cns.Controller, ctx evaluator.Context) (evaluat
 
 // controllerHandlers maps a lower-cased controller type name (excluding
 // ChangeState, see ControllerHandler's doc comment) to the handler that
-// applies its effect. Registered once below via RegisterController for the
-// two types this package implements today -- growing this set is an
+// applies its effect, each type registering itself through
+// RegisterController from its own file's init -- growing this set is an
 // addition to this registration, never a change to ApplyController's own
 // code (unlike a switch statement, which would need a new case per type).
 // Unsynchronized like this package's other package-level state: engine
@@ -398,9 +398,9 @@ func RegisterController(controllerType string, handler ControllerHandler) {
 }
 
 // isStateChange reports whether a controller type (any case) changes the
-// state: ChangeState, or SelfState, which Ikemen GO runs within the
-// fighter's own states (bytecode.go selfState.Run) -- the engine has no
-// custom states, so it is ChangeState.
+// state: ChangeState, or SelfState, a ChangeState that also takes the
+// fighter back to its own states from a custom state (bytecode.go
+// selfState.Run, see applyChangeState).
 func isStateChange(controllerType string) bool {
 	return strings.EqualFold(controllerType, ControllerTypeChangeState) || strings.EqualFold(controllerType, "SelfState")
 }

@@ -44,8 +44,8 @@ type Explod struct {
 // live explod: removed past its remove time or, at -2, its animation's end,
 // or when its owner is hit with removeongethit; while bound it follows its
 // owner, then it moves by its velocity, which grows by its acceleration.
-// shortcut: friction, explods paused by Pause or SuperPause, and binding to
-// another fighter than the owner are not modelled.
+// shortcut: friction and binding to another fighter than the owner (a
+// postype other than p1) are not modelled.
 func updateExplods(rt *FighterRuntime, prog FighterProgram, paused bool) {
 	anims := prog.animationTable()
 	kept := rt.Explods[:0]
